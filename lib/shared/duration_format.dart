@@ -13,20 +13,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
-
-import 'package:flind_player/app/app.dart';
-
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  // On Linux/Windows, just_audio is backed by media_kit — must be initialized
-  // before use.
-  if (Platform.isLinux || Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized();
+/// Formats a track [duration] as `m:ss`.
+///
+/// Returns `--:--` when the duration is unknown or negative, so widgets can
+/// show a stable placeholder without branching on null.
+String formatTrackDuration(Duration? duration) {
+  if (duration == null || duration < Duration.zero) {
+    return '--:--';
   }
-  runApp(const ProviderScope(child: FlindApp()));
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }

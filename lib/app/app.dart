@@ -13,20 +13,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
-import 'package:flind_player/app/app.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/features/home/home_shell.dart';
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  // On Linux/Windows, just_audio is backed by media_kit — must be initialized
-  // before use.
-  if (Platform.isLinux || Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized();
+/// Root application widget.
+class FlindApp extends StatelessWidget {
+  const FlindApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flind Player',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      debugShowCheckedModeBanner: false,
+      home: const HomeShell(),
+    );
   }
-  runApp(const ProviderScope(child: FlindApp()));
 }

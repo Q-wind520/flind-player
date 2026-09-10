@@ -13,20 +13,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
+import 'package:flutter_riverpod/misc.dart';
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
-
-import 'package:flind_player/app/app.dart';
-
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  // On Linux/Windows, just_audio is backed by media_kit — must be initialized
-  // before use.
-  if (Platform.isLinux || Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized();
-  }
-  runApp(const ProviderScope(child: FlindApp()));
-}
+/// Production Riverpod overrides.
+///
+/// Returns an empty list for M0; platform-specific overrides get added later.
+List<Override> buildApplicationOverrides() => const <Override>[];

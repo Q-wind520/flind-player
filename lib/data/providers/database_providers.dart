@@ -13,20 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
-
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
-import 'package:flind_player/app/app.dart';
+import 'package:flind_player/core/repositories/music_library_repository.dart';
+import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  // On Linux/Windows, just_audio is backed by media_kit — must be initialized
-  // before use.
-  if (Platform.isLinux || Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized();
-  }
-  runApp(const ProviderScope(child: FlindApp()));
-}
+/// The application-wide SQLite database.
+final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  final db = AppDatabase();
+  ref.onDispose(db.close);
+  return db;
+});
+
+/// Music library persistence.
+final musicLibraryRepositoryProvider = Provider<MusicLibraryRepository>(
+  (ref) => DriftMusicLibraryRepository(ref.watch(appDatabaseProvider)),
+);
