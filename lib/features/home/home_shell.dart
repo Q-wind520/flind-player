@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/player/player_screen.dart';
+import 'package:flind_player/features/search/search_screen.dart';
 
 /// Adaptive application shell.
 ///
@@ -36,6 +37,7 @@ class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
   static const List<Widget> _screens = <Widget>[
+    SearchScreen(),
     LibraryScreen(),
     PlayerScreen(),
   ];
@@ -43,9 +45,14 @@ class _HomeShellState extends State<HomeShell> {
   static const List<NavigationDestination> _destinations =
       <NavigationDestination>[
         NavigationDestination(
+          icon: Icon(Icons.search),
+          selectedIcon: Icon(Icons.search),
+          label: '搜索',
+        ),
+        NavigationDestination(
           icon: Icon(Icons.library_music_outlined),
           selectedIcon: Icon(Icons.library_music),
-          label: '音乐库',
+          label: '曲库',
         ),
         NavigationDestination(
           icon: Icon(Icons.play_circle_outline),
@@ -77,9 +84,14 @@ class _HomeShellState extends State<HomeShell> {
                     labelType: NavigationRailLabelType.all,
                     destinations: const <NavigationRailDestination>[
                       NavigationRailDestination(
+                        icon: Icon(Icons.search),
+                        selectedIcon: Icon(Icons.search),
+                        label: Text('搜索'),
+                      ),
+                      NavigationRailDestination(
                         icon: Icon(Icons.library_music_outlined),
                         selectedIcon: Icon(Icons.library_music),
-                        label: Text('音乐库'),
+                        label: Text('曲库'),
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.play_circle_outline),

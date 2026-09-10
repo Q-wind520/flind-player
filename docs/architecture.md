@@ -153,14 +153,15 @@ flind_player/
 
 ```dart
 // core/sources/music_source.dart
+// 注：playlists() 与 SearchPage 分页模型推迟到需要时再引入；
+// M1 实现为 List<Track> 直返（见 lib/data/sources/bilibili/bili_source.dart）。
 abstract interface class MusicSource {
   String get id;                        // 'bilibili' | 'local'
-  SourceCapabilities get capabilities;  // canLogin / canSearch / canStreamDirect ...
+  SourceCapabilities get capabilities;  // search / streamDirect / login
 
-  Future<SearchPage> search(String query, {int page});
+  Future<List<Track>> search(String query, {int page = 1});
   Future<Track> fetchTrack(SourceTrackId id);
   Future<StreamInfo> resolveStream(Track track);
-  Future<List<Playlist>> playlists();
 }
 
 class StreamInfo {
@@ -296,16 +297,16 @@ Track → PlaybackController.playQueue(queue)
 
 ## 10. 里程碑
 
-| 阶段 | 内容 | 验收标准 |
-|---|---|---|
-| **M0 骨架** | 目录结构 + Riverpod 装配 + drift + 本地文件播放 | Linux/Android 能播放本地 MP3 |
-| **M1 Bilibili 播放** | WBI + view + playurl + 直连播放 + 限流 | 搜索并播放一个 BV，带 Referer 正常出声 |
-| **M2 曲库** | 本地扫描 + 在线元数据入库 + 统一列表/搜索 | 混合列表可查询，FTS 生效 |
-| **M3 离线缓存** | 下载队列 + LRU 淘汰 + 1 GiB 默认上限 | 断网可播已缓存曲目；超限自动淘汰 |
-| **M4 系统集成** | audio_service + 通知栏 + MPRIS + 托盘 | 后台/桌面媒体键可控 |
-| **M5 播放列表/收藏** | 队列持久化、收藏、Bilibili 收藏夹 | 重启后恢复队列与收藏 |
-| **M6 打磨** | M3 自适应、设置、错误处理、登录 | 桌面/移动自适应无布局问题 |
-| **v2 Web** | JSON 代理 + 匿名能力 | 见 `bilibili-source.md` §9 |
+| 阶段 | 内容 | 验收标准 | 状态 |
+|---|---|---|---|
+| **M0 骨架** | 目录结构 + Riverpod 装配 + drift + 本地文件播放 | Linux/Android 能播放本地 MP3 | 已完成 |
+| **M1 Bilibili 播放** | WBI + view + playurl + 直连播放 + 限流 + 搜索 UI | 搜索并播放一个 BV，带 Referer 正常出声 | 已完成 |
+| **M2 曲库** | 本地扫描 + 在线元数据入库 + 统一列表/搜索 | 混合列表可查询，FTS 生效 | 待开始 |
+| **M3 离线缓存** | 下载队列 + LRU 淘汰 + 1 GiB 默认上限 | 断网可播已缓存曲目；超限自动淘汰 | 待开始 |
+| **M4 系统集成** | audio_service + 通知栏 + MPRIS + 托盘 | 后台/桌面媒体键可控 | 待开始 |
+| **M5 播放列表/收藏** | 队列持久化、收藏、Bilibili 收藏夹 | 重启后恢复队列与收藏 | 待开始 |
+| **M6 打磨** | M3 自适应、设置、错误处理、登录 | 桌面/移动自适应无布局问题 | 待开始 |
+| **v2 Web** | JSON 代理 + 匿名能力 | 见 `bilibili-source.md` §9 | 推迟 |
 
 > 歌词（D10）不在 MVP 里程碑内，保留抽象待后续插入。
 

@@ -19,12 +19,21 @@ import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
 import 'package:flind_player/data/playback/just_audio_playback_controller.dart';
+import 'package:flind_player/data/providers/bilibili_providers.dart';
+import 'package:flind_player/data/sources/composite_stream_resolver.dart';
 import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
 
-/// Resolves tracks to playable streams. M0 only knows about local files.
-final streamResolverProvider = Provider<StreamResolver>(
-  (ref) => const LocalStreamResolver(),
-);
+/// Resolves tracks to playable streams.
+///
+/// Local files go through [LocalStreamResolver]; online sources register
+/// themselves in the [CompositeStreamResolver] (Bilibili for M1).
+final streamResolverProvider = Provider<StreamResolver>((ref) {
+  final biliSource = ref.watch(biliSourceProvider);
+  return CompositeStreamResolver(
+    localResolver: const LocalStreamResolver(),
+    sources: <String, StreamResolver>{biliSource.id: biliSource},
+  );
+});
 
 /// The application's playback engine.
 final playbackControllerProvider = Provider<PlaybackController>((ref) {

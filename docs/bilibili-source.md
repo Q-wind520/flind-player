@@ -57,7 +57,18 @@
 **算法：**
 
 1. `GET /x/web-interface/nav` → `data.wbi_img.img_url` / `sub_url`，取文件名（不含扩展名）得 `img_key` / `sub_key`。未登录时 `code:-101` 但 key 仍返回。
-2. `mixin_key = reorder(img_key + sub_key, MIXIN_KEY_ENC_TAB)[:32]`（64 项重排表）
+2. `mixin_key = reorder(img_key + sub_key, MIXIN_KEY_ENC_TAB)[:32]`
+
+   ```dart
+   const mixinKeyEncTab = <int>[
+     46, 47, 18,  2, 53,  8, 23, 32, 15, 50, 10, 31, 58,  3, 45, 35, 27, 43,
+      5, 49, 33,  9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48,  7, 16,
+     24, 55, 40, 61, 26, 17,  0,  1, 60, 51, 30,  4, 22, 25, 54, 21, 56, 59,
+      6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+   ];
+   // mixin_key = mixinKeyEncTab.map((i) => (img_key + sub_key)[i]).join().substring(0, 32)
+   ```
+
 3. `w_rid = md5(sorted_query_string_with_wts + mixin_key)`；请求追加 `w_rid` 与 `wts`（unix 秒）
    - 参数值需过滤 `!'()*` 字符
    - URL 编码对齐 JS `encodeURIComponent`（大写十六进制，`%20` 而非 `+`）
