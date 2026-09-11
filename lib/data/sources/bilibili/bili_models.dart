@@ -204,6 +204,45 @@ class FavResourceDto {
   }
 }
 
+/// One page from `/x/v3/fav/resource/list`.
+///
+/// Entries live under `data.medias[]`; `data.has_more` reports whether another
+/// page exists and `data.info.media_count` is the folder's total entry count.
+/// A missing folder yields `data: null`, which callers treat as an empty
+/// terminal page.
+class FavResourcePageDto {
+  final List<FavResourceDto> medias;
+  final bool hasMore;
+  final int mediaCount;
+
+  const FavResourcePageDto({
+    this.medias = const <FavResourceDto>[],
+    this.hasMore = false,
+    this.mediaCount = 0,
+  });
+
+  factory FavResourcePageDto.fromJson(Map<String, dynamic> json) {
+    final rawMedias = json['medias'];
+    final medias = rawMedias is List
+        ? rawMedias
+              .whereType<Map>()
+              .map((e) => FavResourceDto.fromJson(Map<String, dynamic>.from(e)))
+              .toList(growable: false)
+        : const <FavResourceDto>[];
+    final info = json['info'];
+    // `has_more` is a boolean, but tolerate the `0`/`1` spelling some payloads
+    // use at this untyped network boundary.
+    final rawHasMore = json['has_more'];
+    return FavResourcePageDto(
+      medias: medias,
+      hasMore: rawHasMore is bool
+          ? rawHasMore
+          : rawHasMore is num && rawHasMore != 0,
+      mediaCount: info is Map ? (info['media_count'] as num?)?.toInt() ?? 0 : 0,
+    );
+  }
+}
+
 /// Normalizes a JSON id that may arrive as a number or a string.
 String _idToString(Object? raw) {
   if (raw is num) return raw.toInt().toString();

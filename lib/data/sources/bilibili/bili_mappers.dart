@@ -116,6 +116,31 @@ Track favoriteResourceToTrack(FavResourceDto resource) => Track(
   return (tracks: List.unmodifiable(tracks), skipped: skipped);
 }
 
+/// Maps one parsed favourite-resource page to a [RemoteTrackPage].
+///
+/// [FavResourcePageDto.hasMore] carries through unchanged so callers know
+/// whether to request another page. [RemoteTrackPage.totalCount] prefers the
+/// folder's `info.media_count` and falls back to the number of playable tracks
+/// when the server omits it. The number of dropped entries is returned alongside
+/// so callers can report it.
+({RemoteTrackPage page, int skipped}) favoriteResourcePageToRemoteTrackPage(
+  FavResourcePageDto response, {
+  required int pageNumber,
+}) {
+  final result = favoriteResourcesToTracks(response.medias);
+  return (
+    page: RemoteTrackPage(
+      tracks: result.tracks,
+      page: pageNumber,
+      hasMore: response.hasMore,
+      totalCount: response.mediaCount > 0
+          ? response.mediaCount
+          : result.tracks.length,
+    ),
+    skipped: result.skipped,
+  );
+}
+
 /// Maps a search result item to a [Track].
 ///
 /// The cid is unknown at search time, so [biliUnknownCid] is used as a

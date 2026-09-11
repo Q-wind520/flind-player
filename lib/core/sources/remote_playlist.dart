@@ -56,6 +56,33 @@ class RemotePlaylist {
       'RemotePlaylist(id: $id, title: $title, trackCount: $trackCount)';
 }
 
+/// One page of tracks fetched from a [RemotePlaylistSource].
+///
+/// Carries enough metadata for the UI to paginate: [hasMore] tells it whether a
+/// follow-up request is worthwhile, and [totalCount] is the source's reported
+/// entry count when known.
+@immutable
+class RemoteTrackPage {
+  final List<Track> tracks;
+
+  /// 1-based page number this instance was fetched from.
+  final int page;
+
+  /// Whether the source reports another page after this one.
+  final bool hasMore;
+
+  /// The source's total entry count (`info.media_count` for Bilibili), falling
+  /// back to [tracks]`.length` when the source does not report one.
+  final int totalCount;
+
+  const RemoteTrackPage({
+    required this.tracks,
+    required this.page,
+    required this.hasMore,
+    required this.totalCount,
+  });
+}
+
 /// A source that exposes playlists owned by an online account.
 ///
 /// Implementations are anonymous by design: only playlists the account has
@@ -69,5 +96,8 @@ abstract interface class RemotePlaylistSource {
   Future<List<RemotePlaylist>> playlistsForUser(String userId);
 
   /// Tracks inside [playlistId], newest first.
-  Future<List<Track>> playlistTracks(String playlistId, {int page = 1});
+  ///
+  /// [page] is 1-based; the returned [RemoteTrackPage.hasMore] tells callers
+  /// whether requesting `page + 1` is worthwhile.
+  Future<RemoteTrackPage> playlistTracks(String playlistId, {int page = 1});
 }

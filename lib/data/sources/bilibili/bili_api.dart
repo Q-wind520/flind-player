@@ -159,8 +159,9 @@ class BiliApi {
   /// Fetches one page of [mediaId]'s resources, newest first.
   ///
   /// Anonymous endpoint: no WBI signature and no cookie. The payload is
-  /// `data.medias[]`, or `data: null` for a missing or empty folder.
-  Future<List<FavResourceDto>> favoriteResources(
+  /// `data.medias[]` plus the `data.has_more` and `data.info.media_count`
+  /// pagination fields, or `data: null` for a missing or empty folder.
+  Future<FavResourcePageDto> favoriteResources(
     String mediaId, {
     int page = 1,
   }) async {
@@ -177,13 +178,8 @@ class BiliApi {
     );
 
     final data = json['data'];
-    final medias = data is Map ? data['medias'] : null;
-    if (medias is! List) return const <FavResourceDto>[];
-
-    return medias
-        .whereType<Map>()
-        .map((e) => FavResourceDto.fromJson(Map<String, dynamic>.from(e)))
-        .toList(growable: false);
+    if (data is! Map) return const FavResourcePageDto();
+    return FavResourcePageDto.fromJson(Map<String, dynamic>.from(data));
   }
 
   /// Attaches the cached risk-control cookie exactly once.

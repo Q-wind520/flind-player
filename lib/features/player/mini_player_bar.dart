@@ -25,10 +25,16 @@ import 'package:flind_player/features/player/player_sheet.dart';
 /// A compact bar docked above the navigation that shows the currently playing
 /// track and basic transport controls.
 ///
-/// When nothing is playing, renders [SizedBox.shrink]. Tapping the bar opens
-/// the full player via [PlayerSheet.showPlayerSheet].
+/// When nothing is playing, renders [SizedBox.shrink]. Tapping the bar invokes
+/// [onTap] if provided, otherwise opens the full player via
+/// [PlayerSheet.showPlayerSheet].
 class MiniPlayerBar extends ConsumerWidget {
-  const MiniPlayerBar({super.key});
+  const MiniPlayerBar({super.key, this.onTap});
+
+  /// Optional callback when the bar area (excluding transport buttons) is
+  /// tapped.  The shell supplies this to open the docked panel on wide screens
+  /// while the default opens the modal bottom sheet.
+  final VoidCallback? onTap;
 
   /// A well-known key so tests can tap the bar area to open the sheet.
   static const Key barKey = Key('mini_player_bar');
@@ -62,7 +68,7 @@ class MiniPlayerBar extends ConsumerWidget {
             ),
           InkWell(
             key: barKey,
-            onTap: () => PlayerSheet.showPlayerSheet(context),
+            onTap: onTap ?? () => PlayerSheet.showPlayerSheet(context),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(

@@ -46,4 +46,11 @@ class AppBreakpoints {
 
   /// Below this width the layout is medium (tablet-like); above it expanded.
   static const double medium = 1000;
+
+  /// Width at which the player switches from a modal bottom sheet to a docked
+  /// right-hand side panel.  Matches [medium] because at 1000 px there is
+  /// enough room for the NavigationRail (~80 px) + content + a 400 px panel
+  /// without crowding the main content area.  Between [compact] and this
+  /// threshold the player still opens as a bottom sheet to avoid overflow.
+  static const double playerPanel = 1000;
 }

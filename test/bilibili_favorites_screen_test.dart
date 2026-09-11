@@ -41,12 +41,30 @@ Track _track(String title, {String? artist, Duration? duration}) {
   );
 }
 
+/// Builds a [RemoteTrackPage] with the given tracks and pagination metadata.
+RemoteTrackPage _page(
+  List<Track> tracks, {
+  required int page,
+  bool hasMore = false,
+  int? totalCount,
+}) => RemoteTrackPage(
+  tracks: tracks,
+  page: page,
+  hasMore: hasMore,
+  totalCount: totalCount ?? tracks.length,
+);
+
 /// A [RemotePlaylistSource] whose responses are supplied by the test.
+///
+/// Records every page number requested through [playlistTracks] so pagination
+/// tests can assert exactly which pages were fetched, in order.
 class _FakeRemotePlaylistSource implements RemotePlaylistSource {
   _FakeRemotePlaylistSource({required this.folders, required this.tracks});
 
   final Future<List<RemotePlaylist>> Function(String userId) folders;
-  final Future<List<Track>> Function(String playlistId, int page) tracks;
+  final Future<RemoteTrackPage> Function(String playlistId, int page) tracks;
+
+  final List<int> requestedPages = <int>[];
 
   @override
   String get id => 'bilibili';
@@ -56,8 +74,10 @@ class _FakeRemotePlaylistSource implements RemotePlaylistSource {
       folders(userId);
 
   @override
-  Future<List<Track>> playlistTracks(String playlistId, {int page = 1}) =>
-      tracks(playlistId, page);
+  Future<RemoteTrackPage> playlistTracks(String playlistId, {int page = 1}) {
+    requestedPages.add(page);
+    return tracks(playlistId, page);
+  }
 }
 
 /// Records [playQueue] calls so the test can prove the displayed list was used
@@ -133,6 +153,12 @@ Future<void> _submitUid(WidgetTester tester, String uid) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _openFolder(WidgetTester tester) async {
+  await _submitUid(tester, '17340771');
+  await tester.tap(find.text('音乐收藏'));
+  await tester.pumpAndSettle();
+}
+
 const _musicFolder = RemotePlaylist(
   id: '2578744971',
   title: '音乐收藏',
@@ -146,7 +172,7 @@ void main() {
         _musicFolder,
         const RemotePlaylist(id: '2306334871', title: '视频', trackCount: 5),
       ],
-      tracks: (playlistId, page) async => <Track>[],
+      tracks: (playlistId, page) async => _page(<Track>[], page: page),
     );
 
     await tester.pumpWidget(_app(source: source));
@@ -164,32 +190,30 @@ void main() {
   testWidgets('tapping a folder renders its tracks', (tester) async {
     final source = _FakeRemotePlaylistSource(
       folders: (uid) async => <RemotePlaylist>[_musicFolder],
-      tracks: (playlistId, page) async => <Track>[
+      tracks: (playlistId, page) async => _page(<Track>[
         _track('Alpha', artist: 'UP主 A', duration: const Duration(seconds: 65)),
-      ],
+      ], page: page),
     );
 
     await tester.pumpWidget(_app(source: source));
-    await _submitUid(tester, '17340771');
-
-    await tester.tap(find.text('音乐收藏'));
-    await tester.pumpAndSettle();
+    await _openFolder(tester);
 
     expect(find.text('Alpha'), findsOneWidget);
     expect(find.text('UP主 A'), findsOneWidget);
     expect(find.text('1:05'), findsOneWidget);
+    // A single-page folder shows no pagination footer.
+    expect(find.text('加载更多'), findsNothing);
+    expect(find.text('已全部加载'), findsNothing);
   });
 
   testWidgets('an empty folder renders the empty state', (tester) async {
     final source = _FakeRemotePlaylistSource(
       folders: (uid) async => <RemotePlaylist>[_musicFolder],
-      tracks: (playlistId, page) async => <Track>[],
+      tracks: (playlistId, page) async => _page(<Track>[], page: page),
     );
 
     await tester.pumpWidget(_app(source: source));
-    await _submitUid(tester, '17340771');
-    await tester.tap(find.text('音乐收藏'));
-    await tester.pumpAndSettle();
+    await _openFolder(tester);
 
     expect(find.text('没有可播放的视频'), findsOneWidget);
   });
@@ -197,7 +221,7 @@ void main() {
   testWidgets('a source error renders the error panel', (tester) async {
     final source = _FakeRemotePlaylistSource(
       folders: (uid) => Future<List<RemotePlaylist>>.error(StateError('网络错误')),
-      tracks: (playlistId, page) async => <Track>[],
+      tracks: (playlistId, page) async => _page(<Track>[], page: page),
     );
 
     await tester.pumpWidget(_app(source: source));
@@ -214,7 +238,7 @@ void main() {
       folders: (uid) => Future<List<RemotePlaylist>>.error(
         const BiliApiException(-412, 'Bilibili blocked this IP (code: -412)'),
       ),
-      tracks: (playlistId, page) async => <Track>[],
+      tracks: (playlistId, page) async => _page(<Track>[], page: page),
     );
 
     await tester.pumpWidget(_app(source: source));
@@ -234,13 +258,11 @@ void main() {
       ];
       final source = _FakeRemotePlaylistSource(
         folders: (uid) async => <RemotePlaylist>[_musicFolder],
-        tracks: (playlistId, page) async => tracks,
+        tracks: (playlistId, page) async => _page(tracks, page: page),
       );
 
       await tester.pumpWidget(_app(source: source, controller: controller));
-      await _submitUid(tester, '17340771');
-      await tester.tap(find.text('音乐收藏'));
-      await tester.pumpAndSettle();
+      await _openFolder(tester);
 
       await tester.tap(find.text('Beta'));
       await tester.pumpAndSettle();
@@ -263,13 +285,13 @@ void main() {
           trackCount: 12345,
         ),
       ],
-      tracks: (playlistId, page) async => <Track>[
+      tracks: (playlistId, page) async => _page(<Track>[
         _track(
           '一个非常非常长的歌曲标题用来验证在窄屏下会被省略号截断',
           artist: '一个同样非常长的UP主名称',
           duration: const Duration(minutes: 12, seconds: 34),
         ),
-      ],
+      ], page: page),
     );
 
     await tester.pumpWidget(_app(source: source));
@@ -279,5 +301,120 @@ void main() {
 
     expect(find.text('一个非常非常长的歌曲标题用来验证在窄屏下会被省略号截断'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows 加载更多 when the source reports another page', (
+    tester,
+  ) async {
+    final source = _FakeRemotePlaylistSource(
+      folders: (uid) async => <RemotePlaylist>[_musicFolder],
+      tracks: (playlistId, page) async => _page(
+        <Track>[_track('Alpha')],
+        page: page,
+        hasMore: true,
+        totalCount: 2,
+      ),
+    );
+
+    await tester.pumpWidget(_app(source: source));
+    await _openFolder(tester);
+
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('加载更多'), findsOneWidget);
+    expect(find.text('已全部加载'), findsNothing);
+    expect(source.requestedPages, <int>[1]);
+  });
+
+  testWidgets('tapping 加载更多 appends page 2 and hides the button', (
+    tester,
+  ) async {
+    final alpha = _track('Alpha');
+    final beta = _track('Beta');
+    final source = _FakeRemotePlaylistSource(
+      folders: (uid) async => <RemotePlaylist>[_musicFolder],
+      tracks: (playlistId, page) async => page == 1
+          ? _page(<Track>[alpha], page: 1, hasMore: true, totalCount: 2)
+          : _page(<Track>[beta], page: 2, hasMore: false, totalCount: 2),
+    );
+
+    await tester.pumpWidget(_app(source: source));
+    await _openFolder(tester);
+
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+    expect(find.text('加载更多'), findsNothing);
+    expect(find.text('已全部加载'), findsOneWidget);
+    expect(source.requestedPages, <int>[1, 2]);
+  });
+
+  testWidgets('a page-2 failure shows the error and retries the same page', (
+    tester,
+  ) async {
+    var failNext = true;
+    final beta = _track('Beta');
+    final source = _FakeRemotePlaylistSource(
+      folders: (uid) async => <RemotePlaylist>[_musicFolder],
+      tracks: (playlistId, page) async {
+        if (page == 1) {
+          return _page(
+            <Track>[_track('Alpha')],
+            page: 1,
+            hasMore: true,
+            totalCount: 2,
+          );
+        }
+        if (failNext) {
+          failNext = false;
+          throw StateError('第二页加载失败');
+        }
+        return _page(<Track>[beta], page: 2, hasMore: false, totalCount: 2);
+      },
+    );
+
+    await tester.pumpWidget(_app(source: source));
+    await _openFolder(tester);
+
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('第二页加载失败'), findsOneWidget);
+    expect(find.text('加载更多'), findsNothing);
+    expect(source.requestedPages, <int>[1, 2]);
+
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Beta'), findsOneWidget);
+    expect(find.textContaining('第二页加载失败'), findsNothing);
+    expect(source.requestedPages, <int>[1, 2, 2]);
+  });
+
+  testWidgets('playing after two pages queues every loaded track in order', (
+    tester,
+  ) async {
+    final controller = _FakePlaybackController();
+    final alpha = _track('Alpha');
+    final beta = _track('Beta');
+    final source = _FakeRemotePlaylistSource(
+      folders: (uid) async => <RemotePlaylist>[_musicFolder],
+      tracks: (playlistId, page) async => page == 1
+          ? _page(<Track>[alpha], page: 1, hasMore: true, totalCount: 2)
+          : _page(<Track>[beta], page: 2, hasMore: false, totalCount: 2),
+    );
+
+    await tester.pumpWidget(_app(source: source, controller: controller));
+    await _openFolder(tester);
+
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Beta'));
+    await tester.pumpAndSettle();
+
+    expect(controller.lastQueue?.tracks, <Track>[alpha, beta]);
+    expect(controller.lastIndex, 1);
   });
 }

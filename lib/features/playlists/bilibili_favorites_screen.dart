@@ -51,10 +51,26 @@ class _BilibiliFavoritesScreenState
   /// Non-null once a folder is opened; switches to the track view.
   RemotePlaylist? _openFolder;
 
+  /// True while the first page (folders or tracks) is loading.
   bool _loading = false;
+
+  /// True while a follow-up track page is being appended.
+  bool _loadingMore = false;
+
+  /// Non-null when the first page failed; rendered as a full-screen panel.
   Object? _error;
+
+  /// Non-null when appending the next track page failed; rendered in the footer.
+  Object? _loadMoreError;
+
   List<RemotePlaylist> _folders = const <RemotePlaylist>[];
   List<Track> _tracks = const <Track>[];
+
+  /// Highest page loaded for the open folder, `0` before the first page lands.
+  int _page = 0;
+
+  /// Whether the source reports another page after [_page].
+  bool _hasMore = false;
 
   /// Guards against a stale response overwriting a newer one.
   int _requestId = 0;
@@ -77,8 +93,12 @@ class _BilibiliFavoritesScreenState
       _openFolder = null;
       _loading = true;
       _error = null;
+      _loadingMore = false;
+      _loadMoreError = null;
       _folders = const <RemotePlaylist>[];
       _tracks = const <Track>[];
+      _page = 0;
+      _hasMore = false;
     });
 
     try {
@@ -105,17 +125,23 @@ class _BilibiliFavoritesScreenState
       _openFolder = folder;
       _loading = true;
       _error = null;
+      _loadingMore = false;
+      _loadMoreError = null;
       _tracks = const <Track>[];
+      _page = 0;
+      _hasMore = false;
     });
 
     try {
-      final tracks = await ref
+      final result = await ref
           .read(remotePlaylistSourceProvider)
-          .playlistTracks(folder.id);
+          .playlistTracks(folder.id, page: 1);
       if (!mounted || request != _requestId) return;
       setState(() {
         _loading = false;
-        _tracks = tracks;
+        _tracks = result.tracks;
+        _page = result.page;
+        _hasMore = result.hasMore;
       });
     } catch (error) {
       if (!mounted || request != _requestId) return;
@@ -126,11 +152,51 @@ class _BilibiliFavoritesScreenState
     }
   }
 
+  /// Appends the page after [_page], ignoring taps while a request is in flight.
+  ///
+  /// On failure [_page] stays put, so retrying via the footer re-requests the
+  /// same page. No two page requests run concurrently.
+  Future<void> _loadMore() async {
+    final folder = _openFolder;
+    if (folder == null || _loading || _loadingMore || !_hasMore) return;
+
+    final request = _requestId;
+    final nextPage = _page + 1;
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
+
+    try {
+      final result = await ref
+          .read(remotePlaylistSourceProvider)
+          .playlistTracks(folder.id, page: nextPage);
+      if (!mounted || request != _requestId) return;
+      setState(() {
+        _loadingMore = false;
+        _tracks = <Track>[..._tracks, ...result.tracks];
+        _page = result.page;
+        _hasMore = result.hasMore;
+      });
+    } catch (error) {
+      if (!mounted || request != _requestId) return;
+      setState(() {
+        _loadingMore = false;
+        _loadMoreError = error;
+      });
+    }
+  }
+
   void _backToFolders() {
+    _requestId++;
     setState(() {
       _openFolder = null;
       _tracks = const <Track>[];
       _error = null;
+      _loadingMore = false;
+      _loadMoreError = null;
+      _page = 0;
+      _hasMore = false;
     });
   }
 
@@ -289,8 +355,19 @@ class _BilibiliFavoritesScreenState
       );
     }
     return ListView.builder(
-      itemCount: _tracks.length,
+      // One extra row for the pagination footer.
+      itemCount: _tracks.length + 1,
       itemBuilder: (context, index) {
+        if (index == _tracks.length) {
+          return _TrackListFooter(
+            loading: _loadingMore,
+            error: _loadMoreError,
+            hasMore: _hasMore,
+            showExhausted: _page > 1,
+            onLoadMore: _loadMore,
+            onRetry: _loadMore,
+          );
+        }
         final track = _tracks[index];
         final isCurrent = currentUri != null && track.uri == currentUri;
         return _FavoriteTrackTile(
@@ -302,6 +379,93 @@ class _BilibiliFavoritesScreenState
         );
       },
     );
+  }
+}
+
+/// Footer row under the loaded favourite tracks.
+///
+/// Shows a spinner while appending, a retry when the append failed, a
+/// 加载更多 button while the source reports another page, and 已全部加载 once
+/// more than one page has been loaded. Hidden for a single-page folder.
+class _TrackListFooter extends StatelessWidget {
+  const _TrackListFooter({
+    required this.loading,
+    required this.error,
+    required this.hasMore,
+    required this.showExhausted,
+    required this.onLoadMore,
+    required this.onRetry,
+  });
+
+  final bool loading;
+  final Object? error;
+  final bool hasMore;
+  final bool showExhausted;
+  final VoidCallback onLoadMore;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+        child: Column(
+          children: [
+            Text(
+              describeError(error!),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (hasMore) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: OutlinedButton(
+            onPressed: onLoadMore,
+            child: const Text('加载更多'),
+          ),
+        ),
+      );
+    }
+    if (showExhausted) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(
+            '已全部加载',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 

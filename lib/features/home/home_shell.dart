@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
+import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 
@@ -26,10 +27,19 @@ import 'package:flind_player/features/settings/settings_screen.dart';
 /// Below [AppBreakpoints.compact] navigation lives in a bottom
 /// [NavigationBar] with the [MiniPlayerBar] above it; at or above it, a
 /// leading [NavigationRail] is used with the mini player below the content.
+///
+/// At or above [AppBreakpoints.playerPanel] tapping the mini bar toggles a
+/// docked right-hand side panel instead of opening a modal bottom sheet.
 /// The shell only provides navigation chrome — each destination owns its own
 /// `Scaffold`/`AppBar`.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
+
+  /// Well-known key for the docked player panel (wide screens only).
+  static const Key playerPanelKey = Key('player_panel');
+
+  /// Well-known key for the panel close button.
+  static const Key playerPanelCloseKey = Key('player_panel_close');
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -37,6 +47,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
+  bool _playerPanelOpen = false;
 
   static const List<Widget> _screens = <Widget>[
     SearchScreen(),
@@ -89,11 +100,21 @@ class _HomeShellState extends State<HomeShell> {
     setState(() => _selectedIndex = index);
   }
 
+  void _togglePlayerPanel() {
+    setState(() => _playerPanelOpen = !_playerPanelOpen);
+  }
+
+  void _closePlayerPanel() {
+    setState(() => _playerPanelOpen = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final expanded = constraints.maxWidth >= AppBreakpoints.compact;
+        final wideEnoughForPanel =
+            constraints.maxWidth >= AppBreakpoints.playerPanel;
         if (expanded) {
           return Scaffold(
             body: SafeArea(
@@ -107,15 +128,29 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                   const VerticalDivider(width: 1, thickness: 1),
                   Expanded(
-                    child: Column(
+                    child: Row(
                       children: [
                         Expanded(
-                          child: IndexedStack(
-                            index: _selectedIndex,
-                            children: _screens,
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: IndexedStack(
+                                  index: _selectedIndex,
+                                  children: _screens,
+                                ),
+                              ),
+                              MiniPlayerBar(
+                                onTap: wideEnoughForPanel
+                                    ? _togglePlayerPanel
+                                    : null,
+                              ),
+                            ],
                           ),
                         ),
-                        const MiniPlayerBar(),
+                        if (_playerPanelOpen && wideEnoughForPanel) ...[
+                          const VerticalDivider(width: 1, thickness: 1),
+                          _PlayerPanel(onClose: _closePlayerPanel),
+                        ],
                       ],
                     ),
                   ),
@@ -140,6 +175,53 @@ class _HomeShellState extends State<HomeShell> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Docked player panel shown on wide screens (>= [AppBreakpoints.playerPanel]).
+///
+/// Displays [PlayerView] in a fixed-width trailing column with a close affordance.
+class _PlayerPanel extends StatelessWidget {
+  const _PlayerPanel({required this.onClose});
+
+  final VoidCallback onClose;
+
+  static const double panelWidth = 400;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: HomeShell.playerPanelKey,
+      width: panelWidth,
+      child: ColoredBox(
+        color: scheme.surface,
+        child: Column(
+          children: [
+            // Header row with title and close button.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: [
+                  const SizedBox(width: 4),
+                  Text('正在播放', style: Theme.of(context).textTheme.titleMedium),
+                  const Spacer(),
+                  IconButton(
+                    key: HomeShell.playerPanelCloseKey,
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close),
+                    tooltip: '关闭播放器',
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Player content.
+            const Expanded(child: PlayerView()),
+          ],
+        ),
+      ),
     );
   }
 }

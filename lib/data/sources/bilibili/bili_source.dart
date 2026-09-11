@@ -93,18 +93,27 @@ class BiliSource implements MusicSource, StreamResolver, RemotePlaylistSource {
   /// Audio (`type == 12`) and collection (`type == 21`) entries and invalid
   /// (`attr != 0`) entries are counted as skipped and dropped: they need stream
   /// endpoints this adapter does not implement. See [favoriteResourcesToTracks].
+  ///
+  /// The returned [RemoteTrackPage] carries the endpoint's `has_more` flag so
+  /// the browsing UI can request the next page.
   @override
-  Future<List<Track>> playlistTracks(String playlistId, {int page = 1}) async {
-    final resources = await _api.favoriteResources(playlistId, page: page);
-    final result = favoriteResourcesToTracks(resources);
+  Future<RemoteTrackPage> playlistTracks(
+    String playlistId, {
+    int page = 1,
+  }) async {
+    final response = await _api.favoriteResources(playlistId, page: page);
+    final result = favoriteResourcePageToRemoteTrackPage(
+      response,
+      pageNumber: page,
+    );
     if (result.skipped > 0) {
       debugPrint(
-        'BiliSource: skipped ${result.skipped} of ${resources.length} '
+        'BiliSource: skipped ${result.skipped} of ${response.medias.length} '
         'entries in favourite $playlistId (only type 2 video entries with '
         'attr == 0 are streamable)',
       );
     }
-    return result.tracks;
+    return result.page;
   }
 
   /// Alias so [BiliSource] can be registered in a `StreamResolver` map.

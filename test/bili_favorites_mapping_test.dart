@@ -175,4 +175,86 @@ void main() {
       expect(result.skipped, 0);
     });
   });
+
+  group('FavResourcePageDto', () {
+    test('parses medias, has_more and info.media_count', () {
+      final page = FavResourcePageDto.fromJson(<String, dynamic>{
+        'info': <String, dynamic>{'media_count': 82},
+        'medias': <dynamic>[
+          <String, dynamic>{'type': 2, 'bvid': 'BV1', 'title': 'One'},
+        ],
+        'has_more': true,
+      });
+
+      expect(page.medias, hasLength(1));
+      expect(page.medias.single.bvid, 'BV1');
+      expect(page.hasMore, isTrue);
+      expect(page.mediaCount, 82);
+    });
+
+    test('degrades gracefully when fields are missing', () {
+      final page = FavResourcePageDto.fromJson(const <String, dynamic>{});
+
+      expect(page.medias, isEmpty);
+      expect(page.hasMore, isFalse);
+      expect(page.mediaCount, 0);
+    });
+
+    test('treats a numeric has_more as a boolean', () {
+      final page = FavResourcePageDto.fromJson(<String, dynamic>{
+        'has_more': 1,
+      });
+
+      expect(page.hasMore, isTrue);
+    });
+  });
+
+  group('favoriteResourcePageToRemoteTrackPage', () {
+    test('maps hasMore/media_count and keeps only playable tracks', () {
+      const response = FavResourcePageDto(
+        medias: <FavResourceDto>[
+          FavResourceDto(type: 2, bvid: 'BVok', title: 'Playable'),
+          // Audio (`au`) needs a different stream endpoint.
+          FavResourceDto(type: 12, bvid: 'BVaudio', title: 'Audio'),
+          // attr != 0 marks a deleted / invalid entry.
+          FavResourceDto(type: 2, bvid: 'BVdead', title: 'Dead', attr: 9),
+        ],
+        hasMore: true,
+        mediaCount: 82,
+      );
+
+      final result = favoriteResourcePageToRemoteTrackPage(
+        response,
+        pageNumber: 3,
+      );
+
+      expect(result.page.tracks, hasLength(1));
+      expect(result.page.tracks.single.title, 'Playable');
+      expect(result.page.page, 3);
+      expect(result.page.hasMore, isTrue);
+      expect(result.page.totalCount, 82);
+      expect(result.skipped, 2);
+    });
+
+    test(
+      'falls back to the playable track count when media_count is absent',
+      () {
+        const response = FavResourcePageDto(
+          medias: <FavResourceDto>[
+            FavResourceDto(type: 2, bvid: 'BV1', title: 'One'),
+            FavResourceDto(type: 2, bvid: 'BV2', title: 'Two'),
+          ],
+        );
+
+        final result = favoriteResourcePageToRemoteTrackPage(
+          response,
+          pageNumber: 1,
+        );
+
+        expect(result.page.totalCount, 2);
+        expect(result.page.hasMore, isFalse);
+        expect(result.skipped, 0);
+      },
+    );
+  });
 }
