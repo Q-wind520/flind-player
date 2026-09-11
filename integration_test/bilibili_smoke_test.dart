@@ -90,7 +90,11 @@ void main() {
     addTearDown(controller.dispose);
 
     await controller.playQueue(
-      PlaybackQueue(tracks: [picked!], currentIndex: 0, originalOrder: const [0]),
+      PlaybackQueue(
+        tracks: [picked!],
+        currentIndex: 0,
+        originalOrder: const [0],
+      ),
     );
 
     var started = false;

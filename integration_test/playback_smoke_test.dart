@@ -58,11 +58,7 @@ void main() {
     );
 
     await controller.playQueue(
-      PlaybackQueue(
-        tracks: [track],
-        currentIndex: 0,
-        originalOrder: const [0],
-      ),
+      PlaybackQueue(tracks: [track], currentIndex: 0, originalOrder: const [0]),
     );
 
     for (var i = 0; i < 40; i++) {

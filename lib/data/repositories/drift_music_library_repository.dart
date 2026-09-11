@@ -304,7 +304,18 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
 
   @override
   Future<void> removeScanRoot(String path) async {
-    await (_db.delete(_db.scanRoots)..where((t) => t.path.equals(path))).go();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.transaction(() async {
+      await (_db.delete(_db.scanRoots)..where((t) => t.path.equals(path))).go();
+      // Removing a folder must actually remove its music from the library.
+      // `markMissingExcept` deliberately protects roots that are not part of
+      // the current scan, so without this the tracks would linger forever.
+      // They are soft-deleted, so re-adding the folder and rescanning restores
+      // them (and any future playlists/statistics stay intact).
+      await (_db.update(_db.tracks)
+            ..where((t) => t.scanRoot.equals(path) & t.missingAt.isNull()))
+          .write(TracksCompanion(missingAt: Value(now)));
+    });
   }
 
   /// Builds the visible-track select ordered by [sort].

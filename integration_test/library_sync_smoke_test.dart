@@ -25,8 +25,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
-/// M2 acceptance smoke test on the real (on-disk) database:
-/// scan a folder -> tracks land in the library -> FTS finds them -> one plays.
+import 'support/isolated_database.dart';
+
+/// M2 acceptance smoke test: scan a folder -> tracks land in the library ->
+/// FTS finds them -> one plays. Runs against a throwaway database so it never
+/// touches the user's real library.
 ///
 /// Run with:
 /// `flutter test integration_test/library_sync_smoke_test.dart -d linux`
@@ -40,7 +43,7 @@ void main() {
       JustAudioMediaKit.ensureInitialized();
     }
 
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: isolatedDatabaseOverrides());
     addTearDown(container.dispose);
 
     final repository = container.read(musicLibraryRepositoryProvider);
@@ -66,11 +69,13 @@ void main() {
 
     final tracks = await repository.allTracks();
     final scanned = tracks
-        .where((track) => track.uri.contains('flind_m2_smoke'))
+        .where((track) => track.uri.contains(root.path))
         .toList();
-    debugPrint('sync phase=${syncService.current.phase} '
-        'discovered=${syncService.current.discovered} '
-        'saved=${syncService.current.saved}');
+    debugPrint(
+      'sync phase=${syncService.current.phase} '
+      'discovered=${syncService.current.discovered} '
+      'saved=${syncService.current.saved}',
+    );
     for (final track in scanned) {
       debugPrint('  scanned: ${track.title} | ${track.artist} | ${track.uri}');
     }
@@ -83,8 +88,10 @@ void main() {
     expect(byPrefix, isNotEmpty, reason: 'FTS should prefix-match');
     final byArtist = await repository.searchTracks('Flind');
     expect(byArtist, isNotEmpty, reason: 'FTS should match the artist column');
-    debugPrint('FTS "Flind" -> ${byTitle.length} hits, '
-        '"tone" -> ${byPrefix.length} hits');
+    debugPrint(
+      'FTS "Flind" -> ${byTitle.length} hits, '
+      '"tone" -> ${byPrefix.length} hits',
+    );
 
     // Play the scanned file --------------------------------------------------
     final controller = container.read(playbackControllerProvider);

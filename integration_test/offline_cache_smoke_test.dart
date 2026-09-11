@@ -28,6 +28,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
+import 'support/isolated_database.dart';
+
 /// M3 acceptance smoke test on the real stack:
 /// resolve a live Bilibili stream -> cache it to disk -> resolve again (must be
 /// a local `file:` URI with no headers) -> play the cached copy.
@@ -42,7 +44,7 @@ void main() {
       JustAudioMediaKit.ensureInitialized();
     }
 
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: isolatedDatabaseOverrides());
     addTearDown(container.dispose);
 
     final source = container.read(biliSourceProvider);
@@ -72,7 +74,10 @@ void main() {
     // 2. Cache it ----------------------------------------------------------
     await manager.cacheTrack(picked, pinned: true, knownInfo: online);
 
-    final cached = await store.lookup(picked.source, cacheSourceTrackId(picked));
+    final cached = await store.lookup(
+      picked.source,
+      cacheSourceTrackId(picked),
+    );
     expect(cached, isNotNull, reason: 'cache index entry missing');
     final cachedFile = File(cached!.filePath);
     expect(cachedFile.existsSync(), isTrue, reason: 'cached file missing');
@@ -97,7 +102,11 @@ void main() {
     final controller = container.read(playbackControllerProvider);
     addTearDown(controller.dispose);
     await controller.playQueue(
-      PlaybackQueue(tracks: [picked], currentIndex: 0, originalOrder: const [0]),
+      PlaybackQueue(
+        tracks: [picked],
+        currentIndex: 0,
+        originalOrder: const [0],
+      ),
     );
 
     var started = false;

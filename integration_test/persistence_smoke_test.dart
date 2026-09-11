@@ -29,6 +29,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
+import 'support/isolated_database.dart';
+
 /// M5 acceptance smoke test on the real (on-disk) database:
 /// play + seek + set repeat/shuffle -> persist -> "restart" (fresh container)
 /// -> restore -> the queue/favourites come back, paused.
@@ -81,8 +83,12 @@ void main() {
       artist: 'Flind',
     );
 
+    // One throwaway database shared by both "sessions" so the test never
+    // touches the user's real library.
+    final databaseOverrides = isolatedDatabaseOverrides();
+
     // ---- session 1: play, seek, configure, favourite ------------------------
-    final session1 = ProviderContainer();
+    final session1 = ProviderContainer(overrides: databaseOverrides);
     final controller1 = session1.read(playbackControllerProvider);
     final persistence1 = PlaybackPersistenceService(
       playback: controller1,
@@ -137,7 +143,7 @@ void main() {
     debugPrint('session 1 closed (simulating app exit)');
 
     // ---- session 2: a fresh container, i.e. a restart ----------------------
-    final session2 = ProviderContainer();
+    final session2 = ProviderContainer(overrides: databaseOverrides);
     final controller2 = session2.read(playbackControllerProvider);
     final persistence2 = PlaybackPersistenceService(
       playback: controller2,
