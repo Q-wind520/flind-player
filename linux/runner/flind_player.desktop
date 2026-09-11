@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Flind Player
+Comment=Cross-platform music player
+Exec=flind_player
+Icon=flind_player
+Terminal=false
+Categories=AudioVideo;Audio;Player;

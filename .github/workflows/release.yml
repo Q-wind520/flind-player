@@ -1,0 +1,166 @@
+name: Release
+
+# A single tag push (`git tag v0.1.0 && git push origin v0.1.0`) builds both
+# desktop and Android artifacts and publishes a GitHub Release.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux (release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # System libmpv is required for playback (see docs/local-library.md §5).
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libmpv-dev \
+            libayatana-appindicator3-dev \
+            libsecret-1-dev
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux bundle
+        run: flutter build linux --release
+
+      - name: Package Linux bundle
+        run: tar -czf flind_player-linux-x64.tar.gz -C build/linux/x64/release bundle
+
+      - name: Upload Linux archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: flind_player-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  build-android:
+    name: Build Android APK (release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Repository secrets a maintainer must add for a signed release:
+      #   ANDROID_KEYSTORE_BASE64    - base64 of the .jks keystore
+      #   ANDROID_KEYSTORE_PASSWORD  - keystore password
+      #   ANDROID_KEY_ALIAS          - key alias inside the keystore
+      #   ANDROID_KEY_PASSWORD       - password for that key alias
+      # When ANDROID_KEYSTORE_BASE64 is absent, android/app/build.gradle.kts
+      # falls back to the debug signing config so the workflow still succeeds.
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # Decode the keystore into android/app/keystore.jks and write
+      # android/key.properties (both gitignored). Skipped when no secret is set,
+      # in which case the Gradle config uses the debug signing fallback.
+      - name: Configure Android signing (optional)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=keystore.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/linux-release/*.tar.gz
+            artifacts/android-release/*.apk
+          # GPL-3.0 §6: distributing binaries obliges us to offer the
+          # corresponding source. The source for this release is this very
+          # repository at the pushed tag (see docs/architecture.md §12.4).
+          body: |
+            ## Flind Player ${{ github.ref_name }}
+
+            ### Corresponding source / 对应源码
+
+            Licensed under **GPL-3.0**. In accordance with GPL-3.0 §6, the
+            complete corresponding source for the binaries attached below is
+            this repository at tag `${{ github.ref_name }}`:
+
+            https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}
+
+            本程序以 GPL-3.0 分发；依据 GPL-3.0 §6，分发二进制时必须同时提供
+            完整对应源码，即上方链接所指向的仓库标签。
+
+            ### Assets
+
+            - `flind_player-linux-x64.tar.gz` - Linux desktop bundle
+            - `app-release.apk` - Android APK
+
+            > Note: the application icon is still a placeholder and will be
+            > replaced once the maintainer picks a real one.
