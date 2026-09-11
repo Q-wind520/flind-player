@@ -16,9 +16,11 @@
 import 'package:drift/drift.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
 /// Drift-backed [MusicLibraryRepository].
 class DriftMusicLibraryRepository implements MusicLibraryRepository {
@@ -27,16 +29,16 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   final AppDatabase _db;
 
   @override
-  Future<List<Track>> allTracks() async {
-    final rows = await _orderedQuery().get();
+  Future<List<Track>> allTracks({TrackSort sort = TrackSort.title}) async {
+    final rows = await _orderedQuery(sort).get();
     return rows.map(_toDomain).toList(growable: false);
   }
 
   @override
-  Stream<List<Track>> watchTracks() {
-    return _orderedQuery().watch().map(
-      (rows) => rows.map(_toDomain).toList(growable: false),
-    );
+  Stream<List<Track>> watchTracks({TrackSort sort = TrackSort.title}) {
+    return _orderedQuery(sort)
+        .watch()
+        .map((rows) => rows.map(_toDomain).toList(growable: false));
   }
 
   @override
@@ -169,6 +171,34 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }
 
   @override
+  Future<void> upsertScannedTracks(List<ScannedTrack> tracks) async {
+    if (tracks.isEmpty) return;
+
+    await _db.transaction(() async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await _db.batch((batch) async {
+        for (final scanned in tracks) {
+          final track = scanned.track;
+          final existing = await (_db.select(
+            _db.tracks,
+          )..where((t) => t.uri.equals(track.uri))).getSingleOrNull();
+          final companion = _toCompanion(
+            track,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+            file: scanned.file,
+          );
+          batch.insert(
+            _db.tracks,
+            companion,
+            onConflict: DoUpdate((_) => companion, target: [_db.tracks.uri]),
+          );
+        }
+      });
+    });
+  }
+
+  @override
   Future<void> deleteTrack(int id) async {
     await (_db.delete(_db.tracks)..where((t) => t.id.equals(id))).go();
   }
@@ -191,7 +221,32 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }
 
   @override
-  Future<int> markMissingExcept(String source, Set<String> seenUris) async {
+  Future<Map<String, FileFingerprint>> trackFingerprints(String source) async {
+    final query = _db.selectOnly(_db.tracks)
+      ..addColumns([
+        _db.tracks.uri,
+        _db.tracks.sizeBytes,
+        _db.tracks.mtimeMs,
+        _db.tracks.scanRoot,
+      ])
+      ..where(_db.tracks.source.equals(source));
+    final rows = await query.get();
+    return {
+      for (final row in rows)
+        row.read(_db.tracks.uri)!: FileFingerprint(
+          sizeBytes: row.read(_db.tracks.sizeBytes),
+          mtimeMs: row.read(_db.tracks.mtimeMs),
+          scanRoot: row.read(_db.tracks.scanRoot),
+        ),
+    };
+  }
+
+  @override
+  Future<int> markMissingExcept(
+    String source,
+    Set<String> seenUris, {
+    Set<String>? roots,
+  }) async {
     // Guard: a failed or empty scan must never mark the whole library missing.
     if (seenUris.isEmpty) return 0;
 
@@ -208,13 +263,19 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
         ),
       );
 
-      // Newly missing: absent from this scan and not already marked.
-      return (_db.update(_db.tracks)..where(
-            (t) =>
+      // Newly missing: absent from this scan and not already marked. When
+      // `roots` is given, a track attributed to a root *outside* it is left
+      // alone (an unmounted drive keeps its rows). Unattributed rows stay
+      // eligible so individually imported files still follow disk existence.
+      return (_db.update(_db.tracks)..where((t) {
+            final absent =
                 t.source.equals(source) &
                 t.uri.isNotIn(seenUris) &
-                t.missingAt.isNull(),
-          ))
+                t.missingAt.isNull();
+            if (roots == null) return absent;
+            if (roots.isEmpty) return absent & t.scanRoot.isNull();
+            return absent & (t.scanRoot.isNull() | t.scanRoot.isIn(roots));
+          }))
           .write(TracksCompanion(missingAt: Value(now)));
     });
   }
@@ -246,10 +307,37 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
     await (_db.delete(_db.scanRoots)..where((t) => t.path.equals(path))).go();
   }
 
-  SimpleSelectStatement<$TracksTable, TrackRow> _orderedQuery() {
-    return _db.select(_db.tracks)
-      ..where((t) => t.missingAt.isNull())
-      ..orderBy([(t) => OrderingTerm.asc(t.title.collate(Collate.noCase))]);
+  /// Builds the visible-track select ordered by [sort].
+  ///
+  /// Title/artist/album compare case-insensitively and fall back to the row id
+  /// for a stable order; null artist/album sort last (`IS NULL` sorts `false`
+  /// before `true`).
+  SimpleSelectStatement<$TracksTable, TrackRow> _orderedQuery(TrackSort sort) {
+    final query = _db.select(_db.tracks)..where((t) => t.missingAt.isNull());
+    return switch (sort) {
+      TrackSort.title =>
+        query..orderBy([
+          (t) => OrderingTerm.asc(t.title.collate(Collate.noCase)),
+          (t) => OrderingTerm.asc(t.id),
+        ]),
+      TrackSort.artist =>
+        query..orderBy([
+          (t) => OrderingTerm.asc(t.artist.isNull()),
+          (t) => OrderingTerm.asc(t.artist.collate(Collate.noCase)),
+          (t) => OrderingTerm.asc(t.id),
+        ]),
+      TrackSort.album =>
+        query..orderBy([
+          (t) => OrderingTerm.asc(t.album.isNull()),
+          (t) => OrderingTerm.asc(t.album.collate(Collate.noCase)),
+          (t) => OrderingTerm.asc(t.id),
+        ]),
+      TrackSort.recentlyAdded =>
+        query..orderBy([
+          (t) => OrderingTerm.desc(t.createdAt),
+          (t) => OrderingTerm.desc(t.id),
+        ]),
+    };
   }
 
   Track _toDomain(TrackRow row) {
@@ -283,6 +371,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
     Track track, {
     required int createdAt,
     required int updatedAt,
+    ScannedFile? file,
   }) {
     return TracksCompanion(
       source: Value(track.source),
@@ -300,6 +389,11 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
       sampleRate: Value(track.sampleRate),
       genre: Value(track.genre),
       coverPath: Value(track.coverPath),
+      // `Value.absent()` leaves the fingerprint columns untouched, so a later
+      // metadata-only upsert (e.g. the artwork pass) cannot erase them.
+      sizeBytes: file == null ? const Value.absent() : Value(file.sizeBytes),
+      mtimeMs: file == null ? const Value.absent() : Value(file.mtimeMs),
+      scanRoot: file == null ? const Value.absent() : Value(file.root),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );

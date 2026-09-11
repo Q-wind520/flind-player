@@ -149,15 +149,16 @@ class LibrarySyncService {
         return;
       }
 
-      // Incremental pass: files already in the library are not re-parsed, so a
-      // rescan only reads newly added files (docs/local-library.md §6).
-      final knownUris = await _repository.trackUrisForSource('local');
+      // Incremental pass: files whose stored `(size, mtime)` still match are
+      // not re-parsed, so a rescan only reads new or changed files
+      // (docs/local-library.md §2.4, §6).
+      final known = await _repository.trackFingerprints('local');
 
       _emit(const LibrarySyncState(phase: LibrarySyncPhase.scanning));
 
       final result = await _scanner.scan(
         roots: roots,
-        knownUris: knownUris,
+        known: known,
         onProgress: (progress) {
           _emit(
             LibrarySyncState(
@@ -192,7 +193,7 @@ class LibrarySyncService {
         ),
       );
 
-      await _repository.upsertTracks(result.tracks);
+      await _repository.upsertScannedTracks(result.scannedTracks);
       // Mark against every discovered uri — including files skipped as already
       // known — so a rescan never marks a still-present file missing.
       //
@@ -209,9 +210,19 @@ class LibrarySyncService {
           presentUris.add(uri);
         }
       }
+
+      // Scope the soft-delete sweep to roots that were actually present. A
+      // configured root whose directory is gone (e.g. an unmounted drive) is
+      // excluded so its tracks are left alone (docs/local-library.md §2.4
+      // rule 3).
+      final scannedRoots = <String>{
+        for (final root in roots)
+          if (Directory(root).existsSync()) root,
+      };
       final markedMissing = await _repository.markMissingExcept(
         'local',
         presentUris,
+        roots: scannedRoots,
       );
 
       _emit(

@@ -143,6 +143,76 @@ void main() {
     expect(service.current.markedMissing, 1);
   });
 
+  test(
+    'a rescan re-parses a changed file and lands the new metadata',
+    () async {
+      final file = addTrack('changed.mp3');
+      await repository.addScanRoot(root.path);
+
+      await service.sync();
+      expect(service.current.saved, 1);
+      final original = (await repository.allTracks()).single;
+      final originalFp = (await repository.trackFingerprints(
+        'local',
+      ))[original.uri]!;
+
+      // Rewriting the tag changes both the bytes and the mtime, so the stored
+      // fingerprint no longer matches.
+      updateMetadata(file, (metadata) {
+        metadata.setTitle('Renamed Tone');
+      });
+
+      await service.sync();
+
+      expect(service.current.processed, 1);
+      expect(service.current.saved, 1);
+      final updated = (await repository.allTracks()).single;
+      expect(updated.title, 'Renamed Tone');
+
+      final updatedFp = (await repository.trackFingerprints(
+        'local',
+      ))[updated.uri]!;
+      expect(
+        updatedFp.mtimeMs,
+        file.statSync().modified.millisecondsSinceEpoch,
+      );
+      expect(updatedFp.scanRoot, root.path);
+      expect(
+        updatedFp.sizeBytes,
+        isNot(originalFp.sizeBytes),
+        reason: 'rewriting the tag should change the file size',
+      );
+    },
+  );
+
+  test('an offline scan root keeps its tracks', () async {
+    final online = Directory('${root.path}/online')..createSync();
+    final offline = Directory('${root.path}/offline')..createSync();
+    fixture.copySync('${online.path}/online.mp3');
+    fixture.copySync('${offline.path}/offline.mp3');
+    await repository.addScanRoot(online.path);
+    await repository.addScanRoot(offline.path);
+
+    await service.sync();
+    expect(await repository.allTracks(), hasLength(2));
+
+    // The offline root disappears while the other root still scans.
+    offline.deleteSync(recursive: true);
+    await service.sync();
+
+    final visible = await repository.allTracks();
+    expect(visible, hasLength(2));
+    expect(
+      visible.map((track) => track.uri),
+      containsAll(<String>[
+        'local:${online.path}/online.mp3',
+        'local:${offline.path}/offline.mp3',
+      ]),
+    );
+    expect(service.current.markedMissing, 0);
+    expect(await repository.trackUrisForSource('local'), hasLength(2));
+  });
+
   test('a file outside the scan roots survives while it exists', () async {
     // Regression: an individually imported file (not under any scan root) must
     // not be soft-deleted merely because a folder scan ran.

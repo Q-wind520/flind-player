@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:flind_player/data/providers/cache_providers.dart';
 
@@ -28,3 +29,11 @@ final audioCacheEntryCountProvider = FutureProvider<int>((ref) async {
   final entries = await ref.watch(audioCacheStoreProvider).entries();
   return entries.length;
 }, retry: (_, _) => null);
+
+/// Application metadata from `package_info_plus`.
+///
+/// Exposed as a provider so tests can override the returned [PackageInfo]
+/// without calling the platform channel.
+final packageInfoProvider = FutureProvider<PackageInfo>(
+  (ref) => PackageInfo.fromPlatform(),
+);

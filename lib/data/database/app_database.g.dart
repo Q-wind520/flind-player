@@ -182,6 +182,39 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sizeBytesMeta = const VerificationMeta(
+    'sizeBytes',
+  );
+  @override
+  late final GeneratedColumn<int> sizeBytes = GeneratedColumn<int>(
+    'size_bytes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mtimeMsMeta = const VerificationMeta(
+    'mtimeMs',
+  );
+  @override
+  late final GeneratedColumn<int> mtimeMs = GeneratedColumn<int>(
+    'mtime_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scanRootMeta = const VerificationMeta(
+    'scanRoot',
+  );
+  @override
+  late final GeneratedColumn<String> scanRoot = GeneratedColumn<String>(
+    'scan_root',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _missingAtMeta = const VerificationMeta(
     'missingAt',
   );
@@ -234,6 +267,9 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     genre,
     coverPath,
     lastSeenAt,
+    sizeBytes,
+    mtimeMs,
+    scanRoot,
     missingAt,
     createdAt,
     updatedAt,
@@ -366,6 +402,24 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         ),
       );
     }
+    if (data.containsKey('size_bytes')) {
+      context.handle(
+        _sizeBytesMeta,
+        sizeBytes.isAcceptableOrUnknown(data['size_bytes']!, _sizeBytesMeta),
+      );
+    }
+    if (data.containsKey('mtime_ms')) {
+      context.handle(
+        _mtimeMsMeta,
+        mtimeMs.isAcceptableOrUnknown(data['mtime_ms']!, _mtimeMsMeta),
+      );
+    }
+    if (data.containsKey('scan_root')) {
+      context.handle(
+        _scanRootMeta,
+        scanRoot.isAcceptableOrUnknown(data['scan_root']!, _scanRootMeta),
+      );
+    }
     if (data.containsKey('missing_at')) {
       context.handle(
         _missingAtMeta,
@@ -465,6 +519,18 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         DriftSqlType.int,
         data['${effectivePrefix}last_seen_at'],
       ),
+      sizeBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}size_bytes'],
+      ),
+      mtimeMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}mtime_ms'],
+      ),
+      scanRoot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scan_root'],
+      ),
       missingAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}missing_at'],
@@ -511,6 +577,26 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
   final String? coverPath;
   final int? lastSeenAt;
 
+  /// Size of the source file in bytes at the last scan (schema v5).
+  ///
+  /// Together with [mtimeMs] this is the `(mtime, size)` freshness key that
+  /// lets a rescan skip files whose content has not changed
+  /// (docs/local-library.md §2.4, §6). `null` for online tracks and for rows
+  /// written before the fingerprint columns existed.
+  final int? sizeBytes;
+
+  /// Last-modified time of the source file, in milliseconds since epoch
+  /// (schema v5). See [sizeBytes].
+  final int? mtimeMs;
+
+  /// Scan root this track was discovered under, or `null` for individually
+  /// imported files and pre-v5 rows (schema v5).
+  ///
+  /// Scopes soft-deletes: a root that is temporarily offline (e.g. an
+  /// unplugged drive) must not lose its tracks
+  /// (docs/local-library.md §2.4 rule 3).
+  final String? scanRoot;
+
   /// Unix timestamp when the track disappeared from its source, or `null`
   /// while it is present.
   ///
@@ -537,6 +623,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     this.genre,
     this.coverPath,
     this.lastSeenAt,
+    this.sizeBytes,
+    this.mtimeMs,
+    this.scanRoot,
     this.missingAt,
     required this.createdAt,
     required this.updatedAt,
@@ -584,6 +673,15 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<int>(lastSeenAt);
+    }
+    if (!nullToAbsent || sizeBytes != null) {
+      map['size_bytes'] = Variable<int>(sizeBytes);
+    }
+    if (!nullToAbsent || mtimeMs != null) {
+      map['mtime_ms'] = Variable<int>(mtimeMs);
+    }
+    if (!nullToAbsent || scanRoot != null) {
+      map['scan_root'] = Variable<String>(scanRoot);
     }
     if (!nullToAbsent || missingAt != null) {
       map['missing_at'] = Variable<int>(missingAt);
@@ -634,6 +732,15 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
+      sizeBytes: sizeBytes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sizeBytes),
+      mtimeMs: mtimeMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mtimeMs),
+      scanRoot: scanRoot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scanRoot),
       missingAt: missingAt == null && nullToAbsent
           ? const Value.absent()
           : Value(missingAt),
@@ -665,6 +772,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       genre: serializer.fromJson<String?>(json['genre']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
       lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
+      sizeBytes: serializer.fromJson<int?>(json['sizeBytes']),
+      mtimeMs: serializer.fromJson<int?>(json['mtimeMs']),
+      scanRoot: serializer.fromJson<String?>(json['scanRoot']),
       missingAt: serializer.fromJson<int?>(json['missingAt']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
@@ -691,6 +801,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       'genre': serializer.toJson<String?>(genre),
       'coverPath': serializer.toJson<String?>(coverPath),
       'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
+      'sizeBytes': serializer.toJson<int?>(sizeBytes),
+      'mtimeMs': serializer.toJson<int?>(mtimeMs),
+      'scanRoot': serializer.toJson<String?>(scanRoot),
       'missingAt': serializer.toJson<int?>(missingAt),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
@@ -715,6 +828,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     Value<String?> genre = const Value.absent(),
     Value<String?> coverPath = const Value.absent(),
     Value<int?> lastSeenAt = const Value.absent(),
+    Value<int?> sizeBytes = const Value.absent(),
+    Value<int?> mtimeMs = const Value.absent(),
+    Value<String?> scanRoot = const Value.absent(),
     Value<int?> missingAt = const Value.absent(),
     int? createdAt,
     int? updatedAt,
@@ -736,6 +852,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     genre: genre.present ? genre.value : this.genre,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+    sizeBytes: sizeBytes.present ? sizeBytes.value : this.sizeBytes,
+    mtimeMs: mtimeMs.present ? mtimeMs.value : this.mtimeMs,
+    scanRoot: scanRoot.present ? scanRoot.value : this.scanRoot,
     missingAt: missingAt.present ? missingAt.value : this.missingAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -769,6 +888,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
+      sizeBytes: data.sizeBytes.present ? data.sizeBytes.value : this.sizeBytes,
+      mtimeMs: data.mtimeMs.present ? data.mtimeMs.value : this.mtimeMs,
+      scanRoot: data.scanRoot.present ? data.scanRoot.value : this.scanRoot,
       missingAt: data.missingAt.present ? data.missingAt.value : this.missingAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -795,6 +917,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
           ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('sizeBytes: $sizeBytes, ')
+          ..write('mtimeMs: $mtimeMs, ')
+          ..write('scanRoot: $scanRoot, ')
           ..write('missingAt: $missingAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -803,7 +928,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     source,
     sourceTrackId,
@@ -821,10 +946,13 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     genre,
     coverPath,
     lastSeenAt,
+    sizeBytes,
+    mtimeMs,
+    scanRoot,
     missingAt,
     createdAt,
     updatedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -846,6 +974,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           other.genre == this.genre &&
           other.coverPath == this.coverPath &&
           other.lastSeenAt == this.lastSeenAt &&
+          other.sizeBytes == this.sizeBytes &&
+          other.mtimeMs == this.mtimeMs &&
+          other.scanRoot == this.scanRoot &&
           other.missingAt == this.missingAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -869,6 +1000,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
   final Value<String?> genre;
   final Value<String?> coverPath;
   final Value<int?> lastSeenAt;
+  final Value<int?> sizeBytes;
+  final Value<int?> mtimeMs;
+  final Value<String?> scanRoot;
   final Value<int?> missingAt;
   final Value<int> createdAt;
   final Value<int> updatedAt;
@@ -890,6 +1024,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
+    this.sizeBytes = const Value.absent(),
+    this.mtimeMs = const Value.absent(),
+    this.scanRoot = const Value.absent(),
     this.missingAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -912,6 +1049,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
+    this.sizeBytes = const Value.absent(),
+    this.mtimeMs = const Value.absent(),
+    this.scanRoot = const Value.absent(),
     this.missingAt = const Value.absent(),
     required int createdAt,
     required int updatedAt,
@@ -939,6 +1079,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Expression<String>? genre,
     Expression<String>? coverPath,
     Expression<int>? lastSeenAt,
+    Expression<int>? sizeBytes,
+    Expression<int>? mtimeMs,
+    Expression<String>? scanRoot,
     Expression<int>? missingAt,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
@@ -961,6 +1104,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       if (genre != null) 'genre': genre,
       if (coverPath != null) 'cover_path': coverPath,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+      if (sizeBytes != null) 'size_bytes': sizeBytes,
+      if (mtimeMs != null) 'mtime_ms': mtimeMs,
+      if (scanRoot != null) 'scan_root': scanRoot,
       if (missingAt != null) 'missing_at': missingAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -985,6 +1131,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Value<String?>? genre,
     Value<String?>? coverPath,
     Value<int?>? lastSeenAt,
+    Value<int?>? sizeBytes,
+    Value<int?>? mtimeMs,
+    Value<String?>? scanRoot,
     Value<int?>? missingAt,
     Value<int>? createdAt,
     Value<int>? updatedAt,
@@ -1007,6 +1156,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       genre: genre ?? this.genre,
       coverPath: coverPath ?? this.coverPath,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      sizeBytes: sizeBytes ?? this.sizeBytes,
+      mtimeMs: mtimeMs ?? this.mtimeMs,
+      scanRoot: scanRoot ?? this.scanRoot,
       missingAt: missingAt ?? this.missingAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -1067,6 +1219,15 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<int>(lastSeenAt.value);
     }
+    if (sizeBytes.present) {
+      map['size_bytes'] = Variable<int>(sizeBytes.value);
+    }
+    if (mtimeMs.present) {
+      map['mtime_ms'] = Variable<int>(mtimeMs.value);
+    }
+    if (scanRoot.present) {
+      map['scan_root'] = Variable<String>(scanRoot.value);
+    }
     if (missingAt.present) {
       map['missing_at'] = Variable<int>(missingAt.value);
     }
@@ -1099,6 +1260,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
           ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('sizeBytes: $sizeBytes, ')
+          ..write('mtimeMs: $mtimeMs, ')
+          ..write('scanRoot: $scanRoot, ')
           ..write('missingAt: $missingAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -3331,6 +3495,9 @@ typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
   Value<String?> genre,
   Value<String?> coverPath,
   Value<int?> lastSeenAt,
+  Value<int?> sizeBytes,
+  Value<int?> mtimeMs,
+  Value<String?> scanRoot,
   Value<int?> missingAt,
   required int createdAt,
   required int updatedAt,
@@ -3353,6 +3520,9 @@ typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
   Value<String?> genre,
   Value<String?> coverPath,
   Value<int?> lastSeenAt,
+  Value<int?> sizeBytes,
+  Value<int?> mtimeMs,
+  Value<String?> scanRoot,
   Value<int?> missingAt,
   Value<int> createdAt,
   Value<int> updatedAt,
@@ -3449,6 +3619,21 @@ class $$TracksTableFilterComposer
 
   ColumnFilters<int> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sizeBytes => $composableBuilder(
+    column: $table.sizeBytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get mtimeMs => $composableBuilder(
+    column: $table.mtimeMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scanRoot => $composableBuilder(
+    column: $table.scanRoot,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3562,6 +3747,21 @@ class $$TracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get sizeBytes => $composableBuilder(
+    column: $table.sizeBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get mtimeMs => $composableBuilder(
+    column: $table.mtimeMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scanRoot => $composableBuilder(
+    column: $table.scanRoot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get missingAt => $composableBuilder(
     column: $table.missingAt,
     builder: (column) => ColumnOrderings(column),
@@ -3648,6 +3848,15 @@ class $$TracksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get sizeBytes =>
+      $composableBuilder(column: $table.sizeBytes, builder: (column) => column);
+
+  GeneratedColumn<int> get mtimeMs =>
+      $composableBuilder(column: $table.mtimeMs, builder: (column) => column);
+
+  GeneratedColumn<String> get scanRoot =>
+      $composableBuilder(column: $table.scanRoot, builder: (column) => column);
+
   GeneratedColumn<int> get missingAt =>
       $composableBuilder(column: $table.missingAt, builder: (column) => column);
 
@@ -3703,6 +3912,9 @@ class $$TracksTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
+                Value<int?> sizeBytes = const Value.absent(),
+                Value<int?> mtimeMs = const Value.absent(),
+                Value<String?> scanRoot = const Value.absent(),
                 Value<int?> missingAt = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
@@ -3724,6 +3936,9 @@ class $$TracksTableTableManager
                 genre: genre,
                 coverPath: coverPath,
                 lastSeenAt: lastSeenAt,
+                sizeBytes: sizeBytes,
+                mtimeMs: mtimeMs,
+                scanRoot: scanRoot,
                 missingAt: missingAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -3747,6 +3962,9 @@ class $$TracksTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
+                Value<int?> sizeBytes = const Value.absent(),
+                Value<int?> mtimeMs = const Value.absent(),
+                Value<String?> scanRoot = const Value.absent(),
                 Value<int?> missingAt = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
@@ -3768,6 +3986,9 @@ class $$TracksTableTableManager
                 genre: genre,
                 coverPath: coverPath,
                 lastSeenAt: lastSeenAt,
+                sizeBytes: sizeBytes,
+                mtimeMs: mtimeMs,
+                scanRoot: scanRoot,
                 missingAt: missingAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

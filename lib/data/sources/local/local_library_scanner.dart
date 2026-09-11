@@ -57,20 +57,103 @@ class ScanProgress {
       'done: $done, currentFile: $currentFile)';
 }
 
+/// Freshness key for a file already in the library.
+///
+/// The scanner compares a discovered file's size and mtime against this value
+/// to decide whether the file must be re-parsed. Fields are nullable because
+/// the backing columns are: a row written before schema v5 (or by a non-scan
+/// import) has no fingerprint and therefore never matches, forcing one parse.
+@immutable
+class FileFingerprint {
+  const FileFingerprint({this.sizeBytes, this.mtimeMs, this.scanRoot});
+
+  /// Size of the file in bytes at the last scan, if known.
+  final int? sizeBytes;
+
+  /// Last-modified time in milliseconds since epoch at the last scan, if
+  /// known.
+  final int? mtimeMs;
+
+  /// Scan root the track was discovered under, if known.
+  final String? scanRoot;
+
+  @override
+  String toString() =>
+      'FileFingerprint(sizeBytes: $sizeBytes, mtimeMs: $mtimeMs, '
+      'scanRoot: $scanRoot)';
+}
+
+/// A discovered audio file together with its stat fingerprint and owning root.
+///
+/// Produced for *every* discovered file, whether it was parsed or skipped as
+/// unchanged, so the sync layer can attribute and track it.
+@immutable
+class ScannedFile {
+  const ScannedFile({
+    required this.path,
+    required this.uri,
+    required this.root,
+    required this.sizeBytes,
+    required this.mtimeMs,
+  });
+
+  /// Absolute on-disk path.
+  final String path;
+
+  /// Canonical `local:<path>` uri.
+  final String uri;
+
+  /// Scan root this file was discovered under.
+  final String root;
+
+  /// Size of the file in bytes.
+  final int sizeBytes;
+
+  /// Last-modified time in milliseconds since epoch.
+  final int mtimeMs;
+
+  @override
+  String toString() =>
+      'ScannedFile(uri: $uri, root: $root, '
+      'sizeBytes: $sizeBytes, mtimeMs: $mtimeMs)';
+}
+
+/// A freshly parsed track paired with the file it came from.
+///
+/// The pair lets the repository persist the track metadata and its
+/// `(size, mtime, root)` fingerprint in one upsert.
+@immutable
+class ScannedTrack {
+  const ScannedTrack({required this.track, required this.file});
+
+  /// Parsed metadata.
+  final Track track;
+
+  /// The file the metadata was read from.
+  final ScannedFile file;
+
+  @override
+  String toString() => 'ScannedTrack(track: ${track.uri}, file: ${file.uri})';
+}
+
 /// Outcome of a full scan.
 @immutable
 class ScanResult {
   const ScanResult({
-    required this.tracks,
+    required this.scannedTracks,
+    required this.discoveredFiles,
     required this.unreadable,
     required this.seenUris,
   });
 
-  /// Tracks whose metadata was read successfully.
+  /// Tracks whose metadata was read during this scan.
   ///
-  /// Files already known to the library (passed as `knownUris` to `scan`) are
-  /// skipped, so they are not re-parsed and do not appear here.
-  final List<Track> tracks;
+  /// Files whose `(size, mtime)` matched [FileFingerprint] in the `known` map
+  /// passed to `scan` are skipped, so they do not appear here.
+  final List<ScannedTrack> scannedTracks;
+
+  /// Every discovered file, including the ones skipped as unchanged.
+  final List<ScannedFile> discoveredFiles;
 
   /// Files that matched an audio extension but produced no metadata (empty,
   /// truncated, permission-denied, or an unsupported container).
@@ -80,15 +163,21 @@ class ScanResult {
   /// already known. This is the "seen" set for soft-delete bookkeeping.
   final Set<String> seenUris;
 
+  /// Parsed tracks, in discovery order. Convenience view over
+  /// [scannedTracks] for callers that do not need the file fingerprint.
+  List<Track> get tracks => [
+    for (final scanned in scannedTracks) scanned.track,
+  ];
+
   /// Total files discovered by the scan.
   int get discovered => seenUris.length;
 
   /// Files whose metadata was read (successfully or not) during this scan.
-  int get processed => tracks.length + unreadable;
+  int get processed => scannedTracks.length + unreadable;
 
   @override
   String toString() =>
-      'ScanResult(discovered: $discovered, tracks: ${tracks.length}, '
+      'ScanResult(discovered: $discovered, tracks: ${scannedTracks.length}, '
       'unreadable: $unreadable)';
 }
 
@@ -134,15 +223,21 @@ class LocalLibraryScanner {
   /// Progress is reported through [onProgress] at most every 100 ms, plus a
   /// final `done` event.
   ///
-  /// Files whose `local:` uri is in [knownUris] are not re-parsed, so a rescan
-  /// only reads newly added files. They are still returned in
-  /// [ScanResult.seenUris] so the caller can keep them out of the soft-delete
-  /// sweep. Content-change detection via `(mtime, size)` is a follow-up — the
-  /// schema has no such columns yet.
+  /// A discovered file is re-parsed unless [known] holds a [FileFingerprint]
+  /// for its `local:` uri whose `sizeBytes` and `mtimeMs` both match the
+  /// current stat (the incremental `(mtime, size)` check from
+  /// docs/local-library.md §2.4, §6). Every discovered file is still reported
+  /// in [ScanResult.discoveredFiles] and [ScanResult.seenUris] so the caller
+  /// can attribute roots and keep present files out of the soft-delete sweep.
+  ///
+  /// The `stat` used for the freshness key is taken in the discovery walk with
+  /// `FileSystemEntity.stat()`: it is a single non-blocking syscall per
+  /// candidate, and the fingerprint is needed for skipped files too, so
+  /// deferring it into the extraction isolates would require a second pass.
   Future<ScanResult> scan({
     required List<String> roots,
     void Function(ScanProgress progress)? onProgress,
-    Set<String> knownUris = const <String>{},
+    Map<String, FileFingerprint>? known,
   }) async {
     var lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -167,8 +262,10 @@ class LocalLibraryScanner {
       );
     }
 
-    final toParse = <String>[];
+    final toParse = <ScannedFile>[];
+    final discoveredFiles = <ScannedFile>[];
     final seenUris = <String>{};
+    final knownMap = known ?? const <String, FileFingerprint>{};
 
     // TODO(android-m2): Android does not use directory walking. It queries
     // MediaStore (docs/local-library.md §2.1) through a thin MediaStoreAdapter
@@ -192,8 +289,35 @@ class LocalLibraryScanner {
           if (!_isAudioFile(path)) continue;
           final uri = 'local:$path';
           if (!seenUris.add(uri)) continue;
-          if (knownUris.contains(uri)) continue;
-          toParse.add(path);
+
+          final FileStat stat;
+          try {
+            stat = await entity.stat();
+          } on FileSystemException catch (error) {
+            // Vanished between listing and stat: leave it in `seenUris` so a
+            // race does not soft-delete it this round; it will be swept next
+            // scan if it is really gone.
+            debugPrint('LocalLibraryScanner: cannot stat $path: $error');
+            continue;
+          }
+
+          final file = ScannedFile(
+            path: path,
+            uri: uri,
+            root: root,
+            sizeBytes: stat.size,
+            mtimeMs: stat.modified.millisecondsSinceEpoch,
+          );
+          discoveredFiles.add(file);
+
+          final fingerprint = knownMap[uri];
+          final unchanged =
+              fingerprint != null &&
+              fingerprint.sizeBytes == file.sizeBytes &&
+              fingerprint.mtimeMs == file.mtimeMs;
+          if (!unchanged) {
+            toParse.add(file);
+          }
           report(discovered: seenUris.length, processed: 0, currentFile: path);
         }
       } on FileSystemException catch (error) {
@@ -204,7 +328,7 @@ class LocalLibraryScanner {
 
     report(discovered: seenUris.length, processed: 0, force: true);
 
-    final tracks = <Track>[];
+    final scannedTracks = <ScannedTrack>[];
     var unreadable = 0;
     var processed = 0;
 
@@ -218,22 +342,25 @@ class LocalLibraryScanner {
           final index = nextChunk++;
           if (index >= chunks.length) return;
           final chunk = chunks[index];
-          final results = await _extractChunk(reader, chunk);
+          final results = await _extractChunk(reader, [
+            for (final file in chunk) file.path,
+          ]);
 
           // No await between reading `results` and updating the counters, so
           // these mutations are atomic with respect to the other workers.
-          for (final track in results) {
+          for (var i = 0; i < results.length; i++) {
+            final track = results[i];
             if (track == null) {
               unreadable++;
             } else {
-              tracks.add(track);
+              scannedTracks.add(ScannedTrack(track: track, file: chunk[i]));
             }
           }
           processed += results.length;
           report(
             discovered: seenUris.length,
             processed: processed,
-            currentFile: chunk.last,
+            currentFile: chunk.last.path,
             force: processed == toParse.length,
           );
         }
@@ -251,7 +378,8 @@ class LocalLibraryScanner {
     );
 
     return ScanResult(
-      tracks: tracks,
+      scannedTracks: scannedTracks,
+      discoveredFiles: discoveredFiles,
       unreadable: unreadable,
       seenUris: seenUris,
     );
@@ -259,13 +387,13 @@ class LocalLibraryScanner {
 
   /// Splits [files] into `parallelism * _chunksPerWorker`-ish chunks, each
   /// processed sequentially inside one isolate.
-  List<List<String>> _chunk(List<String> files) {
+  List<List<T>> _chunk<T>(List<T> files) {
     final targetChunks = math.min(
       files.length,
       _parallelism * _chunksPerWorker,
     );
     final chunkSize = (files.length / targetChunks).ceil();
-    final chunks = <List<String>>[];
+    final chunks = <List<T>>[];
     for (var i = 0; i < files.length; i += chunkSize) {
       chunks.add(files.sublist(i, math.min(i + chunkSize, files.length)));
     }

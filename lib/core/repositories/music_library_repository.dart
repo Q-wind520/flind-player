@@ -14,6 +14,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
+import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
 /// Persistent music library (unified local + online catalogue).
 ///
@@ -21,12 +23,13 @@ import 'package:flind_player/core/models/track.dart';
 /// its source but is retained for playlists/stats. [allTracks], [watchTracks]
 /// and [searchTracks] must exclude such rows.
 abstract interface class MusicLibraryRepository {
-  /// All tracks currently known to the library, excluding soft-deleted rows.
-  Future<List<Track>> allTracks();
+  /// All tracks currently known to the library, excluding soft-deleted rows,
+  /// ordered by [sort].
+  Future<List<Track>> allTracks({TrackSort sort = TrackSort.title});
 
   /// Emits the full track list whenever it changes, excluding soft-deleted
-  /// rows.
-  Stream<List<Track>> watchTracks();
+  /// rows, ordered by [sort].
+  Stream<List<Track>> watchTracks({TrackSort sort = TrackSort.title});
 
   /// Full-text search across title/artist/album, excluding soft-deleted rows.
   ///
@@ -43,6 +46,11 @@ abstract interface class MusicLibraryRepository {
   /// same `createdAt`/`updatedAt` semantics as [upsertTrack].
   Future<void> upsertTracks(List<Track> tracks);
 
+  /// Inserts or updates every scanned [tracks] entry in a single transaction,
+  /// persisting each track's `(sizeBytes, mtimeMs, scanRoot)` fingerprint in
+  /// addition to the metadata written by [upsertTracks].
+  Future<void> upsertScannedTracks(List<ScannedTrack> tracks);
+
   /// Deletes the track with [id].
   Future<void> deleteTrack(int id);
 
@@ -55,13 +63,33 @@ abstract interface class MusicLibraryRepository {
   /// marked missing so a returning file is restored rather than re-inserted.
   Future<Set<String>> trackUrisForSource(String source);
 
+  /// The stored file fingerprints for [source], keyed by `uri`, including
+  /// soft-deleted rows.
+  ///
+  /// This is the incremental-scan diff input: the scanner skips a discovered
+  /// file only when its `sizeBytes` and `mtimeMs` both match. Fields are
+  /// nullable for rows written before schema v5, which forces one re-parse.
+  Future<Map<String, FileFingerprint>> trackFingerprints(String source);
+
   /// Marks tracks of [source] that are not in [seenUris] as missing and clears
   /// the missing marker for those that are present.
   ///
-  /// Returns the number of rows newly marked missing. An empty [seenUris] is a
-  /// deliberate no-op: a failed or empty scan must never mark the whole
-  /// library missing.
-  Future<int> markMissingExcept(String source, Set<String> seenUris);
+  /// Returns the number of rows newly marked missing.
+  ///
+  /// Two guards keep a partial scan from wiping a good library:
+  ///
+  /// 1. An empty [seenUris] is a deliberate no-op: a failed or empty scan must
+  ///    never mark the whole library missing.
+  /// 2. When [roots] is provided, a track attributed to a scan root *outside*
+  ///    [roots] is left untouched, so an unmounted drive keeps its tracks.
+  ///    Tracks with no recorded `scanRoot` (individually imported files, or
+  ///    rows written before schema v5) stay eligible, since they are not tied
+  ///    to any root that could be offline.
+  Future<int> markMissingExcept(
+    String source,
+    Set<String> seenUris, {
+    Set<String>? roots,
+  });
 
   /// The configured local scan roots.
   Future<List<String>> scanRoots();

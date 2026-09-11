@@ -30,7 +30,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,6 +61,15 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(playbackStates);
         await m.createTable(favorites);
       }
+      if (from < 5) {
+        // v4 had no file fingerprints nor root attribution. `addColumn` emits
+        // a plain `ALTER TABLE ... ADD COLUMN`, which is *not* idempotent, so
+        // guard each one: a fixture built from the current schema (see the
+        // migration test) already carries these columns.
+        await _addColumnIfMissing(m, tracks, tracks.sizeBytes);
+        await _addColumnIfMissing(m, tracks, tracks.mtimeMs);
+        await _addColumnIfMissing(m, tracks, tracks.scanRoot);
+      }
     },
   );
 
@@ -69,6 +78,23 @@ class AppDatabase extends _$AppDatabase {
     for (final statement in TracksFts.createStatements) {
       await customStatement(statement);
     }
+  }
+
+  /// Adds [column] to [table] unless the physical table already has it.
+  ///
+  /// Used for the v4 -> v5 upgrade so re-running the migration over a database
+  /// that already carries the column is a no-op (drift's [Migrator.addColumn]
+  /// would otherwise fail with "duplicate column name").
+  Future<void> _addColumnIfMissing(
+    Migrator m,
+    TableInfo table,
+    GeneratedColumn column,
+  ) async {
+    final rows = await customSelect(
+      'PRAGMA table_info(${table.actualTableName})',
+    ).get();
+    if (rows.any((row) => row.data['name'] == column.name)) return;
+    await m.addColumn(table, column);
   }
 }
 

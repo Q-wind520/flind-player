@@ -46,6 +46,26 @@ class Tracks extends Table {
   TextColumn get coverPath => text().nullable()();
   IntColumn get lastSeenAt => integer().nullable()();
 
+  /// Size of the source file in bytes at the last scan (schema v5).
+  ///
+  /// Together with [mtimeMs] this is the `(mtime, size)` freshness key that
+  /// lets a rescan skip files whose content has not changed
+  /// (docs/local-library.md §2.4, §6). `null` for online tracks and for rows
+  /// written before the fingerprint columns existed.
+  IntColumn get sizeBytes => integer().nullable()();
+
+  /// Last-modified time of the source file, in milliseconds since epoch
+  /// (schema v5). See [sizeBytes].
+  IntColumn get mtimeMs => integer().nullable()();
+
+  /// Scan root this track was discovered under, or `null` for individually
+  /// imported files and pre-v5 rows (schema v5).
+  ///
+  /// Scopes soft-deletes: a root that is temporarily offline (e.g. an
+  /// unplugged drive) must not lose its tracks
+  /// (docs/local-library.md §2.4 rule 3).
+  TextColumn get scanRoot => text().nullable()();
+
   /// Unix timestamp when the track disappeared from its source, or `null`
   /// while it is present.
   ///

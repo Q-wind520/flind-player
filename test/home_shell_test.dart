@@ -19,6 +19,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
@@ -135,9 +136,43 @@ Widget _app() {
       audioCacheStoreProvider.overrideWith((ref) => store),
       audioCacheUsageProvider.overrideWith((ref) async => 0),
       audioCacheEntryCountProvider.overrideWith((ref) async => 0),
+      // Settings screen's library section needs scan roots and sync service.
+      scanRootsProvider.overrideWith((ref) async => <String>[]),
+      librarySyncServiceProvider.overrideWith(
+        (ref) => _FakeLibrarySyncService(),
+      ),
+      // About section requires package info.
+      packageInfoProvider.overrideWith(
+        (ref) async => PackageInfo(
+          appName: 'Flind Player',
+          packageName: 'flind_player',
+          version: '0.0.0',
+          buildNumber: '0',
+        ),
+      ),
     ],
     child: const MaterialApp(home: HomeShell()),
   );
+}
+
+/// Minimal stand-in so the settings screen's sync actions never construct the
+/// real service (and therefore never touch the database) during widget tests.
+class _FakeLibrarySyncService implements LibrarySyncService {
+  @override
+  LibrarySyncState get current => LibrarySyncState.idle;
+
+  @override
+  bool get isRunning => false;
+
+  @override
+  Stream<LibrarySyncState> get state =>
+      Stream<LibrarySyncState>.value(LibrarySyncState.idle);
+
+  @override
+  Future<void> sync() async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 void main() {

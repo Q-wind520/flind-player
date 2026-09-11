@@ -148,13 +148,22 @@ void main() {
     expect(result.tracks, hasLength(2));
   });
 
-  test('skips known uris but still reports them as seen', () async {
+  /// Fingerprint of [file] as the scanner would compute it from its stat.
+  FileFingerprint fingerprintOf(File file) {
+    final stat = file.statSync();
+    return FileFingerprint(
+      sizeBytes: stat.size,
+      mtimeMs: stat.modified.millisecondsSinceEpoch,
+    );
+  }
+
+  test('skips an unchanged file but still reports it as seen', () async {
     final file = copyFixture('known.mp3');
     final knownUri = 'local:${file.path}';
 
     final result = await scanner.scan(
       roots: [root.path],
-      knownUris: {knownUri},
+      known: {knownUri: fingerprintOf(file)},
     );
 
     expect(result.tracks, isEmpty);
@@ -162,5 +171,91 @@ void main() {
     expect(result.unreadable, 0);
     expect(result.discovered, 1);
     expect(result.seenUris, {knownUri});
+    expect(result.scannedTracks, isEmpty);
+    expect(result.discoveredFiles, hasLength(1));
+    expect(result.discoveredFiles.single.uri, knownUri);
+    expect(result.discoveredFiles.single.root, root.path);
+  });
+
+  test('re-parses a file whose mtime changed', () async {
+    final file = copyFixture('touched.mp3');
+    final uri = 'local:${file.path}';
+    final stat = file.statSync();
+    final stale = FileFingerprint(
+      sizeBytes: stat.size,
+      mtimeMs: stat.modified.millisecondsSinceEpoch - 1000,
+    );
+
+    final result = await scanner.scan(roots: [root.path], known: {uri: stale});
+
+    expect(result.processed, 1);
+    expect(result.scannedTracks, hasLength(1));
+    expect(result.scannedTracks.single.file.uri, uri);
+    expect(
+      result.scannedTracks.single.file.mtimeMs,
+      file.statSync().modified.millisecondsSinceEpoch,
+    );
+  });
+
+  test('re-parses a file whose size changed', () async {
+    final file = copyFixture('resized.mp3');
+    final uri = 'local:${file.path}';
+    final stat = file.statSync();
+    final stale = FileFingerprint(
+      sizeBytes: stat.size + 1,
+      mtimeMs: stat.modified.millisecondsSinceEpoch,
+    );
+
+    final result = await scanner.scan(roots: [root.path], known: {uri: stale});
+
+    expect(result.processed, 1);
+    expect(result.scannedTracks, hasLength(1));
+  });
+
+  test('treats a fingerprint with null fields as stale', () async {
+    final file = copyFixture('legacy.mp3');
+    final uri = 'local:${file.path}';
+
+    final result = await scanner.scan(
+      roots: [root.path],
+      known: {uri: const FileFingerprint()},
+    );
+
+    expect(result.processed, 1);
+    expect(result.scannedTracks, hasLength(1));
+  });
+
+  test('reports every discovered file but only parsed tracks', () async {
+    final unchanged = copyFixture('unchanged.mp3');
+    final changed = copyFixture('changed.mp3');
+    final changedUri = 'local:${changed.path}';
+
+    final result = await scanner.scan(
+      roots: [root.path],
+      known: {
+        'local:${unchanged.path}': fingerprintOf(unchanged),
+        changedUri: const FileFingerprint(sizeBytes: 0, mtimeMs: 0),
+      },
+    );
+
+    expect(result.discovered, 2);
+    expect(result.discoveredFiles, hasLength(2));
+    expect(result.scannedTracks, hasLength(1));
+    expect(result.scannedTracks.single.file.uri, changedUri);
+    expect(result.processed, 1);
+  });
+
+  test('records the discovered size and mtime in the fingerprint', () async {
+    final file = copyFixture('fingerprinted.mp3');
+
+    final result = await scanner.scan(roots: [root.path]);
+    final stat = file.statSync();
+
+    expect(result.discoveredFiles.single.sizeBytes, stat.size);
+    expect(
+      result.discoveredFiles.single.mtimeMs,
+      stat.modified.millisecondsSinceEpoch,
+    );
+    expect(result.scannedTracks.single.file.sizeBytes, stat.size);
   });
 }

@@ -20,9 +20,11 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
+import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
 /// Polls until [condition] is true, failing after [timeout].
 ///
@@ -94,6 +96,26 @@ void main() {
     title: title,
     artist: artist,
     album: album,
+  );
+
+  /// A scanned track whose fingerprint points at [root].
+  ScannedTrack scannedTrack({
+    required String path,
+    required String title,
+    required String root,
+    int sizeBytes = 100,
+    int mtimeMs = 200,
+    String? artist,
+    String? album,
+  }) => ScannedTrack(
+    track: libraryTrack(path: path, title: title, artist: artist, album: album),
+    file: ScannedFile(
+      path: path,
+      uri: 'local:$path',
+      root: root,
+      sizeBytes: sizeBytes,
+      mtimeMs: mtimeMs,
+    ),
   );
 
   group('upsertTrack', () {
@@ -390,6 +412,124 @@ void main() {
     });
   });
 
+  group('upsertScannedTracks', () {
+    test('persists size, mtime and scanRoot', () async {
+      await repository.upsertScannedTracks([
+        scannedTrack(
+          path: '/m/a.flac',
+          title: 'A',
+          root: '/music',
+          sizeBytes: 1234,
+          mtimeMs: 5678,
+        ),
+      ]);
+
+      final fingerprints = await repository.trackFingerprints('local');
+      expect(fingerprints, hasLength(1));
+      final fingerprint = fingerprints['local:/m/a.flac']!;
+      expect(fingerprint.sizeBytes, 1234);
+      expect(fingerprint.mtimeMs, 5678);
+      expect(fingerprint.scanRoot, '/music');
+    });
+
+    test('preserves createdAt across rescans', () async {
+      await repository.upsertScannedTracks([
+        scannedTrack(path: '/m/a.flac', title: 'A', root: '/music'),
+      ]);
+      final before = await db
+          .customSelect(
+            "SELECT created_at FROM tracks WHERE uri = 'local:/m/a.flac'",
+          )
+          .getSingle();
+
+      await repository.upsertScannedTracks([
+        scannedTrack(
+          path: '/m/a.flac',
+          title: 'A2',
+          root: '/music',
+          sizeBytes: 999,
+        ),
+      ]);
+
+      final after = await db
+          .customSelect(
+            "SELECT created_at FROM tracks WHERE uri = 'local:/m/a.flac'",
+          )
+          .getSingle();
+      expect(after.data['created_at'], before.data['created_at']);
+      expect((await repository.allTracks()).single.title, 'A2');
+      expect(
+        (await repository.trackFingerprints(
+          'local',
+        ))['local:/m/a.flac']!.sizeBytes,
+        999,
+      );
+    });
+
+    test('a metadata-only upsert does not clear the fingerprint', () async {
+      await repository.upsertScannedTracks([
+        scannedTrack(
+          path: '/m/a.flac',
+          title: 'A',
+          root: '/music',
+          sizeBytes: 1234,
+          mtimeMs: 5678,
+        ),
+      ]);
+
+      // Mirrors the artwork pass, which writes metadata without a file.
+      await repository.upsertTracks([
+        libraryTrack(path: '/m/a.flac', title: 'A with cover'),
+      ]);
+
+      final fingerprint = (await repository.trackFingerprints(
+        'local',
+      ))['local:/m/a.flac']!;
+      expect(fingerprint.sizeBytes, 1234);
+      expect(fingerprint.mtimeMs, 5678);
+      expect(fingerprint.scanRoot, '/music');
+    });
+
+    test('is a no-op for an empty list', () async {
+      await repository.upsertScannedTracks(const []);
+
+      expect(await repository.allTracks(), isEmpty);
+    });
+  });
+
+  group('trackFingerprints', () {
+    test('tolerates null columns for rows without a fingerprint', () async {
+      await repository.upsertTracks([
+        libraryTrack(path: '/m/legacy.flac', title: 'Legacy'),
+      ]);
+
+      final fingerprint = (await repository.trackFingerprints(
+        'local',
+      ))['local:/m/legacy.flac']!;
+      expect(fingerprint.sizeBytes, isNull);
+      expect(fingerprint.mtimeMs, isNull);
+      expect(fingerprint.scanRoot, isNull);
+    });
+
+    test('includes soft-deleted rows and is scoped to the source', () async {
+      await repository.upsertScannedTracks([
+        scannedTrack(path: '/m/a.flac', title: 'A', root: '/music'),
+      ]);
+      await repository.upsertTrack(
+        Track(
+          source: 'bilibili',
+          sourceTrackId: const BiliTrackId(bvid: 'BV1', cid: 2),
+          uri: 'bilibili:BV1:2',
+          title: 'Online',
+        ),
+      );
+      await repository.markMissingExcept('local', {'local:/m/other.flac'});
+
+      expect(await repository.trackFingerprints('local'), hasLength(1));
+      expect(await repository.trackFingerprints('bilibili'), hasLength(1));
+    });
+  });
+
   group('trackUrisForSource', () {
     test('includes soft-deleted rows', () async {
       await repository.upsertTracks([
@@ -498,6 +638,166 @@ void main() {
       expect(await repository.markMissingExcept('local', const {}), 0);
       expect(await repository.allTracks(), hasLength(1));
     });
+
+    test('roots leave tracks from an unscanned root untouched', () async {
+      await repository.upsertScannedTracks([
+        scannedTrack(path: '/m/online.flac', title: 'Online', root: '/online'),
+        scannedTrack(
+          path: '/m/offline.flac',
+          title: 'Offline',
+          root: '/offline',
+        ),
+      ]);
+
+      // `/offline` is absent from the scan, but its root was not scanned, so
+      // it must survive.
+      final marked = await repository.markMissingExcept(
+        'local',
+        {'local:/m/online.flac'},
+        roots: {'/online'},
+      );
+
+      expect(marked, 0);
+      expect((await repository.allTracks()).map((t) => t.uri).toSet(), {
+        'local:/m/online.flac',
+        'local:/m/offline.flac',
+      });
+    });
+
+    test('roots still mark a vanished track whose root was scanned', () async {
+      await repository.upsertScannedTracks([
+        scannedTrack(path: '/m/online.flac', title: 'Online', root: '/online'),
+        scannedTrack(
+          path: '/m/offline.flac',
+          title: 'Offline',
+          root: '/offline',
+        ),
+      ]);
+
+      // Both roots were scanned; only the offline file was seen again.
+      final marked = await repository.markMissingExcept(
+        'local',
+        {'local:/m/offline.flac'},
+        roots: {'/online', '/offline'},
+      );
+
+      expect(marked, 1);
+      expect((await repository.allTracks()).map((t) => t.uri), [
+        'local:/m/offline.flac',
+      ]);
+    });
+
+    test('unattributed tracks stay eligible when roots are scoped', () async {
+      await repository.upsertTracks([
+        libraryTrack(path: '/m/imported.flac', title: 'Imported'),
+      ]);
+      await repository.upsertScannedTracks([
+        scannedTrack(path: '/m/online.flac', title: 'Online', root: '/online'),
+      ]);
+
+      final marked = await repository.markMissingExcept(
+        'local',
+        {'local:/m/online.flac'},
+        roots: {'/online'},
+      );
+
+      expect(marked, 1);
+      expect((await repository.allTracks()).map((t) => t.uri), [
+        'local:/m/online.flac',
+      ]);
+    });
+
+    test('an empty roots set only sweeps unattributed tracks', () async {
+      await repository.upsertTracks([
+        libraryTrack(path: '/m/imported.flac', title: 'Imported'),
+      ]);
+      await repository.upsertScannedTracks([
+        scannedTrack(path: '/m/online.flac', title: 'Online', root: '/online'),
+      ]);
+
+      final marked = await repository.markMissingExcept('local', {
+        'local:/m/other.flac',
+      }, roots: const <String>{});
+
+      expect(marked, 1);
+      expect((await repository.allTracks()).map((t) => t.uri), [
+        'local:/m/online.flac',
+      ]);
+    });
+  });
+
+  group('track sort', () {
+    Future<void> seedSortLibrary() async {
+      await repository.upsertTrack(
+        libraryTrack(path: '/1', title: 'Delta', artist: 'Zed', album: 'Beta'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await repository.upsertTrack(
+        libraryTrack(path: '/2', title: 'alpha', album: 'Gamma'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await repository.upsertTrack(
+        libraryTrack(path: '/3', title: 'Charlie', artist: 'Abe'),
+      );
+    }
+
+    test('every sort produces the expected order', () async {
+      await seedSortLibrary();
+
+      Future<List<String>> uris(TrackSort sort) async =>
+          (await repository.allTracks(sort: sort)).map((t) => t.uri).toList();
+
+      expect(await uris(TrackSort.title), ['local:/2', 'local:/3', 'local:/1']);
+      // Artist: 'Abe', 'Zed', then the null artist last.
+      expect(await uris(TrackSort.artist), [
+        'local:/3',
+        'local:/1',
+        'local:/2',
+      ]);
+      // Album: 'Beta', 'Gamma', then the null album last.
+      expect(await uris(TrackSort.album), ['local:/1', 'local:/2', 'local:/3']);
+      // Recency: /3 inserted last.
+      expect(await uris(TrackSort.recentlyAdded), [
+        'local:/3',
+        'local:/2',
+        'local:/1',
+      ]);
+    });
+
+    test('title sort is the default', () async {
+      await seedSortLibrary();
+
+      final explicit = await repository.allTracks(sort: TrackSort.title);
+      final implicit = await repository.allTracks();
+
+      expect(implicit.map((t) => t.uri), explicit.map((t) => t.uri));
+    });
+
+    test('breaks ties on id for a stable order', () async {
+      await repository.upsertTrack(libraryTrack(path: '/b', title: 'Same'));
+      await repository.upsertTrack(libraryTrack(path: '/a', title: 'same'));
+
+      expect((await repository.allTracks()).map((t) => t.uri), [
+        'local:/b',
+        'local:/a',
+      ]);
+    });
+
+    test('watchTracks honours the requested sort', () async {
+      await seedSortLibrary();
+      final emissions = <List<Track>>[];
+      final subscription = repository
+          .watchTracks(sort: TrackSort.artist)
+          .listen(emissions.add);
+      addTearDown(subscription.cancel);
+
+      await _waitFor(() => emissions.isNotEmpty);
+      expect(emissions.last.map((t) => t.uri), [
+        'local:/3',
+        'local:/1',
+        'local:/2',
+      ]);
+    });
   });
 
   group('soft delete', () {
@@ -604,6 +904,54 @@ void main() {
       expect((await afterRepository.searchTracks('moza')).map((t) => t.title), [
         'Mozart',
       ]);
+    });
+
+    test('v4 -> v5 adds the fingerprint columns without losing rows', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v5');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current-schema file, then roll it back to a v4 shape by
+      // dropping the columns v5 introduced.
+      final before = AppDatabase(NativeDatabase(file));
+      await DriftMusicLibraryRepository(before)
+          .upsertTrack(libraryTrack(path: '/m/a.flac', title: 'A'));
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN size_bytes');
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN mtime_ms');
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN scan_root');
+      await before.customStatement('PRAGMA user_version = 4');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+      final afterRepository = DriftMusicLibraryRepository(after);
+
+      // The existing row survives and defaults to a null fingerprint.
+      final migrated = (await afterRepository.trackFingerprints(
+        'local',
+      ))['local:/m/a.flac']!;
+      expect(migrated.sizeBytes, isNull);
+      expect(migrated.mtimeMs, isNull);
+      expect(migrated.scanRoot, isNull);
+
+      // The added columns are writable after the upgrade.
+      await afterRepository.upsertScannedTracks([
+        scannedTrack(
+          path: '/m/a.flac',
+          title: 'A',
+          root: '/music',
+          sizeBytes: 10,
+          mtimeMs: 20,
+        ),
+      ]);
+      final updated = (await afterRepository.trackFingerprints(
+        'local',
+      ))['local:/m/a.flac']!;
+      expect(updated.sizeBytes, 10);
+      expect(updated.mtimeMs, 20);
+      expect(updated.scanRoot, '/music');
     });
   });
 }
