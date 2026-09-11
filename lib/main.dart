@@ -24,6 +24,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:flind_player/app/app.dart';
 import 'package:flind_player/app/di/application_overrides.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
 import 'package:flind_player/platform/tray/tray_service.dart';
@@ -71,6 +72,27 @@ Future<void> main() async {
     // A platform without an audio_service implementation must not prevent the
     // app from starting.
     debugPrint('Flind Player: audio_service init failed: $error\n$stackTrace');
+  }
+
+  // Restore the last playback session (queue/position/repeat/shuffle) before the
+  // UI mounts, then keep persisting changes. Both steps are guarded so a corrupt
+  // snapshot or an unavailable database can never block startup.
+  final playbackPersistence = container.read(
+    playbackPersistenceServiceProvider,
+  );
+  try {
+    await playbackPersistence.restore();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: playback snapshot restore failed: $error\n$stackTrace',
+    );
+  }
+  try {
+    playbackPersistence.start();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: playback persistence start failed: $error\n$stackTrace',
+    );
   }
 
   runApp(

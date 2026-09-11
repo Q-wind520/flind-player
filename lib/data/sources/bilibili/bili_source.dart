@@ -18,8 +18,11 @@
 // feature flag can drop it (and its provider) without touching the rest of the
 // app. Never let UI or playback code depend on this class directly.
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/music_source.dart';
+import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
 import 'package:flind_player/data/sources/bilibili/bili_api.dart';
@@ -27,12 +30,14 @@ import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/data/sources/bilibili/bili_mappers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_models.dart';
 
-/// Bilibili as a [MusicSource] and [StreamResolver].
+/// Bilibili as a [MusicSource], [StreamResolver] and [RemotePlaylistSource].
 ///
 /// Search results carry a `bvid` but no `cid`, so [search] returns tracks with
 /// the [biliUnknownCid] placeholder; [resolveStream] lazily fetches the first
-/// part's real `cid` from `videoInfo` before asking for the audio URL.
-class BiliSource implements MusicSource, StreamResolver {
+/// part's real `cid` from `videoInfo` before asking for the audio URL. Public
+/// favourite folders are browsed anonymously through [playlistsForUser] /
+/// [playlistTracks].
+class BiliSource implements MusicSource, StreamResolver, RemotePlaylistSource {
   /// Stream URLs are treated as valid for this long, matching Bilibili's
   /// documented ≈120-minute CDN expiry.
   static const Duration streamTtl = Duration(minutes: 120);
@@ -75,6 +80,31 @@ class BiliSource implements MusicSource, StreamResolver {
     }
     final page = _pageFor(video, id.cid);
     return videoPageToTrack(video, page);
+  }
+
+  @override
+  Future<List<RemotePlaylist>> playlistsForUser(String userId) async {
+    final folders = await _api.favoriteFolders(userId);
+    return folders.map(favoriteFolderToRemotePlaylist).toList(growable: false);
+  }
+
+  /// Maps one page of [playlistId]'s resources to playable tracks.
+  ///
+  /// Audio (`type == 12`) and collection (`type == 21`) entries and invalid
+  /// (`attr != 0`) entries are counted as skipped and dropped: they need stream
+  /// endpoints this adapter does not implement. See [favoriteResourcesToTracks].
+  @override
+  Future<List<Track>> playlistTracks(String playlistId, {int page = 1}) async {
+    final resources = await _api.favoriteResources(playlistId, page: page);
+    final result = favoriteResourcesToTracks(resources);
+    if (result.skipped > 0) {
+      debugPrint(
+        'BiliSource: skipped ${result.skipped} of ${resources.length} '
+        'entries in favourite $playlistId (only type 2 video entries with '
+        'attr == 0 are streamable)',
+      );
+    }
+    return result.tracks;
   }
 
   /// Alias so [BiliSource] can be registered in a `StreamResolver` map.

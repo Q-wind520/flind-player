@@ -15,6 +15,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/data/sources/bilibili/bili_api.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/data/sources/bilibili/bili_source.dart';
@@ -66,4 +67,13 @@ final biliApiProvider = Provider<BiliApi>(
 /// Bilibili as a searchable, directly streamable [BiliSource].
 final biliSourceProvider = Provider<BiliSource>(
   (ref) => BiliSource(api: ref.watch(biliApiProvider)),
+);
+
+/// Bilibili's public favourite folders, viewed through the source-agnostic
+/// [RemotePlaylistSource] interface.
+///
+/// Kept separate from [biliSourceProvider] so the browsing UI — and tests — can
+/// substitute any implementation without touching the concrete adapter.
+final remotePlaylistSourceProvider = Provider<RemotePlaylistSource>(
+  (ref) => ref.watch(biliSourceProvider),
 );

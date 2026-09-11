@@ -26,6 +26,7 @@ import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
 
 /// The "now playing" screen: artwork, progress and transport controls.
@@ -196,7 +197,7 @@ class _ProgressBar extends ConsumerWidget {
   }
 }
 
-/// Shuffle / previous / play-pause / next / repeat controls.
+/// Shuffle / previous / play-pause / next / repeat / favourite controls.
 class _TransportControls extends ConsumerWidget {
   const _TransportControls({required this.state});
 
@@ -208,6 +209,7 @@ class _TransportControls extends ConsumerWidget {
     final controller = ref.read(playbackControllerProvider);
     final repeatMode = state.repeatMode;
     final repeatActive = repeatMode != RepeatMode.off;
+    final track = state.currentTrack;
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
@@ -247,11 +249,55 @@ class _TransportControls extends ConsumerWidget {
             color: repeatActive ? scheme.primary : null,
             tooltip: _repeatTooltip(repeatMode),
           ),
+          if (track != null) _FavoriteButton(track: track),
         ],
       ),
     );
   }
 }
+
+/// Heart toggle for the current track in the player transport area.
+///
+/// Hidden when nothing is playing (no track).
+class _FavoriteButton extends ConsumerWidget {
+  const _FavoriteButton({required this.track});
+
+  final Track track;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isFavourite =
+        ref.watch(_playerFavoriteProvider(track.uri)).value ?? false;
+    final scheme = Theme.of(context).colorScheme;
+
+    return IconButton(
+      onPressed: () async {
+        final repo = ref.read(favoritesRepositoryProvider);
+        final isNowFavourite = await repo.toggleFavorite(track);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(isNowFavourite ? '已收藏' : '已取消收藏'),
+                duration: const Duration(seconds: 1),
+              ),
+            );
+        }
+      },
+      icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
+      color: isFavourite ? scheme.primary : null,
+      tooltip: isFavourite ? '取消收藏' : '收藏',
+    );
+  }
+}
+
+/// Whether the track is favourited. Retries are disabled so errors surface
+/// immediately.
+final _playerFavoriteProvider = FutureProvider.family<bool, String>((ref, uri) {
+  ref.watch(favoritesProvider);
+  return ref.watch(favoritesRepositoryProvider).isFavorite(uri);
+}, retry: (_, _) => null);
 
 /// Cycles repeat mode off → all → one → off.
 RepeatMode _nextRepeatMode(RepeatMode mode) => switch (mode) {

@@ -90,7 +90,11 @@ class JustAudioPlaybackController implements PlaybackController {
   PlaybackQueue get queue => _queue;
 
   @override
-  Future<void> playQueue(PlaybackQueue queue, {int index = 0}) async {
+  Future<void> playQueue(
+    PlaybackQueue queue, {
+    int index = 0,
+    bool autoPlay = true,
+  }) async {
     if (_disposed) {
       return;
     }
@@ -103,7 +107,7 @@ class JustAudioPlaybackController implements PlaybackController {
 
     _queue = next;
     _emit();
-    await _playCurrent();
+    await _playCurrent(autoPlay: autoPlay);
   }
 
   @override
@@ -374,7 +378,7 @@ class JustAudioPlaybackController implements PlaybackController {
   }
 
   /// Resolves and plays [_queue]'s current track.
-  Future<void> _playCurrent() async {
+  Future<void> _playCurrent({bool autoPlay = true}) async {
     final track = _queue.currentTrack;
     if (track == null) {
       _cancelPositionThrottle();
@@ -401,7 +405,9 @@ class JustAudioPlaybackController implements PlaybackController {
           headers: info.headers.isEmpty ? null : info.headers,
         ),
       );
-      await _player.play();
+      if (autoPlay) {
+        await _player.play();
+      }
     } catch (error, stackTrace) {
       debugPrint(
         'JustAudioPlaybackController: failed to play "${track.uri}": '

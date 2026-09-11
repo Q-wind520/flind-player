@@ -120,6 +120,67 @@ class AudioCache extends Table {
   ];
 }
 
+/// Single-row snapshot of the playback session (schema v4).
+///
+/// The row id is pinned to `1`: there is exactly one live snapshot at a time,
+/// and the snapshot repository upserts that row. `queueJson` holds the
+/// serialised queue (tracks plus the pre-shuffle `originalOrder`).
+@DataClassName('PlaybackStateRow')
+class PlaybackStates extends Table {
+  @override
+  String get tableName => 'playback_state';
+
+  IntColumn get id => integer()();
+
+  /// Serialised playback queue (tracks + originalOrder), see the codec.
+  TextColumn get queueJson => text()();
+
+  /// Index of the current track within the serialised queue.
+  IntColumn get currentIndex => integer()();
+
+  /// Playback position, in milliseconds.
+  IntColumn get positionMs => integer()();
+
+  /// Persisted repeat mode name (`off` / `all` / `one`).
+  TextColumn get repeatMode => text()();
+
+  BoolColumn get shuffleEnabled => boolean()();
+
+  /// Unix timestamp of the last write.
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Denormalised favourite snapshot (schema v4).
+///
+/// A favourite stores its own copy of the track metadata, so it survives the
+/// track leaving the library (e.g. a removed scan root or a soft-deleted row).
+/// The unique key is the canonical [uri].
+@DataClassName('FavoriteRow')
+class Favorites extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Canonical source-namespaced key; the upsert conflict target.
+  TextColumn get uri => text().unique()();
+
+  /// Source identifier, e.g. `local` or `bilibili`.
+  TextColumn get source => text()();
+
+  /// Source-specific identity (absolute path, or `bvid:cid`).
+  TextColumn get sourceTrackId => text()();
+
+  TextColumn get title => text()();
+  TextColumn get artist => text().nullable()();
+  TextColumn get album => text().nullable()();
+  IntColumn get durationMs => integer().nullable()();
+  TextColumn get coverPath => text().nullable()();
+
+  /// Unix timestamp when the track was favourited; the ordering key.
+  IntColumn get favoritedAt => integer()();
+}
+
 /// Raw SQL for the FTS5 index over `tracks`.
 ///
 /// This is not a drift table: drift has no FTS5 table type, so the virtual

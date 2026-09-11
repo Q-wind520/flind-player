@@ -51,7 +51,11 @@ class _FakePlaybackController implements PlaybackController {
   PlaybackQueue get queue =>
       const PlaybackQueue(tracks: [], currentIndex: 0, originalOrder: []);
   @override
-  Future<void> playQueue(PlaybackQueue queue, {int index = 0}) async {}
+  Future<void> playQueue(
+    PlaybackQueue queue, {
+    int index = 0,
+    bool autoPlay = true,
+  }) async {}
   @override
   Future<void> play() async {}
   @override

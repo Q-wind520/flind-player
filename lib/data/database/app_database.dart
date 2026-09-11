@@ -21,14 +21,16 @@ import 'package:flind_player/data/database/tables.dart';
 part 'app_database.g.dart';
 
 /// SQLite-backed application database.
-@DriftDatabase(tables: [Tracks, ScanRoots, ScanState, AudioCache])
+@DriftDatabase(
+  tables: [Tracks, ScanRoots, ScanState, AudioCache, PlaybackStates, Favorites],
+)
 class AppDatabase extends _$AppDatabase {
   /// Opens the platform database, or uses [executor] when one is injected
   /// (unit tests pass `NativeDatabase.memory()`).
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -51,6 +53,13 @@ class AppDatabase extends _$AppDatabase {
         // from the current schema) upgrades cleanly.
         await m.createTable(audioCache);
         await m.createIndex(idxAudioCacheLru);
+      }
+      if (from < 4) {
+        // v3 had no playback snapshot nor favourites. `createTable` emits
+        // `CREATE TABLE IF NOT EXISTS`, so a fixture that already carries the
+        // v4 tables upgrades cleanly.
+        await m.createTable(playbackStates);
+        await m.createTable(favorites);
       }
     },
   );

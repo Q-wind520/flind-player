@@ -24,16 +24,21 @@ import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
-import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/track_actions_button.dart';
+import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/shared/duration_format.dart';
 
 /// Actions exposed by the library overflow menu.
-enum _LibraryAction { addFolder, rescan, importFiles }
+enum _LibraryAction { addFolder, rescan, importFiles, bilibiliFavorites }
+
+/// Library list mode: all tracks vs. favourites only.
+enum LibraryFilter { all, favourites }
 
 /// The music library: a searchable, mixed local + online track browser with
-/// folder scanning, import and tap-to-play.
+/// folder scanning, import, tap-to-play and a favourites filter.
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -45,6 +50,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   String _query = '';
+  LibraryFilter _filter = LibraryFilter.all;
 
   /// Local FTS is fast, but debouncing keeps the family provider from churning
   /// on every keystroke.
@@ -83,7 +89,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         _startSync();
       case _LibraryAction.importFiles:
         await _importFiles();
+      case _LibraryAction.bilibiliFavorites:
+        await _openBilibiliFavorites();
     }
+  }
+
+  /// Pushes the anonymous Bilibili public-favourites browser.
+  Future<void> _openBilibiliFavorites() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const BilibiliFavoritesScreen(),
+      ),
+    );
   }
 
   /// Picks a directory, persists it as a scan root and starts a sync.
@@ -181,6 +198,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 value: _LibraryAction.importFiles,
                 child: _MenuRow(icon: Icons.add, label: '导入文件'),
               ),
+              const PopupMenuItem(
+                value: _LibraryAction.bilibiliFavorites,
+                child: _MenuRow(icon: Icons.cloud_outlined, label: '浏览 B 站收藏夹'),
+              ),
             ],
           ),
         ],
@@ -196,7 +217,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   textInputAction: TextInputAction.search,
                   onChanged: _onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: '搜索曲库',
+                    hintText: _filter == LibraryFilter.favourites
+                        ? '搜索收藏'
+                        : '搜索曲库',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: value.text.isEmpty
                         ? null
@@ -217,6 +240,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       body: Column(
         children: [
           _SyncStatus(state: syncState),
+          _FilterBar(
+            filter: _filter,
+            onFilterChanged: (f) => setState(() => _filter = f),
+          ),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -227,6 +254,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
+
+    if (_filter == LibraryFilter.favourites) {
+      return _buildFavouritesBody(currentUri, isPlaying);
+    }
 
     if (_query.isNotEmpty) {
       final resultsAsync = ref.watch(librarySearchProvider(_query));
@@ -256,6 +287,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
+  /// Builds the body for favourites-only mode.
+  ///
+  /// Client-side filtering is used: favourites are typically small (tens to
+  /// low hundreds), so there is no need for server-side/FTS filtering.
+  Widget _buildFavouritesBody(String? currentUri, bool isPlaying) {
+    final favouritesAsync = ref.watch(favoritesProvider);
+    return favouritesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) =>
+          _LibraryError(error: error, title: '加载收藏失败'),
+      data: (favourites) {
+        if (favourites.isEmpty) {
+          return const _EmptyFavourites();
+        }
+        if (_query.isNotEmpty) {
+          final lowerQuery = _query.toLowerCase();
+          final filtered = favourites
+              .where(
+                (t) =>
+                    t.title.toLowerCase().contains(lowerQuery) ||
+                    (t.artist?.toLowerCase().contains(lowerQuery) ?? false),
+              )
+              .toList();
+          if (filtered.isEmpty) {
+            return const _NoFavouritesSearchResults();
+          }
+          return _trackList(filtered, currentUri, isPlaying);
+        }
+        return _trackList(favourites, currentUri, isPlaying);
+      },
+    );
+  }
+
   Widget _trackList(List<Track> tracks, String? currentUri, bool isPlaying) {
     return ListView.builder(
       itemCount: tracks.length,
@@ -269,6 +333,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           onTap: () => _play(tracks, index),
         );
       },
+    );
+  }
+}
+
+/// Compact filter bar at the top of the library list.
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({required this.filter, required this.onFilterChanged});
+
+  final LibraryFilter filter;
+  final ValueChanged<LibraryFilter> onFilterChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SegmentedButton<LibraryFilter>(
+        segments: const [
+          ButtonSegment<LibraryFilter>(
+            value: LibraryFilter.all,
+            label: Text('全部'),
+          ),
+          ButtonSegment<LibraryFilter>(
+            value: LibraryFilter.favourites,
+            label: Text('收藏'),
+          ),
+        ],
+        selected: {filter},
+        onSelectionChanged: (selected) {
+          if (selected.isNotEmpty) onFilterChanged(selected.first);
+        },
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
     );
   }
 }
@@ -385,7 +484,8 @@ class _SyncBanner extends StatelessWidget {
   }
 }
 
-/// A single library row with cover, title, artist, source badge and duration.
+/// A single library row with cover, title, artist, source badge, duration and
+/// a consolidated actions popup menu.
 class _TrackTile extends StatelessWidget {
   const _TrackTile({
     required this.track,
@@ -433,7 +533,7 @@ class _TrackTile extends StatelessWidget {
             formatTrackDuration(track.duration),
             style: theme.textTheme.labelMedium,
           ),
-          CacheActionButton(track: track),
+          TrackActionsButton(track: track),
         ],
       ),
     );
@@ -559,7 +659,7 @@ class _EmptyLibrary extends StatelessWidget {
   }
 }
 
-/// Shown when a library search returns no tracks.
+/// Shown when the library search returns no tracks.
 class _NoSearchResults extends StatelessWidget {
   const _NoSearchResults();
 
@@ -579,6 +679,76 @@ class _NoSearchResults extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text('没有找到匹配的歌曲', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              '换个关键词试试',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when favourites mode is active but there are no favourited tracks.
+class _EmptyFavourites extends StatelessWidget {
+  const _EmptyFavourites();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.favorite_border,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text('还没有收藏的歌曲', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              '在曲库或搜索结果中点击操作菜单收藏喜欢的歌曲',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when favourites mode is active, a query is entered, but nothing matches.
+class _NoFavouritesSearchResults extends StatelessWidget {
+  const _NoFavouritesSearchResults();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text('没有找到匹配的收藏', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
               '换个关键词试试',

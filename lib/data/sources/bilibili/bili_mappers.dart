@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/sources/bilibili/bili_models.dart';
 
@@ -56,6 +57,63 @@ String stripHtml(String input) {
     return _namedEntities[entity] ?? match.group(0)!;
   });
   return decoded.trim();
+}
+
+/// Bilibili content type for a regular video.
+const int biliTypeVideo = 2;
+
+/// Maps a favourite folder to a [RemotePlaylist].
+RemotePlaylist favoriteFolderToRemotePlaylist(FavFolderDto folder) =>
+    RemotePlaylist(
+      id: folder.id,
+      title: stripHtml(folder.title),
+      coverUrl: folder.coverUrl.isEmpty ? null : folder.coverUrl,
+      trackCount: folder.mediaCount,
+    );
+
+/// Maps one favourite resource to a [Track].
+///
+/// The resource list carries a `bvid` but no `cid`, so [biliUnknownCid] is used
+/// as a placeholder exactly like [searchItemToTrack]; [BiliSource.resolveStream]
+/// resolves the first part lazily. Note this means a favourite saved from a
+/// multi-part video always plays its first part.
+Track favoriteResourceToTrack(FavResourceDto resource) => Track(
+  source: biliSourceId,
+  sourceTrackId: BiliTrackId(bvid: resource.bvid, cid: biliUnknownCid),
+  uri: '$biliSourceId:${resource.bvid}:$biliUnknownCid',
+  title: stripHtml(resource.title),
+  artist: resource.upperName.isEmpty ? null : stripHtml(resource.upperName),
+  duration: resource.durationSeconds > 0
+      ? Duration(seconds: resource.durationSeconds)
+      : null,
+);
+
+/// Maps favourite resources to playable [Track]s, skipping entries that the
+/// video `playurl` endpoint cannot stream:
+///
+/// * `type == 12` — Bilibili audio (`au`) needs
+///   `/audio/music-service-c/web/url`;
+/// * `type == 21` — collections/seasons need the season archive endpoints;
+/// * `attr != 0` — deleted or otherwise invalid entries;
+/// * a blank `bvid` — nothing to resolve.
+///
+/// Returns the playable tracks and the number of skipped entries so callers can
+/// report how much of a folder was dropped.
+({List<Track> tracks, int skipped}) favoriteResourcesToTracks(
+  Iterable<FavResourceDto> resources,
+) {
+  final tracks = <Track>[];
+  var skipped = 0;
+  for (final resource in resources) {
+    if (resource.type != biliTypeVideo ||
+        resource.attr != 0 ||
+        resource.bvid.isEmpty) {
+      skipped++;
+      continue;
+    }
+    tracks.add(favoriteResourceToTrack(resource));
+  }
+  return (tracks: List.unmodifiable(tracks), skipped: skipped);
 }
 
 /// Maps a search result item to a [Track].

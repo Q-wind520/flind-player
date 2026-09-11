@@ -21,7 +21,7 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
-import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
 
@@ -162,7 +162,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 }
 
 /// A single search result row with a placeholder cover, title, UP主 and
-/// duration, plus a save-to-library action.
+/// duration, plus a consolidated actions menu (favourite, cache, store).
 class _SearchResultTile extends StatelessWidget {
   const _SearchResultTile({
     required this.track,
@@ -212,11 +212,10 @@ class _SearchResultTile extends StatelessWidget {
             formatTrackDuration(track.duration),
             style: theme.textTheme.labelMedium,
           ),
-          CacheActionButton(track: track),
-          IconButton(
-            onPressed: onSave,
-            icon: const Icon(Icons.library_add_outlined),
-            tooltip: '存入曲库',
+          TrackActionsButton(
+            track: track,
+            showSaveToLibrary: true,
+            onSaveToLibrary: onSave,
           ),
         ],
       ),

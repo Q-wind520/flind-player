@@ -21,14 +21,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 
 Track _track(String title, {String? artist, Duration? duration}) {
   final path = '/music/$title.mp3';
@@ -54,8 +57,72 @@ Track _biliTrack(String title, {String? artist, Duration? duration}) {
   );
 }
 
-/// Pumps [LibraryScreen] with the library, sync and playback providers
-/// overridden.
+/// In-memory [FavoritesRepository] for tests.
+///
+/// Each subscriber to [watchFavorites] receives the current state immediately,
+/// then live updates.
+class _InMemoryFavoritesRepository implements FavoritesRepository {
+  final _favourites = <String, Track>{};
+  final List<StreamController<List<Track>>> _listeners = [];
+
+  @override
+  Stream<List<Track>> watchFavorites() async* {
+    yield _favourites.values.toList();
+    final controller = StreamController<List<Track>>();
+    _listeners.add(controller);
+    yield* controller.stream;
+    // ignore: use_key_synchronously
+    controller.onCancel = () => _listeners.remove(controller);
+  }
+
+  @override
+  Future<List<Track>> allFavorites() async => _favourites.values.toList();
+
+  @override
+  Future<bool> isFavorite(String uri) async => _favourites.containsKey(uri);
+
+  @override
+  Future<void> addFavorite(Track track) async {
+    _favourites[track.uri] = track;
+    _notify();
+  }
+
+  @override
+  Future<void> removeFavorite(String uri) async {
+    _favourites.remove(uri);
+    _notify();
+  }
+
+  @override
+  Future<bool> toggleFavorite(Track track) async {
+    if (_favourites.containsKey(track.uri)) {
+      _favourites.remove(track.uri);
+      _notify();
+      return false;
+    } else {
+      _favourites[track.uri] = track;
+      _notify();
+      return true;
+    }
+  }
+
+  void _notify() {
+    final value = _favourites.values.toList();
+    for (final c in _listeners) {
+      if (!c.isClosed) c.add(value);
+    }
+  }
+
+  void dispose() {
+    for (final c in _listeners) {
+      c.close();
+    }
+    _listeners.clear();
+  }
+}
+
+/// Pumps [LibraryScreen] with the library, sync, playback and favourites
+/// providers overridden.
 ///
 /// `playbackStateProvider` must be overridden: the screen watches it to
 /// highlight the playing row, and the real provider would construct the
@@ -64,10 +131,15 @@ Track _biliTrack(String title, {String? artist, Duration? duration}) {
 /// database) is never constructed.
 Widget _app({
   List<Track> tracks = const <Track>[],
+  List<Track> favourites = const <Track>[],
   LibrarySyncState syncState = LibrarySyncState.idle,
   FutureOr<List<Track>> Function(Ref ref, String query)? search,
   Stream<DownloadProgress> progress = const Stream<DownloadProgress>.empty(),
 }) {
+  final favRepo = _InMemoryFavoritesRepository();
+  for (final track in favourites) {
+    favRepo.toggleFavorite(track);
+  }
   return ProviderScope(
     overrides: [
       libraryTracksProvider.overrideWith((ref) => Stream.value(tracks)),
@@ -77,6 +149,8 @@ Widget _app({
       librarySyncStateProvider.overrideWith((ref) => Stream.value(syncState)),
       downloadProgressProvider.overrideWith((ref) => progress),
       audioCacheEntryProvider.overrideWith((ref, track) async => null),
+      favoritesRepositoryProvider.overrideWithValue(favRepo),
+      favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
     child: const MaterialApp(home: LibraryScreen()),
@@ -229,20 +303,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shows the cache action for online tracks but not local ones', (
-    tester,
-  ) async {
+  testWidgets('shows the actions menu for online tracks', (tester) async {
     await tester.pumpWidget(
       _app(tracks: [_track('Local Song'), _biliTrack('Online Song')]),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    // Both tracks should have the actions menu button.
+    expect(find.byType(TrackActionsButton), findsNWidgets(2));
   });
 
-  testWidgets('renders a download indicator while a track downloads', (
-    tester,
-  ) async {
+  testWidgets('online track actions menu has cache option', (tester) async {
     final progress = StreamController<DownloadProgress>.broadcast();
     addTearDown(progress.close);
 
@@ -251,23 +322,107 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // Open the actions menu for the online track.
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
 
-    progress.add(
-      const DownloadProgress(
-        source: 'bilibili',
-        sourceTrackId: 'BV_Online Song:-1',
-        title: 'Online Song',
-        phase: DownloadPhase.downloading,
-        received: 50,
-        total: 100,
+    expect(find.text('缓存到本地'), findsOneWidget);
+  });
+
+  testWidgets('shows the favourites filter bar', (tester) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+    await tester.pumpAndSettle();
+
+    expect(find.text('全部'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+  });
+
+  testWidgets('switching to favourites filter shows empty state', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('收藏'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有收藏的歌曲'), findsOneWidget);
+    expect(find.byType(ListView), findsNothing);
+  });
+
+  testWidgets('switching to favourites filter shows only favourited tracks', (
+    tester,
+  ) async {
+    final alpha = _track('Alpha');
+    final beta = _track('Beta');
+
+    await tester.pumpWidget(_app(tracks: [alpha, beta], favourites: [alpha]));
+    await tester.pumpAndSettle();
+
+    // Initially shows all tracks.
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+
+    // Switch to favourites.
+    await tester.tap(find.text('收藏'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsNothing);
+  });
+
+  testWidgets('favourites filter with search shows matching favourites', (
+    tester,
+  ) async {
+    final alpha = _track('Alpha Song');
+    final beta = _track('Beta Song');
+
+    await tester.pumpWidget(
+      _app(
+        tracks: [alpha, beta],
+        favourites: [alpha, beta],
+        search: (ref, query) async => <Track>[],
       ),
     );
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.byIcon(Icons.download_outlined), findsNothing);
+    // Switch to favourites.
+    await tester.tap(find.text('收藏'));
+    await tester.pumpAndSettle();
+
+    // Type a search query.
+    await tester.enterText(find.byType(TextField), 'Alpha');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha Song'), findsOneWidget);
+    expect(find.text('Beta Song'), findsNothing);
   });
+
+  testWidgets(
+    'favourites filter with search and no matches shows empty state',
+    (tester) async {
+      final alpha = _track('Alpha Song');
+
+      await tester.pumpWidget(
+        _app(
+          tracks: [alpha],
+          favourites: [alpha],
+          search: (ref, query) async => <Track>[],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to favourites.
+      await tester.tap(find.text('收藏'));
+      await tester.pumpAndSettle();
+
+      // Type a search query that matches nothing.
+      await tester.enterText(find.byType(TextField), 'Nothing');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      expect(find.text('没有找到匹配的收藏'), findsOneWidget);
+    },
+  );
 }

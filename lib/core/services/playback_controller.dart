@@ -31,7 +31,15 @@ abstract interface class PlaybackController {
   PlaybackQueue get queue;
 
   /// Loads [queue] and starts playing its track at [index].
-  Future<void> playQueue(PlaybackQueue queue, {int index = 0});
+  ///
+  /// Pass [autoPlay] = false to load the queue and resolve the current track
+  /// without producing sound — used when restoring a session, where playback
+  /// must come up paused.
+  Future<void> playQueue(
+    PlaybackQueue queue, {
+    int index = 0,
+    bool autoPlay = true,
+  });
 
   Future<void> play();
 

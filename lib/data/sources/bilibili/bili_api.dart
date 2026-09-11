@@ -28,6 +28,11 @@ class BiliApi {
   static const String _searchPath = '/x/web-interface/wbi/search/type';
   static const String _viewPath = '/x/web-interface/view';
   static const String _playUrlPath = '/x/player/wbi/playurl';
+  static const String _favFoldersPath = '/x/v3/fav/folder/created/list-all';
+  static const String _favResourcesPath = '/x/v3/fav/resource/list';
+
+  /// Page size for favourite resources, matching the endpoint's web client.
+  static const int favPageSize = 20;
 
   /// `fnval=4048` requests every DASH capability (DASH + HDR + 4K + Dolby +
   /// Dolby Vision + 8K + AV1).
@@ -121,6 +126,64 @@ class BiliApi {
 
     entries.sort((a, b) => b.bandwidth.compareTo(a.bandwidth));
     return entries.first;
+  }
+
+  /// Lists [userId]'s **public** favourite folders.
+  ///
+  /// Anonymous endpoint: no WBI signature and no cookie (the risk-control
+  /// fingerprint is intentionally not attached — the endpoint answers without
+  /// it). The payload is `data.list[]`, or `data: null` when the account has
+  /// published no folder.
+  Future<List<FavFolderDto>> favoriteFolders(String userId) async {
+    final trimmed = userId.trim();
+    if (trimmed.isEmpty) return const <FavFolderDto>[];
+
+    final json = await _rateLimiter.run(
+      () => _client.getJson(
+        _favFoldersPath,
+        query: <String, dynamic>{'up_mid': trimmed},
+      ),
+    );
+
+    final data = json['data'];
+    final list = data is Map ? data['list'] : null;
+    if (list is! List) return const <FavFolderDto>[];
+
+    return list
+        .whereType<Map>()
+        .map((e) => FavFolderDto.fromJson(Map<String, dynamic>.from(e)))
+        .where((folder) => folder.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  /// Fetches one page of [mediaId]'s resources, newest first.
+  ///
+  /// Anonymous endpoint: no WBI signature and no cookie. The payload is
+  /// `data.medias[]`, or `data: null` for a missing or empty folder.
+  Future<List<FavResourceDto>> favoriteResources(
+    String mediaId, {
+    int page = 1,
+  }) async {
+    final json = await _rateLimiter.run(
+      () => _client.getJson(
+        _favResourcesPath,
+        query: <String, dynamic>{
+          'media_id': mediaId,
+          'pn': page,
+          'ps': favPageSize,
+          'platform': 'web',
+        },
+      ),
+    );
+
+    final data = json['data'];
+    final medias = data is Map ? data['medias'] : null;
+    if (medias is! List) return const <FavResourceDto>[];
+
+    return medias
+        .whereType<Map>()
+        .map((e) => FavResourceDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList(growable: false);
   }
 
   /// Attaches the cached risk-control cookie exactly once.

@@ -21,9 +21,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
@@ -42,7 +44,72 @@ Track _track(String title, {String? artist, Duration? duration}) {
   );
 }
 
-/// Pumps [SearchScreen] with the search family and playback state overridden.
+/// In-memory [FavoritesRepository] for tests.
+///
+/// Each subscriber to [watchFavorites] receives the current state immediately,
+/// then live updates.
+class _InMemoryFavoritesRepository implements FavoritesRepository {
+  final _favourites = <String, Track>{};
+  final List<StreamController<List<Track>>> _listeners = [];
+
+  @override
+  Stream<List<Track>> watchFavorites() async* {
+    yield _favourites.values.toList();
+    final controller = StreamController<List<Track>>();
+    _listeners.add(controller);
+    yield* controller.stream;
+    // ignore: use_key_synchronously
+    controller.onCancel = () => _listeners.remove(controller);
+  }
+
+  @override
+  Future<List<Track>> allFavorites() async => _favourites.values.toList();
+
+  @override
+  Future<bool> isFavorite(String uri) async => _favourites.containsKey(uri);
+
+  @override
+  Future<void> addFavorite(Track track) async {
+    _favourites[track.uri] = track;
+    _notify();
+  }
+
+  @override
+  Future<void> removeFavorite(String uri) async {
+    _favourites.remove(uri);
+    _notify();
+  }
+
+  @override
+  Future<bool> toggleFavorite(Track track) async {
+    if (_favourites.containsKey(track.uri)) {
+      _favourites.remove(track.uri);
+      _notify();
+      return false;
+    } else {
+      _favourites[track.uri] = track;
+      _notify();
+      return true;
+    }
+  }
+
+  void _notify() {
+    final value = _favourites.values.toList();
+    for (final c in _listeners) {
+      if (!c.isClosed) c.add(value);
+    }
+  }
+
+  void dispose() {
+    for (final c in _listeners) {
+      c.close();
+    }
+    _listeners.clear();
+  }
+}
+
+/// Pumps [SearchScreen] with the search family, playback state and
+/// favourites providers overridden.
 ///
 /// Overriding [biliSearchResultsProvider] keeps the test offline; overriding
 /// [playbackStateProvider] prevents the real just_audio-backed controller from
@@ -50,6 +117,7 @@ Track _track(String title, {String? artist, Duration? duration}) {
 Widget _app({
   required FutureOr<List<Track>> Function(Ref ref, String query) search,
 }) {
+  final favRepo = _InMemoryFavoritesRepository();
   return ProviderScope(
     overrides: [
       biliSearchResultsProvider.overrideWith(search),
@@ -60,6 +128,8 @@ Widget _app({
         (ref) => const Stream<DownloadProgress>.empty(),
       ),
       audioCacheEntryProvider.overrideWith((ref, track) async => null),
+      favoritesRepositoryProvider.overrideWithValue(favRepo),
+      favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
     ],
     child: const MaterialApp(home: SearchScreen()),
   );

@@ -135,6 +135,82 @@ class DashAudioDto {
   }
 }
 
+/// One favourite folder from
+/// `/x/v3/fav/folder/created/list-all`.
+///
+/// The endpoint nests folders under `data.list[]` and returns `data: null` when
+/// the account exposes no public folder. [id] is the folder's media id, which is
+/// what `/x/v3/fav/resource/list` expects.
+class FavFolderDto {
+  final String id;
+  final String title;
+  final String coverUrl;
+  final int mediaCount;
+
+  const FavFolderDto({
+    required this.id,
+    required this.title,
+    this.coverUrl = '',
+    this.mediaCount = 0,
+  });
+
+  factory FavFolderDto.fromJson(Map<String, dynamic> json) => FavFolderDto(
+    id: _idToString(json['media_id'] ?? json['id']),
+    title: json['title'] as String? ?? '',
+    coverUrl: json['cover'] as String? ?? '',
+    mediaCount: (json['media_count'] as num?)?.toInt() ?? 0,
+  );
+}
+
+/// One entry from `/x/v3/fav/resource/list` (`data.medias[]`).
+///
+/// [type] is the Bilibili content type: `2` video, `12` audio (`au`), `21`
+/// collection/season. [attr] is `0` for a valid entry; a non-zero value marks a
+/// deleted or otherwise unplayable one. The resource list exposes `bvid` but
+/// **no `cid`**, so callers must resolve the first part lazily.
+class FavResourceDto {
+  final int type;
+  final String bvid;
+  final String title;
+  final String coverUrl;
+  final String upperName;
+  final int durationSeconds;
+  final int attr;
+  final int page;
+
+  const FavResourceDto({
+    required this.type,
+    required this.bvid,
+    required this.title,
+    this.coverUrl = '',
+    this.upperName = '',
+    this.durationSeconds = 0,
+    this.attr = 0,
+    this.page = 0,
+  });
+
+  factory FavResourceDto.fromJson(Map<String, dynamic> json) {
+    final upper = json['upper'];
+    return FavResourceDto(
+      type: (json['type'] as num?)?.toInt() ?? 0,
+      bvid: json['bvid'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      coverUrl: json['cover'] as String? ?? '',
+      upperName: upper is Map ? upper['name'] as String? ?? '' : '',
+      durationSeconds: (json['duration'] as num?)?.toInt() ?? 0,
+      attr: (json['attr'] as num?)?.toInt() ?? 0,
+      page: (json['page'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Normalizes a JSON id that may arrive as a number or a string.
+String _idToString(Object? raw) {
+  if (raw is num) return raw.toInt().toString();
+  if (raw is String) return raw;
+  return '';
+}
+
 /// Parses the search `duration` field, which is `mm:ss` (or `hh:mm:ss`) text.
 Duration? _parseDuration(Object? raw) {
   if (raw is num) {

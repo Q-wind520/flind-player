@@ -99,7 +99,11 @@ class _FakePlaybackController implements PlaybackController {
   }
 
   @override
-  Future<void> playQueue(PlaybackQueue queue, {int index = 0}) async {}
+  Future<void> playQueue(
+    PlaybackQueue queue, {
+    int index = 0,
+    bool autoPlay = true,
+  }) async {}
 
   @override
   Future<void> dispose() async {
