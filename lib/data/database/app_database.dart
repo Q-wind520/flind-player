@@ -28,11 +28,32 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
-  MigrationStrategy get migration =>
-      MigrationStrategy(onCreate: (m) => m.createAll());
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) async {
+      await m.createAll();
+      await _installFts();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // v1 had no `missing_at` column; add it before anything reads the
+        // table through the new schema.
+        await m.addColumn(tracks, tracks.missingAt);
+        await _installFts();
+        // Index rows that already exist in the upgraded database.
+        await customStatement(TracksFts.rebuild);
+      }
+    },
+  );
+
+  /// Creates the FTS5 virtual table and its synchronisation triggers.
+  Future<void> _installFts() async {
+    for (final statement in TracksFts.createStatements) {
+      await customStatement(statement);
+    }
+  }
 }
 
 QueryExecutor _openConnection() {

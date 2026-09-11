@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/features/search/search_providers.dart';
@@ -68,6 +69,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       originalOrder: List<int>.generate(tracks.length, (i) => i),
     );
     return ref.read(playbackControllerProvider).playQueue(queue, index: index);
+  }
+
+  /// Persists [track] into the unified library.
+  ///
+  /// The library screen watches `watchTracks()`, so the saved track appears
+  /// there automatically.
+  Future<void> _saveToLibrary(Track track) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(musicLibraryRepositoryProvider).upsertTrack(track);
+      messenger.showSnackBar(SnackBar(content: Text('已存入曲库：${track.title}')));
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('存入曲库失败：$error')));
+    }
   }
 
   @override
@@ -136,6 +151,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               isCurrent: isCurrent,
               isPlaying: isCurrent && isPlaying,
               onTap: () => _play(tracks, index),
+              onSave: () => _saveToLibrary(track),
             );
           },
         );
@@ -145,19 +161,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 }
 
 /// A single search result row with a placeholder cover, title, UP主 and
-/// duration.
+/// duration, plus a save-to-library action.
 class _SearchResultTile extends StatelessWidget {
   const _SearchResultTile({
     required this.track,
     required this.isCurrent,
     required this.isPlaying,
     required this.onTap,
+    required this.onSave,
   });
 
   final Track track;
   final bool isCurrent;
   final bool isPlaying;
   final VoidCallback onTap;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -192,6 +210,11 @@ class _SearchResultTile extends StatelessWidget {
           Text(
             formatTrackDuration(track.duration),
             style: theme.textTheme.labelMedium,
+          ),
+          IconButton(
+            onPressed: onSave,
+            icon: const Icon(Icons.library_add_outlined),
+            tooltip: '存入曲库',
           ),
         ],
       ),

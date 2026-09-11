@@ -40,6 +40,81 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }
 
   @override
+  Future<List<Track>> searchTracks(String query, {int limit = 100}) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+
+    final ftsQuery = _toFtsQuery(trimmed);
+    if (ftsQuery != null) {
+      try {
+        final rows = await _db
+            .customSelect(
+              'SELECT t.* FROM tracks t '
+              'JOIN tracks_fts f ON f.rowid = t.id '
+              'WHERE tracks_fts MATCH ?1 AND t.missing_at IS NULL '
+              'ORDER BY t.title COLLATE NOCASE '
+              'LIMIT ?2',
+              variables: [Variable<String>(ftsQuery), Variable<int>(limit)],
+              readsFrom: {_db.tracks},
+            )
+            .get();
+        return rows
+            .map((row) => _toDomain(_db.tracks.map(row.data)))
+            .toList(growable: false);
+      } on Exception {
+        // Malformed FTS5 expressions (or a build without FTS5) fall through to
+        // the LIKE scan below instead of failing the search.
+      }
+    }
+    return _searchWithLike(trimmed, limit);
+  }
+
+  /// Fallback search used when FTS5 cannot evaluate the query.
+  ///
+  /// Plain `LIKE '%query%'` over title/artist/album, case-insensitive only for
+  /// ASCII, ordered the same as the FTS path.
+  Future<List<Track>> _searchWithLike(String query, int limit) async {
+    final pattern = '%$query%';
+    final rows =
+        await (_db.select(_db.tracks)
+              ..where(
+                (t) =>
+                    t.missingAt.isNull() &
+                    (t.title.like(pattern) |
+                        t.artist.like(pattern) |
+                        t.album.like(pattern)),
+              )
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.title.collate(Collate.noCase)),
+              ])
+              ..limit(limit))
+            .get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
+  /// Converts a raw user query into an FTS5 `MATCH` expression.
+  ///
+  /// Each whitespace-separated token is wrapped in double quotes (embedded `"`
+  /// doubled) so FTS5 operators such as `NEAR(`, `-` or `*` are treated as
+  /// literal text; the final token gets a trailing `*` for prefix matching.
+  /// Returns `null` when the query contains no tokens.
+  String? _toFtsQuery(String query) {
+    final tokens = query
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+    if (tokens.isEmpty) return null;
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < tokens.length; i++) {
+      if (i > 0) buffer.write(' ');
+      buffer.write('"${tokens[i].replaceAll('"', '""')}"');
+      if (i == tokens.length - 1) buffer.write('*');
+    }
+    return buffer.toString();
+  }
+
+  @override
   Future<int> upsertTrack(Track track) async {
     final existing = await (_db.select(
       _db.tracks,
@@ -66,6 +141,34 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }
 
   @override
+  Future<void> upsertTracks(List<Track> tracks) async {
+    if (tracks.isEmpty) return;
+
+    await _db.transaction(() async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await _db.batch((batch) async {
+        for (final track in tracks) {
+          // Reuse the singular upsert's companion logic so `createdAt` is only
+          // written on first insert and `updatedAt` on every write.
+          final existing = await (_db.select(
+            _db.tracks,
+          )..where((t) => t.uri.equals(track.uri))).getSingleOrNull();
+          final companion = _toCompanion(
+            track,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+          );
+          batch.insert(
+            _db.tracks,
+            companion,
+            onConflict: DoUpdate((_) => companion, target: [_db.tracks.uri]),
+          );
+        }
+      });
+    });
+  }
+
+  @override
   Future<void> deleteTrack(int id) async {
     await (_db.delete(_db.tracks)..where((t) => t.id.equals(id))).go();
   }
@@ -76,6 +179,44 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
       _db.tracks,
     )..where((t) => t.uri.equals(uri))).getSingleOrNull();
     return row == null ? null : _toDomain(row);
+  }
+
+  @override
+  Future<Set<String>> trackUrisForSource(String source) async {
+    final query = _db.selectOnly(_db.tracks)
+      ..addColumns([_db.tracks.uri])
+      ..where(_db.tracks.source.equals(source));
+    final rows = await query.get();
+    return rows.map((row) => row.read(_db.tracks.uri)!).toSet();
+  }
+
+  @override
+  Future<int> markMissingExcept(String source, Set<String> seenUris) async {
+    // Guard: a failed or empty scan must never mark the whole library missing.
+    if (seenUris.isEmpty) return 0;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return _db.transaction(() async {
+      // Restored: seen again, so clear the soft-delete marker and record the
+      // fresh sighting.
+      await (_db.update(
+        _db.tracks,
+      )..where((t) => t.source.equals(source) & t.uri.isIn(seenUris))).write(
+        TracksCompanion(
+          missingAt: const Value<int?>(null),
+          lastSeenAt: Value(now),
+        ),
+      );
+
+      // Newly missing: absent from this scan and not already marked.
+      return (_db.update(_db.tracks)..where(
+            (t) =>
+                t.source.equals(source) &
+                t.uri.isNotIn(seenUris) &
+                t.missingAt.isNull(),
+          ))
+          .write(TracksCompanion(missingAt: Value(now)));
+    });
   }
 
   @override
@@ -107,6 +248,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
 
   SimpleSelectStatement<$TracksTable, TrackRow> _orderedQuery() {
     return _db.select(_db.tracks)
+      ..where((t) => t.missingAt.isNull())
       ..orderBy([(t) => OrderingTerm.asc(t.title.collate(Collate.noCase))]);
   }
 
@@ -171,12 +313,24 @@ String _encodeSourceTrackId(SourceTrackId id) {
   };
 }
 
+/// Rebuilds the domain [SourceTrackId] from the persisted columns.
+///
+/// `local` rows store the absolute path in `sourceTrackId`; `bilibili` rows
+/// store `<bvid>:<cid>`. Any other source, or a malformed bilibili value, falls
+/// back to a local identity keyed by the canonical [uri] so the row stays
+/// usable.
 SourceTrackId _decodeSourceTrackId(String source, String raw, String uri) {
-  // M0 only persists local rows. `SourceTrackId` is a sealed type, so a local
-  // row reconstructs its path; any other (not-yet-written) source falls back
-  // to a local identity keyed by the canonical uri so the row stays usable.
   if (source == 'local') {
     return LocalTrackId(raw);
+  }
+  if (source == 'bilibili') {
+    final separator = raw.lastIndexOf(':');
+    if (separator > 0) {
+      final cid = int.tryParse(raw.substring(separator + 1));
+      if (cid != null) {
+        return BiliTrackId(bvid: raw.substring(0, separator), cid: cid);
+      }
+    }
   }
   return LocalTrackId(uri);
 }

@@ -182,6 +182,17 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _missingAtMeta = const VerificationMeta(
+    'missingAt',
+  );
+  @override
+  late final GeneratedColumn<int> missingAt = GeneratedColumn<int>(
+    'missing_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -223,6 +234,7 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     genre,
     coverPath,
     lastSeenAt,
+    missingAt,
     createdAt,
     updatedAt,
   ];
@@ -354,6 +366,12 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         ),
       );
     }
+    if (data.containsKey('missing_at')) {
+      context.handle(
+        _missingAtMeta,
+        missingAt.isAcceptableOrUnknown(data['missing_at']!, _missingAtMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -447,6 +465,10 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         DriftSqlType.int,
         data['${effectivePrefix}last_seen_at'],
       ),
+      missingAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}missing_at'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -488,6 +510,13 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
   final String? genre;
   final String? coverPath;
   final int? lastSeenAt;
+
+  /// Unix timestamp when the track disappeared from its source, or `null`
+  /// while it is present.
+  ///
+  /// Soft delete: a transiently unplugged drive or a failed scan must not
+  /// destroy rows that future playlists/stats still reference.
+  final int? missingAt;
   final int createdAt;
   final int updatedAt;
   const TrackRow({
@@ -508,6 +537,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     this.genre,
     this.coverPath,
     this.lastSeenAt,
+    this.missingAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -555,6 +585,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<int>(lastSeenAt);
     }
+    if (!nullToAbsent || missingAt != null) {
+      map['missing_at'] = Variable<int>(missingAt);
+    }
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
@@ -601,6 +634,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
+      missingAt: missingAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(missingAt),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -629,6 +665,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       genre: serializer.fromJson<String?>(json['genre']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
       lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
+      missingAt: serializer.fromJson<int?>(json['missingAt']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
@@ -654,6 +691,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       'genre': serializer.toJson<String?>(genre),
       'coverPath': serializer.toJson<String?>(coverPath),
       'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
+      'missingAt': serializer.toJson<int?>(missingAt),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
@@ -677,6 +715,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     Value<String?> genre = const Value.absent(),
     Value<String?> coverPath = const Value.absent(),
     Value<int?> lastSeenAt = const Value.absent(),
+    Value<int?> missingAt = const Value.absent(),
     int? createdAt,
     int? updatedAt,
   }) => TrackRow(
@@ -697,6 +736,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     genre: genre.present ? genre.value : this.genre,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+    missingAt: missingAt.present ? missingAt.value : this.missingAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -729,6 +769,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
+      missingAt: data.missingAt.present ? data.missingAt.value : this.missingAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -754,6 +795,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
           ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('missingAt: $missingAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -779,6 +821,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     genre,
     coverPath,
     lastSeenAt,
+    missingAt,
     createdAt,
     updatedAt,
   );
@@ -803,6 +846,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           other.genre == this.genre &&
           other.coverPath == this.coverPath &&
           other.lastSeenAt == this.lastSeenAt &&
+          other.missingAt == this.missingAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -825,6 +869,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
   final Value<String?> genre;
   final Value<String?> coverPath;
   final Value<int?> lastSeenAt;
+  final Value<int?> missingAt;
   final Value<int> createdAt;
   final Value<int> updatedAt;
   const TracksCompanion({
@@ -845,6 +890,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
+    this.missingAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -866,6 +912,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
+    this.missingAt = const Value.absent(),
     required int createdAt,
     required int updatedAt,
   }) : source = Value(source),
@@ -892,6 +939,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Expression<String>? genre,
     Expression<String>? coverPath,
     Expression<int>? lastSeenAt,
+    Expression<int>? missingAt,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
   }) {
@@ -913,6 +961,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       if (genre != null) 'genre': genre,
       if (coverPath != null) 'cover_path': coverPath,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+      if (missingAt != null) 'missing_at': missingAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -936,6 +985,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Value<String?>? genre,
     Value<String?>? coverPath,
     Value<int?>? lastSeenAt,
+    Value<int?>? missingAt,
     Value<int>? createdAt,
     Value<int>? updatedAt,
   }) {
@@ -957,6 +1007,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       genre: genre ?? this.genre,
       coverPath: coverPath ?? this.coverPath,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      missingAt: missingAt ?? this.missingAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -1016,6 +1067,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<int>(lastSeenAt.value);
     }
+    if (missingAt.present) {
+      map['missing_at'] = Variable<int>(missingAt.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -1045,6 +1099,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
           ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('missingAt: $missingAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1599,6 +1654,7 @@ typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
   Value<String?> genre,
   Value<String?> coverPath,
   Value<int?> lastSeenAt,
+  Value<int?> missingAt,
   required int createdAt,
   required int updatedAt,
 });
@@ -1620,6 +1676,7 @@ typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
   Value<String?> genre,
   Value<String?> coverPath,
   Value<int?> lastSeenAt,
+  Value<int?> missingAt,
   Value<int> createdAt,
   Value<int> updatedAt,
 });
@@ -1715,6 +1772,11 @@ class $$TracksTableFilterComposer
 
   ColumnFilters<int> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get missingAt => $composableBuilder(
+    column: $table.missingAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1823,6 +1885,11 @@ class $$TracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get missingAt => $composableBuilder(
+    column: $table.missingAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -1904,6 +1971,9 @@ class $$TracksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get missingAt =>
+      $composableBuilder(column: $table.missingAt, builder: (column) => column);
+
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -1956,6 +2026,7 @@ class $$TracksTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
+                Value<int?> missingAt = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
               }) => TracksCompanion(
@@ -1976,6 +2047,7 @@ class $$TracksTableTableManager
                 genre: genre,
                 coverPath: coverPath,
                 lastSeenAt: lastSeenAt,
+                missingAt: missingAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -1998,6 +2070,7 @@ class $$TracksTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
+                Value<int?> missingAt = const Value.absent(),
                 required int createdAt,
                 required int updatedAt,
               }) => TracksCompanion.insert(
@@ -2018,6 +2091,7 @@ class $$TracksTableTableManager
                 genre: genre,
                 coverPath: coverPath,
                 lastSeenAt: lastSeenAt,
+                missingAt: missingAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
