@@ -21,14 +21,14 @@ import 'package:flind_player/data/database/tables.dart';
 part 'app_database.g.dart';
 
 /// SQLite-backed application database.
-@DriftDatabase(tables: [Tracks, ScanRoots, ScanState])
+@DriftDatabase(tables: [Tracks, ScanRoots, ScanState, AudioCache])
 class AppDatabase extends _$AppDatabase {
   /// Opens the platform database, or uses [executor] when one is injected
   /// (unit tests pass `NativeDatabase.memory()`).
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -44,6 +44,13 @@ class AppDatabase extends _$AppDatabase {
         await _installFts();
         // Index rows that already exist in the upgraded database.
         await customStatement(TracksFts.rebuild);
+      }
+      if (from < 3) {
+        // v2 had no offline audio cache. Both statements are idempotent, so a
+        // database that already carries the table/index (e.g. a fixture built
+        // from the current schema) upgrades cleanly.
+        await m.createTable(audioCache);
+        await m.createIndex(idxAudioCacheLru);
       }
     },
   );

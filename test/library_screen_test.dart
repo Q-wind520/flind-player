@@ -22,10 +22,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/download_manager.dart';
+import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
+import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 
 Track _track(String title, {String? artist, Duration? duration}) {
   final path = '/music/$title.mp3';
@@ -63,6 +66,7 @@ Widget _app({
   List<Track> tracks = const <Track>[],
   LibrarySyncState syncState = LibrarySyncState.idle,
   FutureOr<List<Track>> Function(Ref ref, String query)? search,
+  Stream<DownloadProgress> progress = const Stream<DownloadProgress>.empty(),
 }) {
   return ProviderScope(
     overrides: [
@@ -71,6 +75,8 @@ Widget _app({
         (ref) => Stream.value(PlaybackState.idle),
       ),
       librarySyncStateProvider.overrideWith((ref) => Stream.value(syncState)),
+      downloadProgressProvider.overrideWith((ref) => progress),
+      audioCacheEntryProvider.overrideWith((ref, track) async => null),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
     child: const MaterialApp(home: LibraryScreen()),
@@ -221,5 +227,47 @@ void main() {
 
     expect(find.text('一个非常非常长的歌曲标题用来验证在窄屏下会被省略号截断'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows the cache action for online tracks but not local ones', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(tracks: [_track('Local Song'), _biliTrack('Online Song')]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+  });
+
+  testWidgets('renders a download indicator while a track downloads', (
+    tester,
+  ) async {
+    final progress = StreamController<DownloadProgress>.broadcast();
+    addTearDown(progress.close);
+
+    await tester.pumpWidget(
+      _app(tracks: [_biliTrack('Online Song')], progress: progress.stream),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    progress.add(
+      const DownloadProgress(
+        source: 'bilibili',
+        sourceTrackId: 'BV_Online Song:-1',
+        title: 'Online Song',
+        phase: DownloadPhase.downloading,
+        received: 50,
+        total: 100,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byIcon(Icons.download_outlined), findsNothing);
   });
 }

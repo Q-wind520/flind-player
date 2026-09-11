@@ -26,6 +26,7 @@ import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
+import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/shared/duration_format.dart';
 
 /// Actions exposed by the library overflow menu.
@@ -432,6 +433,7 @@ class _TrackTile extends StatelessWidget {
             formatTrackDuration(track.duration),
             style: theme.textTheme.labelMedium,
           ),
+          CacheActionButton(track: track),
         ],
       ),
     );

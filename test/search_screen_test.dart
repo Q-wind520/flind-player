@@ -22,8 +22,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/download_manager.dart';
+import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 
@@ -53,6 +56,10 @@ Widget _app({
       playbackStateProvider.overrideWith(
         (ref) => Stream.value(PlaybackState.idle),
       ),
+      downloadProgressProvider.overrideWith(
+        (ref) => const Stream<DownloadProgress>.empty(),
+      ),
+      audioCacheEntryProvider.overrideWith((ref, track) async => null),
     ],
     child: const MaterialApp(home: SearchScreen()),
   );

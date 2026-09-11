@@ -19,6 +19,7 @@ import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/search/search_screen.dart';
+import 'package:flind_player/features/settings/settings_screen.dart';
 
 /// Adaptive application shell.
 ///
@@ -40,6 +41,7 @@ class _HomeShellState extends State<HomeShell> {
     SearchScreen(),
     LibraryScreen(),
     PlayerScreen(),
+    SettingsScreen(),
   ];
 
   static const List<NavigationDestination> _destinations =
@@ -58,6 +60,11 @@ class _HomeShellState extends State<HomeShell> {
           icon: Icon(Icons.play_circle_outline),
           selectedIcon: Icon(Icons.play_circle),
           label: '正在播放',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: '设置',
         ),
       ];
 
@@ -97,6 +104,11 @@ class _HomeShellState extends State<HomeShell> {
                         icon: Icon(Icons.play_circle_outline),
                         selectedIcon: Icon(Icons.play_circle),
                         label: Text('正在播放'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.settings_outlined),
+                        selectedIcon: Icon(Icons.settings),
+                        label: Text('设置'),
                       ),
                     ],
                   ),

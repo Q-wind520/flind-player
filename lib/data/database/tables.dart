@@ -77,6 +77,49 @@ class ScanState extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// Offline audio cache index (docs/local-library.md §4.4).
+///
+/// One row per cached file; `pinned` marks manual downloads that LRU eviction
+/// must never touch. The unique key is the source identity, not the file hash,
+/// so re-caching a track updates its row instead of duplicating it.
+@DataClassName('AudioCacheRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_audio_cache_lru '
+  'ON audio_cache (pinned, last_accessed_at)',
+)
+class AudioCache extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Source identifier, e.g. `bilibili`.
+  TextColumn get source => text()();
+
+  /// Source-specific identity, e.g. `BV...:cid`.
+  TextColumn get sourceTrackId => text()();
+
+  /// Absolute path of the cached file.
+  TextColumn get filePath => text()();
+
+  /// Size of the cached file, in bytes.
+  IntColumn get bytes => integer()();
+
+  /// Stream quality the file was downloaded at, e.g. `30280`.
+  TextColumn get qualityId => text()();
+
+  /// Manual downloads are pinned and excluded from LRU eviction.
+  BoolColumn get pinned => boolean().withDefault(const Constant(false))();
+
+  /// Unix timestamp when the file entered the cache.
+  IntColumn get cachedAt => integer()();
+
+  /// Unix timestamp of the last read; the LRU ordering key.
+  IntColumn get lastAccessedAt => integer()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {source, sourceTrackId},
+  ];
+}
+
 /// Raw SQL for the FTS5 index over `tracks`.
 ///
 /// This is not a drift table: drift has no FTS5 table type, so the virtual

@@ -1619,12 +1619,592 @@ class ScanStateCompanion extends UpdateCompanion<ScanStateRow> {
   }
 }
 
+class $AudioCacheTable extends AudioCache
+    with TableInfo<$AudioCacheTable, AudioCacheRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AudioCacheTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceTrackIdMeta = const VerificationMeta(
+    'sourceTrackId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceTrackId = GeneratedColumn<String>(
+    'source_track_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _filePathMeta = const VerificationMeta(
+    'filePath',
+  );
+  @override
+  late final GeneratedColumn<String> filePath = GeneratedColumn<String>(
+    'file_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<int> bytes = GeneratedColumn<int>(
+    'bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _qualityIdMeta = const VerificationMeta(
+    'qualityId',
+  );
+  @override
+  late final GeneratedColumn<String> qualityId = GeneratedColumn<String>(
+    'quality_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastAccessedAtMeta = const VerificationMeta(
+    'lastAccessedAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastAccessedAt = GeneratedColumn<int>(
+    'last_accessed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    source,
+    sourceTrackId,
+    filePath,
+    bytes,
+    qualityId,
+    pinned,
+    cachedAt,
+    lastAccessedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'audio_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AudioCacheRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('source_track_id')) {
+      context.handle(
+        _sourceTrackIdMeta,
+        sourceTrackId.isAcceptableOrUnknown(
+          data['source_track_id']!,
+          _sourceTrackIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceTrackIdMeta);
+    }
+    if (data.containsKey('file_path')) {
+      context.handle(
+        _filePathMeta,
+        filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_filePathMeta);
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bytesMeta);
+    }
+    if (data.containsKey('quality_id')) {
+      context.handle(
+        _qualityIdMeta,
+        qualityId.isAcceptableOrUnknown(data['quality_id']!, _qualityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_qualityIdMeta);
+    }
+    if (data.containsKey('pinned')) {
+      context.handle(
+        _pinnedMeta,
+        pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta),
+      );
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    if (data.containsKey('last_accessed_at')) {
+      context.handle(
+        _lastAccessedAtMeta,
+        lastAccessedAt.isAcceptableOrUnknown(
+          data['last_accessed_at']!,
+          _lastAccessedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastAccessedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {source, sourceTrackId},
+  ];
+  @override
+  AudioCacheRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AudioCacheRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      sourceTrackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_track_id'],
+      )!,
+      filePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_path'],
+      )!,
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bytes'],
+      )!,
+      qualityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}quality_id'],
+      )!,
+      pinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_at'],
+      )!,
+      lastAccessedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_accessed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AudioCacheTable createAlias(String alias) {
+    return $AudioCacheTable(attachedDatabase, alias);
+  }
+}
+
+class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
+  final int id;
+
+  /// Source identifier, e.g. `bilibili`.
+  final String source;
+
+  /// Source-specific identity, e.g. `BV...:cid`.
+  final String sourceTrackId;
+
+  /// Absolute path of the cached file.
+  final String filePath;
+
+  /// Size of the cached file, in bytes.
+  final int bytes;
+
+  /// Stream quality the file was downloaded at, e.g. `30280`.
+  final String qualityId;
+
+  /// Manual downloads are pinned and excluded from LRU eviction.
+  final bool pinned;
+
+  /// Unix timestamp when the file entered the cache.
+  final int cachedAt;
+
+  /// Unix timestamp of the last read; the LRU ordering key.
+  final int lastAccessedAt;
+  const AudioCacheRow({
+    required this.id,
+    required this.source,
+    required this.sourceTrackId,
+    required this.filePath,
+    required this.bytes,
+    required this.qualityId,
+    required this.pinned,
+    required this.cachedAt,
+    required this.lastAccessedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['source'] = Variable<String>(source);
+    map['source_track_id'] = Variable<String>(sourceTrackId);
+    map['file_path'] = Variable<String>(filePath);
+    map['bytes'] = Variable<int>(bytes);
+    map['quality_id'] = Variable<String>(qualityId);
+    map['pinned'] = Variable<bool>(pinned);
+    map['cached_at'] = Variable<int>(cachedAt);
+    map['last_accessed_at'] = Variable<int>(lastAccessedAt);
+    return map;
+  }
+
+  AudioCacheCompanion toCompanion(bool nullToAbsent) {
+    return AudioCacheCompanion(
+      id: Value(id),
+      source: Value(source),
+      sourceTrackId: Value(sourceTrackId),
+      filePath: Value(filePath),
+      bytes: Value(bytes),
+      qualityId: Value(qualityId),
+      pinned: Value(pinned),
+      cachedAt: Value(cachedAt),
+      lastAccessedAt: Value(lastAccessedAt),
+    );
+  }
+
+  factory AudioCacheRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AudioCacheRow(
+      id: serializer.fromJson<int>(json['id']),
+      source: serializer.fromJson<String>(json['source']),
+      sourceTrackId: serializer.fromJson<String>(json['sourceTrackId']),
+      filePath: serializer.fromJson<String>(json['filePath']),
+      bytes: serializer.fromJson<int>(json['bytes']),
+      qualityId: serializer.fromJson<String>(json['qualityId']),
+      pinned: serializer.fromJson<bool>(json['pinned']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+      lastAccessedAt: serializer.fromJson<int>(json['lastAccessedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'source': serializer.toJson<String>(source),
+      'sourceTrackId': serializer.toJson<String>(sourceTrackId),
+      'filePath': serializer.toJson<String>(filePath),
+      'bytes': serializer.toJson<int>(bytes),
+      'qualityId': serializer.toJson<String>(qualityId),
+      'pinned': serializer.toJson<bool>(pinned),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+      'lastAccessedAt': serializer.toJson<int>(lastAccessedAt),
+    };
+  }
+
+  AudioCacheRow copyWith({
+    int? id,
+    String? source,
+    String? sourceTrackId,
+    String? filePath,
+    int? bytes,
+    String? qualityId,
+    bool? pinned,
+    int? cachedAt,
+    int? lastAccessedAt,
+  }) => AudioCacheRow(
+    id: id ?? this.id,
+    source: source ?? this.source,
+    sourceTrackId: sourceTrackId ?? this.sourceTrackId,
+    filePath: filePath ?? this.filePath,
+    bytes: bytes ?? this.bytes,
+    qualityId: qualityId ?? this.qualityId,
+    pinned: pinned ?? this.pinned,
+    cachedAt: cachedAt ?? this.cachedAt,
+    lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+  );
+  AudioCacheRow copyWithCompanion(AudioCacheCompanion data) {
+    return AudioCacheRow(
+      id: data.id.present ? data.id.value : this.id,
+      source: data.source.present ? data.source.value : this.source,
+      sourceTrackId: data.sourceTrackId.present
+          ? data.sourceTrackId.value
+          : this.sourceTrackId,
+      filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      qualityId: data.qualityId.present ? data.qualityId.value : this.qualityId,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+      lastAccessedAt: data.lastAccessedAt.present
+          ? data.lastAccessedAt.value
+          : this.lastAccessedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AudioCacheRow(')
+          ..write('id: $id, ')
+          ..write('source: $source, ')
+          ..write('sourceTrackId: $sourceTrackId, ')
+          ..write('filePath: $filePath, ')
+          ..write('bytes: $bytes, ')
+          ..write('qualityId: $qualityId, ')
+          ..write('pinned: $pinned, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    source,
+    sourceTrackId,
+    filePath,
+    bytes,
+    qualityId,
+    pinned,
+    cachedAt,
+    lastAccessedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AudioCacheRow &&
+          other.id == this.id &&
+          other.source == this.source &&
+          other.sourceTrackId == this.sourceTrackId &&
+          other.filePath == this.filePath &&
+          other.bytes == this.bytes &&
+          other.qualityId == this.qualityId &&
+          other.pinned == this.pinned &&
+          other.cachedAt == this.cachedAt &&
+          other.lastAccessedAt == this.lastAccessedAt);
+}
+
+class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
+  final Value<int> id;
+  final Value<String> source;
+  final Value<String> sourceTrackId;
+  final Value<String> filePath;
+  final Value<int> bytes;
+  final Value<String> qualityId;
+  final Value<bool> pinned;
+  final Value<int> cachedAt;
+  final Value<int> lastAccessedAt;
+  const AudioCacheCompanion({
+    this.id = const Value.absent(),
+    this.source = const Value.absent(),
+    this.sourceTrackId = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.qualityId = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.lastAccessedAt = const Value.absent(),
+  });
+  AudioCacheCompanion.insert({
+    this.id = const Value.absent(),
+    required String source,
+    required String sourceTrackId,
+    required String filePath,
+    required int bytes,
+    required String qualityId,
+    this.pinned = const Value.absent(),
+    required int cachedAt,
+    required int lastAccessedAt,
+  }) : source = Value(source),
+       sourceTrackId = Value(sourceTrackId),
+       filePath = Value(filePath),
+       bytes = Value(bytes),
+       qualityId = Value(qualityId),
+       cachedAt = Value(cachedAt),
+       lastAccessedAt = Value(lastAccessedAt);
+  static Insertable<AudioCacheRow> custom({
+    Expression<int>? id,
+    Expression<String>? source,
+    Expression<String>? sourceTrackId,
+    Expression<String>? filePath,
+    Expression<int>? bytes,
+    Expression<String>? qualityId,
+    Expression<bool>? pinned,
+    Expression<int>? cachedAt,
+    Expression<int>? lastAccessedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (source != null) 'source': source,
+      if (sourceTrackId != null) 'source_track_id': sourceTrackId,
+      if (filePath != null) 'file_path': filePath,
+      if (bytes != null) 'bytes': bytes,
+      if (qualityId != null) 'quality_id': qualityId,
+      if (pinned != null) 'pinned': pinned,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+    });
+  }
+
+  AudioCacheCompanion copyWith({
+    Value<int>? id,
+    Value<String>? source,
+    Value<String>? sourceTrackId,
+    Value<String>? filePath,
+    Value<int>? bytes,
+    Value<String>? qualityId,
+    Value<bool>? pinned,
+    Value<int>? cachedAt,
+    Value<int>? lastAccessedAt,
+  }) {
+    return AudioCacheCompanion(
+      id: id ?? this.id,
+      source: source ?? this.source,
+      sourceTrackId: sourceTrackId ?? this.sourceTrackId,
+      filePath: filePath ?? this.filePath,
+      bytes: bytes ?? this.bytes,
+      qualityId: qualityId ?? this.qualityId,
+      pinned: pinned ?? this.pinned,
+      cachedAt: cachedAt ?? this.cachedAt,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (sourceTrackId.present) {
+      map['source_track_id'] = Variable<String>(sourceTrackId.value);
+    }
+    if (filePath.present) {
+      map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<int>(bytes.value);
+    }
+    if (qualityId.present) {
+      map['quality_id'] = Variable<String>(qualityId.value);
+    }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    if (lastAccessedAt.present) {
+      map['last_accessed_at'] = Variable<int>(lastAccessedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AudioCacheCompanion(')
+          ..write('id: $id, ')
+          ..write('source: $source, ')
+          ..write('sourceTrackId: $sourceTrackId, ')
+          ..write('filePath: $filePath, ')
+          ..write('bytes: $bytes, ')
+          ..write('qualityId: $qualityId, ')
+          ..write('pinned: $pinned, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $TracksTable tracks = $TracksTable(this);
   late final $ScanRootsTable scanRoots = $ScanRootsTable(this);
   late final $ScanStateTable scanState = $ScanStateTable(this);
+  late final $AudioCacheTable audioCache = $AudioCacheTable(this);
+  late final Index idxAudioCacheLru = Index(
+    'idx_audio_cache_lru',
+    'CREATE INDEX IF NOT EXISTS idx_audio_cache_lru ON audio_cache (pinned, last_accessed_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1633,6 +2213,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     tracks,
     scanRoots,
     scanState,
+    audioCache,
+    idxAudioCacheLru,
   ];
 }
 
@@ -2448,6 +3030,287 @@ typedef $$ScanStateTableProcessedTableManager =
       ScanStateRow,
       PrefetchHooks Function()
     >;
+typedef $$AudioCacheTableCreateCompanionBuilder = AudioCacheCompanion Function({
+  Value<int> id,
+  required String source,
+  required String sourceTrackId,
+  required String filePath,
+  required int bytes,
+  required String qualityId,
+  Value<bool> pinned,
+  required int cachedAt,
+  required int lastAccessedAt,
+});
+typedef $$AudioCacheTableUpdateCompanionBuilder = AudioCacheCompanion Function({
+  Value<int> id,
+  Value<String> source,
+  Value<String> sourceTrackId,
+  Value<String> filePath,
+  Value<int> bytes,
+  Value<String> qualityId,
+  Value<bool> pinned,
+  Value<int> cachedAt,
+  Value<int> lastAccessedAt,
+});
+
+class $$AudioCacheTableFilterComposer
+    extends Composer<_$AppDatabase, $AudioCacheTable> {
+  $$AudioCacheTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceTrackId => $composableBuilder(
+    column: $table.sourceTrackId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get qualityId => $composableBuilder(
+    column: $table.qualityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AudioCacheTableOrderingComposer
+    extends Composer<_$AppDatabase, $AudioCacheTable> {
+  $$AudioCacheTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceTrackId => $composableBuilder(
+    column: $table.sourceTrackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get qualityId => $composableBuilder(
+    column: $table.qualityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AudioCacheTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AudioCacheTable> {
+  $$AudioCacheTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceTrackId => $composableBuilder(
+    column: $table.sourceTrackId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get filePath =>
+      $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<int> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<String> get qualityId =>
+      $composableBuilder(column: $table.qualityId, builder: (column) => column);
+
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$AudioCacheTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AudioCacheTable,
+          AudioCacheRow,
+          $$AudioCacheTableFilterComposer,
+          $$AudioCacheTableOrderingComposer,
+          $$AudioCacheTableAnnotationComposer,
+          $$AudioCacheTableCreateCompanionBuilder,
+          $$AudioCacheTableUpdateCompanionBuilder,
+          (
+            AudioCacheRow,
+            BaseReferences<_$AppDatabase, $AudioCacheTable, AudioCacheRow>,
+          ),
+          AudioCacheRow,
+          PrefetchHooks Function()
+        > {
+  $$AudioCacheTableTableManager(_$AppDatabase db, $AudioCacheTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AudioCacheTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AudioCacheTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AudioCacheTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> sourceTrackId = const Value.absent(),
+                Value<String> filePath = const Value.absent(),
+                Value<int> bytes = const Value.absent(),
+                Value<String> qualityId = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<int> cachedAt = const Value.absent(),
+                Value<int> lastAccessedAt = const Value.absent(),
+              }) => AudioCacheCompanion(
+                id: id,
+                source: source,
+                sourceTrackId: sourceTrackId,
+                filePath: filePath,
+                bytes: bytes,
+                qualityId: qualityId,
+                pinned: pinned,
+                cachedAt: cachedAt,
+                lastAccessedAt: lastAccessedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String source,
+                required String sourceTrackId,
+                required String filePath,
+                required int bytes,
+                required String qualityId,
+                Value<bool> pinned = const Value.absent(),
+                required int cachedAt,
+                required int lastAccessedAt,
+              }) => AudioCacheCompanion.insert(
+                id: id,
+                source: source,
+                sourceTrackId: sourceTrackId,
+                filePath: filePath,
+                bytes: bytes,
+                qualityId: qualityId,
+                pinned: pinned,
+                cachedAt: cachedAt,
+                lastAccessedAt: lastAccessedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AudioCacheTable, AudioCacheRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AudioCacheTable,
+                    AudioCacheRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AudioCacheTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AudioCacheTable,
+      AudioCacheRow,
+      $$AudioCacheTableFilterComposer,
+      $$AudioCacheTableOrderingComposer,
+      $$AudioCacheTableAnnotationComposer,
+      $$AudioCacheTableCreateCompanionBuilder,
+      $$AudioCacheTableUpdateCompanionBuilder,
+      (
+        AudioCacheRow,
+        BaseReferences<_$AppDatabase, $AudioCacheTable, AudioCacheRow>,
+      ),
+      AudioCacheRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2458,4 +3321,6 @@ class $AppDatabaseManager {
       $$ScanRootsTableTableManager(_db, _db.scanRoots);
   $$ScanStateTableTableManager get scanState =>
       $$ScanStateTableTableManager(_db, _db.scanState);
+  $$AudioCacheTableTableManager get audioCache =>
+      $$AudioCacheTableTableManager(_db, _db.audioCache);
 }
