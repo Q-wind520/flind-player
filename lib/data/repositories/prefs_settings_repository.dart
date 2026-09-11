@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 
 /// [SettingsRepository] backed by `shared_preferences`.
@@ -35,6 +36,9 @@ class PrefsSettingsRepository implements SettingsRepository {
 
   /// Preferences key for [CacheSettings.autoOnPlay].
   static const String autoOnPlayKey = 'cache.autoOnPlay';
+
+  /// Preferences key for the library sort order.
+  static const String librarySortKey = 'library.sort';
 
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
@@ -86,6 +90,25 @@ class PrefsSettingsRepository implements SettingsRepository {
 
   /// Closes the update stream; the repository is unusable afterwards.
   Future<void> dispose() => _updates.close();
+
+  @override
+  Future<TrackSort> librarySort() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final name = prefs.getString(librarySortKey);
+      if (name == null) return TrackSort.title;
+      return TrackSort.values.asNameMap()[name] ?? TrackSort.title;
+    } catch (error) {
+      debugPrint('PrefsSettingsRepository: librarySort read failed: $error');
+      return TrackSort.title;
+    }
+  }
+
+  @override
+  Future<void> setLibrarySort(TrackSort sort) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(librarySortKey, sort.name);
+  }
 
   CacheSettings _read(SharedPreferences prefs) {
     final enabled = prefs.getBool(enabledKey);

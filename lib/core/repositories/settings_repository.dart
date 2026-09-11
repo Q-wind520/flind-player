@@ -15,6 +15,8 @@
 
 import 'package:flutter/foundation.dart';
 
+import 'package:flind_player/core/models/track_sort.dart';
+
 /// User-configurable offline audio cache settings.
 ///
 /// Mirrors the `SettingsRepository` keys in `docs/local-library.md` §4.4: the
@@ -80,4 +82,10 @@ abstract interface class SettingsRepository {
 
   /// Emits the current value on subscribe and again after every update.
   Stream<CacheSettings> watchCacheSettings();
+
+  /// The persisted library sort order, falling back to [TrackSort.title].
+  Future<TrackSort> librarySort();
+
+  /// Persists [sort] as the library sort order.
+  Future<void> setLibrarySort(TrackSort sort);
 }

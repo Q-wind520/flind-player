@@ -26,6 +26,10 @@ import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
+import 'package:flind_player/platform/permissions/permission_providers.dart';
+import 'package:flind_player/platform/permissions/permission_service.dart';
+import 'package:flind_player/shared/error_messages.dart';
+import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/format_bytes.dart';
 
 /// Application settings: playback (cache), library, and about sections.
@@ -238,7 +242,12 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
           ),
           error: (e, _) => ListTile(
             leading: const Icon(Icons.error_outline),
-            title: Text('加载失败：$e'),
+            title: Text('加载失败：${describeError(e)}'),
+            trailing: IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: '重试',
+              onPressed: () => ref.invalidate(scanRootsProvider),
+            ),
           ),
           data: (roots) {
             if (roots.isEmpty) {
@@ -334,6 +343,23 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
 
   Future<void> _addFolder(WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
+    final permission = await ref
+        .read(permissionCoordinatorProvider)
+        .ensureAudioLibrary();
+    if (permission != PermissionResult.granted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            permissionDeniedMessage(
+              AppPermission.audioLibrary,
+              permanentlyDenied:
+                  permission == PermissionResult.permanentlyDenied,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
       if (path == null) return;
@@ -342,7 +368,8 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
       _startSync(ref);
       messenger.showSnackBar(SnackBar(content: Text('已添加文件夹：$path')));
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('添加文件夹失败：$error')));
+      if (!mounted) return;
+      showErrorSnackBar(context, error);
     }
   }
 

@@ -23,8 +23,9 @@ import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
-import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/shared/duration_format.dart';
+import 'package:flind_player/shared/error_messages.dart';
+import 'package:flind_player/shared/error_snack_bar.dart';
 
 /// Browses a Bilibili user's **public** favourite folders by UID.
 ///
@@ -149,7 +150,18 @@ class _BilibiliFavoritesScreenState
       await ref.read(musicLibraryRepositoryProvider).upsertTrack(track);
       messenger.showSnackBar(SnackBar(content: Text('已存入曲库：${track.title}')));
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('存入曲库失败：$error')));
+      if (!mounted) return;
+      showErrorSnackBar(context, error);
+    }
+  }
+
+  /// Re-runs the request that produced the current error panel.
+  void _retry() {
+    final folder = _openFolder;
+    if (folder != null) {
+      _openFolderTracks(folder);
+    } else {
+      _loadFolders();
     }
   }
 
@@ -214,7 +226,7 @@ class _BilibiliFavoritesScreenState
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _FavoritesError(error: _error!);
+      return _FavoritesError(error: _error!, onRetry: _retry);
     }
     if (_openFolder == null) {
       return _buildFolderList();
@@ -396,9 +408,10 @@ class _FavoritesHint extends StatelessWidget {
 
 /// Shown when a folder or track load fails.
 class _FavoritesError extends StatelessWidget {
-  const _FavoritesError({required this.error});
+  const _FavoritesError({required this.error, required this.onRetry});
 
   final Object error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -414,30 +427,21 @@ class _FavoritesError extends StatelessWidget {
             Text('加载失败', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              _favoritesErrorMessage(error),
+              describeError(error),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-/// Turns a raw error into a readable message, special-casing the Bilibili
-/// risk-control / IP-block codes.
-String _favoritesErrorMessage(Object error) {
-  if (error is BiliApiException) {
-    if (error.code == -412 || error.code == -352) {
-      return '请求过于频繁，请稍后再试';
-    }
-    if (error.code == -101) {
-      return '该收藏夹需要登录后才能查看';
-    }
-    return error.message;
-  }
-  return '$error';
 }

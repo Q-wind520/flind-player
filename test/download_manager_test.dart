@@ -22,6 +22,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
@@ -46,6 +47,12 @@ class _FakeSettingsRepository implements SettingsRepository {
   @override
   Stream<CacheSettings> watchCacheSettings() =>
       const Stream<CacheSettings>.empty();
+
+  @override
+  Future<TrackSort> librarySort() async => TrackSort.title;
+
+  @override
+  Future<void> setLibrarySort(TrackSort sort) async {}
 }
 
 /// Records resolve calls and returns a fixed [StreamInfo].

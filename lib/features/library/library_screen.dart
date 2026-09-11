@@ -22,14 +22,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
+import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
+import 'package:flind_player/platform/permissions/permission_providers.dart';
+import 'package:flind_player/platform/permissions/permission_service.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/shared/duration_format.dart';
+import 'package:flind_player/shared/error_messages.dart';
+import 'package:flind_player/shared/error_snack_bar.dart';
 
 /// Actions exposed by the library overflow menu.
 enum _LibraryAction { addFolder, rescan, importFiles, bilibiliFavorites }
@@ -106,6 +113,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// Picks a directory, persists it as a scan root and starts a sync.
   Future<void> _addFolder() async {
     final messenger = ScaffoldMessenger.of(context);
+    final permission = await ref
+        .read(permissionCoordinatorProvider)
+        .ensureAudioLibrary();
+    if (permission != PermissionResult.granted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            permissionDeniedMessage(
+              AppPermission.audioLibrary,
+              permanentlyDenied:
+                  permission == PermissionResult.permanentlyDenied,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
       if (path == null) {
@@ -116,7 +140,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       _startSync();
       messenger.showSnackBar(SnackBar(content: Text('已添加文件夹：$path')));
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('添加文件夹失败：$error')));
+      if (!mounted) return;
+      showErrorSnackBar(context, error);
     }
   }
 
@@ -129,6 +154,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// Picks local files, persists every readable track, and reports the result.
   Future<void> _importFiles() async {
     final messenger = ScaffoldMessenger.of(context);
+    final permission = await ref
+        .read(permissionCoordinatorProvider)
+        .ensureAudioLibrary();
+    if (permission != PermissionResult.granted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            permissionDeniedMessage(
+              AppPermission.audioLibrary,
+              permanentlyDenied:
+                  permission == PermissionResult.permanentlyDenied,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     try {
       final importer = ref.read(localFileImporterProvider);
       final repository = ref.read(musicLibraryRepositoryProvider);
@@ -148,7 +190,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         SnackBar(content: Text('已导入 ${tracks.length} 首歌曲')),
       );
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('导入失败：$error')));
+      if (!mounted) return;
+      showErrorSnackBar(context, error);
     }
   }
 
@@ -177,6 +220,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       appBar: AppBar(
         title: const Text('音乐库'),
         actions: [
+          _SortButton(
+            currentSort:
+                ref.watch(librarySortProvider).value ?? TrackSort.title,
+            onSortChanged: (sort) =>
+                ref.read(librarySortProvider.notifier).setSort(sort),
+          ),
           PopupMenuButton<_LibraryAction>(
             tooltip: '更多操作',
             onSelected: _onAction,
@@ -263,13 +312,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       final resultsAsync = ref.watch(librarySearchProvider(_query));
       return resultsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            _LibraryError(error: error, title: '搜索失败'),
+        error: (error, stackTrace) => _LibraryError(
+          error: error,
+          title: '搜索失败',
+          onRetry: () => ref.invalidate(librarySearchProvider(_query)),
+        ),
         data: (tracks) {
           if (tracks.isEmpty) {
             return const _NoSearchResults();
           }
-          return _trackList(tracks, currentUri, isPlaying);
+          return _trackDisplay(tracks, currentUri, isPlaying);
         },
       );
     }
@@ -277,12 +329,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final tracksAsync = ref.watch(libraryTracksProvider);
     return tracksAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) => _LibraryError(error: error),
+      error: (error, stackTrace) => _LibraryError(
+        error: error,
+        onRetry: () => ref.invalidate(libraryTracksProvider),
+      ),
       data: (tracks) {
         if (tracks.isEmpty) {
           return _EmptyLibrary(onImport: _importFiles, onAddFolder: _addFolder);
         }
-        return _trackList(tracks, currentUri, isPlaying);
+        return _trackDisplay(tracks, currentUri, isPlaying);
       },
     );
   }
@@ -291,19 +346,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   ///
   /// Client-side filtering is used: favourites are typically small (tens to
   /// low hundreds), so there is no need for server-side/FTS filtering.
+  ///
+  /// Favourites are also sorted client-side using the same comparator as the
+  /// server-side library sort: the list is small enough that a simple
+  /// `List.sort` is cheaper than a round-trip to the repository.
   Widget _buildFavouritesBody(String? currentUri, bool isPlaying) {
     final favouritesAsync = ref.watch(favoritesProvider);
+    final sort = ref.watch(librarySortProvider).value ?? TrackSort.title;
     return favouritesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) =>
-          _LibraryError(error: error, title: '加载收藏失败'),
+      error: (error, stackTrace) => _LibraryError(
+        error: error,
+        title: '加载收藏失败',
+        onRetry: () => ref.invalidate(favoritesProvider),
+      ),
       data: (favourites) {
         if (favourites.isEmpty) {
           return const _EmptyFavourites();
         }
+        final sorted = _sortTracks(favourites, sort);
         if (_query.isNotEmpty) {
           final lowerQuery = _query.toLowerCase();
-          final filtered = favourites
+          final filtered = sorted
               .where(
                 (t) =>
                     t.title.toLowerCase().contains(lowerQuery) ||
@@ -313,9 +377,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           if (filtered.isEmpty) {
             return const _NoFavouritesSearchResults();
           }
-          return _trackList(filtered, currentUri, isPlaying);
+          return _trackDisplay(filtered, currentUri, isPlaying);
         }
-        return _trackList(favourites, currentUri, isPlaying);
+        return _trackDisplay(sorted, currentUri, isPlaying);
+      },
+    );
+  }
+
+  Widget _trackDisplay(List<Track> tracks, String? currentUri, bool isPlaying) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= AppBreakpoints.compact) {
+          return _trackGrid(tracks, currentUri, isPlaying);
+        }
+        return _trackList(tracks, currentUri, isPlaying);
       },
     );
   }
@@ -334,6 +409,60 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         );
       },
     );
+  }
+
+  Widget _trackGrid(List<Track> tracks, String? currentUri, bool isPlaying) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 220,
+        childAspectRatio: 0.82,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemCount: tracks.length,
+      itemBuilder: (context, index) {
+        final track = tracks[index];
+        final isCurrent = currentUri != null && track.uri == currentUri;
+        return _TrackCard(
+          track: track,
+          isCurrent: isCurrent,
+          isPlaying: isCurrent && isPlaying,
+          onTap: () => _play(tracks, index),
+        );
+      },
+    );
+  }
+
+  /// Client-side sort matching the server-side [TrackSort] comparators.
+  ///
+  /// Used for the favourites list, which is too small to warrant a DB round-trip.
+  static List<Track> _sortTracks(List<Track> tracks, TrackSort sort) {
+    final sorted = List<Track>.from(tracks);
+    sorted.sort((a, b) {
+      return switch (sort) {
+        TrackSort.title => a.title.toLowerCase().compareTo(
+          b.title.toLowerCase(),
+        ),
+        TrackSort.artist => _compareNullable(
+          a.artist?.toLowerCase(),
+          b.artist?.toLowerCase(),
+        ),
+        TrackSort.album => _compareNullable(
+          a.album?.toLowerCase(),
+          b.album?.toLowerCase(),
+        ),
+        TrackSort.recentlyAdded => b.id?.compareTo(a.id ?? 0) ?? 0,
+      };
+    });
+    return sorted;
+  }
+
+  static int _compareNullable(String? a, String? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1; // nulls last
+    if (b == null) return -1;
+    return a.compareTo(b);
   }
 }
 
@@ -370,6 +499,51 @@ class _FilterBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Popup button that lets the user choose the library sort order.
+class _SortButton extends StatelessWidget {
+  const _SortButton({required this.currentSort, required this.onSortChanged});
+
+  final TrackSort currentSort;
+  final ValueChanged<TrackSort> onSortChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<TrackSort>(
+      tooltip: '排序',
+      initialValue: currentSort,
+      onSelected: onSortChanged,
+      itemBuilder: (context) => [
+        for (final sort in TrackSort.values)
+          PopupMenuItem<TrackSort>(
+            value: sort,
+            child: Row(
+              children: [
+                if (sort == currentSort)
+                  Icon(
+                    Icons.check,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                else
+                  const SizedBox(width: 20),
+                const SizedBox(width: 8),
+                Text(_sortLabel(sort)),
+              ],
+            ),
+          ),
+      ],
+      icon: const Icon(Icons.sort),
+    );
+  }
+
+  static String _sortLabel(TrackSort sort) => switch (sort) {
+    TrackSort.title => '按标题',
+    TrackSort.artist => '按艺术家',
+    TrackSort.album => '按专辑',
+    TrackSort.recentlyAdded => '最近添加',
+  };
 }
 
 /// A menu entry: leading icon plus label.
@@ -423,7 +597,8 @@ class _SyncStatus extends StatelessWidget {
         icon: Icons.check_circle_outline,
       ),
       LibrarySyncPhase.failed => _SyncBanner(
-        text: '同步失败：${state.error ?? '未知错误'}',
+        text:
+            '同步失败：${state.error == null ? '未知错误' : describeError(state.error!)}',
         color: scheme.error,
         icon: Icons.error_outline,
       ),
@@ -540,6 +715,102 @@ class _TrackTile extends StatelessWidget {
   }
 }
 
+/// A card tile for the wide-screen grid layout.
+///
+/// Shows a square cover, title, artist, source badge, playing indicator, and
+/// a trailing actions button overlaid in the top-right corner.
+class _TrackCard extends StatelessWidget {
+  const _TrackCard({
+    required this.track,
+    required this.isCurrent,
+    required this.isPlaying,
+    required this.onTap,
+  });
+
+  final Track track;
+  final bool isCurrent;
+  final bool isPlaying;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  _TrackCover(track: track, size: double.infinity),
+                  if (isPlaying)
+                    Positioned(
+                      bottom: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.graphic_eq,
+                          size: 14,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: TrackActionsButton(track: track),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    track.artist ?? '未知艺术家',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  _SourceBadge(source: track.source),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Small tonal chip naming the track's source.
 class _SourceBadge extends StatelessWidget {
   const _SourceBadge({required this.source});
@@ -577,6 +848,9 @@ class _TrackCover extends StatelessWidget {
   const _TrackCover({required this.track, required this.size});
 
   final Track track;
+
+  /// Fixed size in pixels, or `double.infinity` when the cover should fill its
+  /// parent (used inside the grid card's [Expanded] wrapper).
   final double size;
 
   @override
@@ -584,29 +858,38 @@ class _TrackCover extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final coverPath = track.coverPath;
     final hasCover = coverPath != null && coverPath.isNotEmpty;
+    final useFixedSize = !size.isInfinite;
+    final borderRadius = useFixedSize ? size * 0.16 : 4.0;
+
+    Widget child = Container(
+      width: useFixedSize ? size : null,
+      height: useFixedSize ? size : null,
+      color: scheme.surfaceContainerHighest,
+      child: hasCover
+          ? Image.file(
+              File(coverPath),
+              width: useFixedSize ? size : null,
+              height: useFixedSize ? size : null,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  _placeholder(scheme),
+            )
+          : _placeholder(scheme),
+    );
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.16),
-      child: Container(
-        width: size,
-        height: size,
-        color: scheme.surfaceContainerHighest,
-        child: hasCover
-            ? Image.file(
-                File(coverPath),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    _placeholder(scheme),
-              )
-            : _placeholder(scheme),
-      ),
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: child,
     );
   }
 
-  Widget _placeholder(ColorScheme scheme) =>
-      Icon(Icons.music_note, size: size * 0.5, color: scheme.onSurfaceVariant);
+  Widget _placeholder(ColorScheme scheme) => Center(
+    child: Icon(
+      Icons.music_note,
+      size: size.isInfinite ? 40 : size * 0.5,
+      color: scheme.onSurfaceVariant,
+    ),
+  );
 }
 
 /// Shown when the library has no tracks yet.
@@ -766,10 +1049,15 @@ class _NoFavouritesSearchResults extends StatelessWidget {
 
 /// Shown when the library stream (or a search) fails.
 class _LibraryError extends StatelessWidget {
-  const _LibraryError({required this.error, this.title = '加载音乐库失败'});
+  const _LibraryError({
+    required this.error,
+    this.title = '加载音乐库失败',
+    this.onRetry,
+  });
 
   final Object error;
   final String title;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -789,12 +1077,20 @@ class _LibraryError extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '$error',
+              describeError(error),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('重试'),
+              ),
+            ],
           ],
         ),
       ),

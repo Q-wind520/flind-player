@@ -22,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:flind_player/core/models/playback_state.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
@@ -53,6 +54,12 @@ class _FakeSettingsRepository implements SettingsRepository {
   Stream<CacheSettings> watchCacheSettings() async* {
     yield current;
   }
+
+  @override
+  Future<TrackSort> librarySort() async => TrackSort.title;
+
+  @override
+  Future<void> setLibrarySort(TrackSort sort) async {}
 
   Future<void> dispose() async {}
 }

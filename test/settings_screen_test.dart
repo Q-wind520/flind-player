@@ -38,6 +38,8 @@ import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 import 'package:flind_player/data/sources/local/local_metadata_reader.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
+import 'package:flind_player/platform/permissions/permission_providers.dart';
+import 'package:flind_player/platform/permissions/permission_service.dart';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -55,6 +57,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<CacheSettings> cacheSettings() async => current;
+
+  @override
+  Future<TrackSort> librarySort() async => TrackSort.title;
+
+  @override
+  Future<void> setLibrarySort(TrackSort sort) async {}
 
   @override
   Future<void> updateCacheSettings(CacheSettings settings) async {
@@ -210,6 +218,23 @@ class _FakeLibrarySyncService extends LibrarySyncService {
       );
 }
 
+/// [PermissionBackend] stand-in that grants everything without touching a
+/// platform channel (the real backend would call `permission_handler`, which
+/// is unavailable under `flutter test`).
+class _GrantingPermissionBackend implements PermissionBackend {
+  @override
+  bool get requiresRuntimeRequest => false;
+
+  @override
+  Future<bool> isGranted(AppPermission permission) async => true;
+
+  @override
+  Future<bool> request(AppPermission permission) async => true;
+
+  @override
+  Future<bool> isPermanentlyDenied(AppPermission permission) async => false;
+}
+
 /// Minimal [LocalLibraryScanner] stub.
 class _FakeLocalLibraryScanner extends LocalLibraryScanner {
   _FakeLocalLibraryScanner() : super(reader: LocalMetadataReader());
@@ -264,6 +289,9 @@ Widget _app({
   return ProviderScope(
     overrides: [
       settingsRepositoryProvider.overrideWith((ref) => settings),
+      permissionServiceProvider.overrideWithValue(
+        PermissionService(backend: _GrantingPermissionBackend()),
+      ),
       audioCacheStoreProvider.overrideWith((ref) => store),
       audioCacheUsageProvider.overrideWith((ref) async => usageBytes),
       audioCacheEntryCountProvider.overrideWith((ref) async => trackCount),

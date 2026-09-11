@@ -20,10 +20,12 @@ import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
-import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/search/search_providers.dart';
+import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
+import 'package:flind_player/shared/error_messages.dart';
+import 'package:flind_player/shared/error_snack_bar.dart';
 
 /// Bilibili search: submit a keyword, browse the results, tap one to play.
 ///
@@ -82,46 +84,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       await ref.read(musicLibraryRepositoryProvider).upsertTrack(track);
       messenger.showSnackBar(SnackBar(content: Text('已存入曲库：${track.title}')));
     } catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('存入曲库失败：$error')));
+      if (!mounted) return;
+      showErrorSnackBar(context, error);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('搜索'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _controller,
-              builder: (context, value, child) {
-                return TextField(
-                  controller: _controller,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: _submit,
-                  decoration: InputDecoration(
-                    hintText: '搜索歌曲、UP主',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: value.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear),
-                            tooltip: '清空',
-                            onPressed: _clear,
-                          ),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                );
-              },
+    return PlaybackPermissionScope(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('搜索'),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(64),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, child) {
+                  return TextField(
+                    controller: _controller,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: _submit,
+                    decoration: InputDecoration(
+                      hintText: '搜索歌曲、UP主',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: value.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              tooltip: '清空',
+                              onPressed: _clear,
+                            ),
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -137,7 +142,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return resultsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) => _SearchError(error: error),
+      error: (error, stackTrace) => _SearchError(
+        error: error,
+        onRetry: () =>
+            ref.invalidate(biliSearchResultsProvider(_submittedQuery)),
+      ),
       data: (tracks) {
         if (tracks.isEmpty) {
           return const _NoResults();
@@ -295,9 +304,10 @@ class _NoResults extends StatelessWidget {
 
 /// Shown when the search future fails.
 class _SearchError extends StatelessWidget {
-  const _SearchError({required this.error});
+  const _SearchError({required this.error, required this.onRetry});
 
   final Object error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -317,27 +327,21 @@ class _SearchError extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              _errorMessage(error),
+              describeError(error),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-/// Turns a raw error into a readable message, special-casing the Bilibili
-/// risk-control / IP-block codes.
-String _errorMessage(Object error) {
-  if (error is BiliApiException) {
-    if (error.code == -412 || error.code == -352) {
-      return '请求过于频繁，请稍后再试';
-    }
-    return error.message;
-  }
-  return '$error';
 }

@@ -21,6 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
@@ -30,6 +31,7 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
+import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 
@@ -129,12 +131,17 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
 /// just_audio-backed controller, which cannot run under `flutter test`.
 /// `librarySyncStateProvider` is overridden so the real sync service (and its
 /// database) is never constructed.
+///
+/// The viewport is set to 400 px wide so the compact (list) layout renders
+/// by default.  Tests that need the wide-screen grid layout must set the
+/// viewport themselves.
 Widget _app({
   List<Track> tracks = const <Track>[],
   List<Track> favourites = const <Track>[],
   LibrarySyncState syncState = LibrarySyncState.idle,
   FutureOr<List<Track>> Function(Ref ref, String query)? search,
   Stream<DownloadProgress> progress = const Stream<DownloadProgress>.empty(),
+  TrackSort sort = TrackSort.title,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -151,14 +158,25 @@ Widget _app({
       audioCacheEntryProvider.overrideWith((ref, track) async => null),
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
+      librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
-    child: const MaterialApp(home: LibraryScreen()),
+    child: MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(size: Size(400, 800)),
+        child: const LibraryScreen(),
+      ),
+    ),
   );
 }
 
 void main() {
   testWidgets('renders tracks from the library', (tester) async {
+    // Set a narrow view so the compact (list) layout renders.
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       _app(
         tracks: [
@@ -425,4 +443,14 @@ void main() {
       expect(find.text('没有找到匹配的收藏'), findsOneWidget);
     },
   );
+}
+
+/// Fake [LibrarySortNotifier] that returns a fixed value immediately.
+class _FakeLibrarySortNotifier extends LibrarySortNotifier {
+  _FakeLibrarySortNotifier(this._sort);
+
+  final TrackSort _sort;
+
+  @override
+  Future<TrackSort> build() async => _sort;
 }

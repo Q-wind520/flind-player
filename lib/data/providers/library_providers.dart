@@ -20,7 +20,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/data/sources/local/artwork_cache.dart';
 import 'package:flind_player/data/sources/local/local_file_importer.dart';
@@ -38,9 +40,13 @@ final localFileImporterProvider = Provider<LocalFileImporter>(
 );
 
 /// Reactive view of the whole library, newest database state included.
-final libraryTracksProvider = StreamProvider<List<Track>>(
-  (ref) => ref.watch(musicLibraryRepositoryProvider).watchTracks(),
-);
+///
+/// Watches [librarySortProvider] so the list re-sorts when the user changes
+/// the sort order.
+final libraryTracksProvider = StreamProvider<List<Track>>((ref) {
+  final sort = ref.watch(librarySortProvider).value ?? TrackSort.title;
+  return ref.watch(musicLibraryRepositoryProvider).watchTracks(sort: sort);
+});
 
 /// Content-addressed cover cache under `<app support>/covers`.
 ///
