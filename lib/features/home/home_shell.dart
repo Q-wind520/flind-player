@@ -17,15 +17,16 @@ import 'package:flutter/material.dart';
 
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/features/library/library_screen.dart';
-import 'package:flind_player/features/player/player_screen.dart';
+import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 
 /// Adaptive application shell.
 ///
 /// Below [AppBreakpoints.compact] navigation lives in a bottom
-/// [NavigationBar]; at or above it, a leading [NavigationRail] is used. The
-/// shell only provides navigation chrome — each destination owns its own
+/// [NavigationBar] with the [MiniPlayerBar] above it; at or above it, a
+/// leading [NavigationRail] is used with the mini player below the content.
+/// The shell only provides navigation chrome — each destination owns its own
 /// `Scaffold`/`AppBar`.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -40,16 +41,15 @@ class _HomeShellState extends State<HomeShell> {
   static const List<Widget> _screens = <Widget>[
     SearchScreen(),
     LibraryScreen(),
-    PlayerScreen(),
     SettingsScreen(),
   ];
 
   static const List<NavigationDestination> _destinations =
       <NavigationDestination>[
         NavigationDestination(
-          icon: Icon(Icons.search),
-          selectedIcon: Icon(Icons.search),
-          label: '搜索',
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: '首页',
         ),
         NavigationDestination(
           icon: Icon(Icons.library_music_outlined),
@@ -57,14 +57,28 @@ class _HomeShellState extends State<HomeShell> {
           label: '曲库',
         ),
         NavigationDestination(
-          icon: Icon(Icons.play_circle_outline),
-          selectedIcon: Icon(Icons.play_circle),
-          label: '正在播放',
+          icon: Icon(Icons.account_circle_outlined),
+          selectedIcon: Icon(Icons.account_circle),
+          label: '账户',
         ),
-        NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
-          label: '设置',
+      ];
+
+  static const List<NavigationRailDestination> _railDestinations =
+      <NavigationRailDestination>[
+        NavigationRailDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: Text('首页'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.library_music_outlined),
+          selectedIcon: Icon(Icons.library_music),
+          label: Text('曲库'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.account_circle_outlined),
+          selectedIcon: Icon(Icons.account_circle),
+          label: Text('账户'),
         ),
       ];
 
@@ -89,34 +103,20 @@ class _HomeShellState extends State<HomeShell> {
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: _onDestinationSelected,
                     labelType: NavigationRailLabelType.all,
-                    destinations: const <NavigationRailDestination>[
-                      NavigationRailDestination(
-                        icon: Icon(Icons.search),
-                        selectedIcon: Icon(Icons.search),
-                        label: Text('搜索'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.library_music_outlined),
-                        selectedIcon: Icon(Icons.library_music),
-                        label: Text('曲库'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.play_circle_outline),
-                        selectedIcon: Icon(Icons.play_circle),
-                        label: Text('正在播放'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.settings_outlined),
-                        selectedIcon: Icon(Icons.settings),
-                        label: Text('设置'),
-                      ),
-                    ],
+                    destinations: _railDestinations,
                   ),
                   const VerticalDivider(width: 1, thickness: 1),
                   Expanded(
-                    child: IndexedStack(
-                      index: _selectedIndex,
-                      children: _screens,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: IndexedStack(
+                            index: _selectedIndex,
+                            children: _screens,
+                          ),
+                        ),
+                        const MiniPlayerBar(),
+                      ],
                     ),
                   ),
                 ],
@@ -127,10 +127,16 @@ class _HomeShellState extends State<HomeShell> {
 
         return Scaffold(
           body: IndexedStack(index: _selectedIndex, children: _screens),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onDestinationSelected,
-            destinations: _destinations,
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MiniPlayerBar(),
+              NavigationBar(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _onDestinationSelected,
+                destinations: _destinations,
+              ),
+            ],
           ),
         );
       },

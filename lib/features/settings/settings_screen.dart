@@ -43,7 +43,7 @@ class SettingsScreen extends ConsumerWidget {
     final count = ref.watch(audioCacheEntryCountProvider).value;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: const Text('账户')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

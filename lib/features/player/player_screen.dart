@@ -29,6 +29,8 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
 
 /// The "now playing" screen: artwork, progress and transport controls.
+///
+/// Wraps [PlayerView] in a [Scaffold] with an [AppBar].
 class PlayerScreen extends ConsumerWidget {
   const PlayerScreen({super.key});
 
@@ -36,15 +38,17 @@ class PlayerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('正在播放')),
-      body: const _NowPlayingView(),
+      body: const PlayerView(),
     );
   }
 }
 
-/// Reacts to [playbackStateProvider] and renders either the empty state or the
-/// current track's controls.
-class _NowPlayingView extends ConsumerWidget {
-  const _NowPlayingView();
+/// The core now-playing content: artwork, progress and transport controls.
+///
+/// Extracted so both [PlayerScreen] and [PlayerSheet] can embed it without
+/// duplicating layout code.
+class PlayerView extends ConsumerWidget {
+  const PlayerView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
