@@ -622,6 +622,35 @@ void main() {
     expect(find.textContaining('已添加文件夹'), findsOneWidget);
   });
 
+  testWidgets('scan-root header add button runs the picker flow', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    fakePicker.nextPath = '/new/music/folder';
+
+    await tester.pumpWidget(
+      _app(settings: settings, store: store, scanRoots: []),
+    );
+    await tester.pumpAndSettle();
+
+    // The header action is icon-only, so target the IconButton rather than the
+    // "添加文件夹" tile further down the section.
+    final headerAddButton = find.widgetWithIcon(
+      IconButton,
+      Icons.create_new_folder_outlined,
+    );
+    expect(headerAddButton, findsOneWidget);
+    await tester.ensureVisible(headerAddButton);
+    await tester.pumpAndSettle();
+    await tester.tap(headerAddButton);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('已添加文件夹'), findsOneWidget);
+  });
+
   testWidgets('添加文件夹 does nothing when picker is cancelled', (tester) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();

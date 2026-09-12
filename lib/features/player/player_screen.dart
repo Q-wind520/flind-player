@@ -147,31 +147,52 @@ class _PlayerCover extends StatelessWidget {
 }
 
 /// Seekable progress bar with `m:ss` labels on both sides.
-class _ProgressBar extends ConsumerWidget {
+///
+/// The slider tracks the drag locally so the thumb follows the finger while
+/// dragging; the seek is issued once on release.
+class _ProgressBar extends ConsumerStatefulWidget {
   const _ProgressBar({required this.state});
 
   final PlaybackState state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProgressBar> createState() => _ProgressBarState();
+}
+
+class _ProgressBarState extends ConsumerState<_ProgressBar> {
+  /// In-flight drag position in milliseconds, or `null` when not dragging.
+  double? _dragMs;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final state = widget.state;
     final durationMs = state.duration?.inMilliseconds ?? 0;
     final enabled = durationMs > 0;
     final maxValue = enabled ? durationMs.toDouble() : 1.0;
     final positionValue = enabled
         ? state.position.inMilliseconds.clamp(0, durationMs).toDouble()
         : 0.0;
+    final dragMs = _dragMs;
+    final shownPosition = dragMs == null
+        ? state.position
+        : Duration(milliseconds: dragMs.round());
 
     return Column(
       children: [
         Slider(
-          value: positionValue,
+          value: dragMs ?? positionValue,
           max: maxValue,
-          onChanged: enabled ? (_) {} : null,
+          onChanged: enabled
+              ? (value) => setState(() => _dragMs = value)
+              : null,
           onChangeEnd: enabled
-              ? (value) => ref
-                    .read(playbackControllerProvider)
-                    .seek(Duration(milliseconds: value.round()))
+              ? (value) {
+                  setState(() => _dragMs = null);
+                  ref
+                      .read(playbackControllerProvider)
+                      .seek(Duration(milliseconds: value.round()));
+                }
               : null,
         ),
         Padding(
@@ -179,7 +200,7 @@ class _ProgressBar extends ConsumerWidget {
           child: Row(
             children: [
               Text(
-                formatTrackDuration(state.position),
+                formatTrackDuration(shownPosition),
                 style: theme.textTheme.labelMedium,
               ),
               const Spacer(),

@@ -87,6 +87,7 @@ class _PlaybackSection extends ConsumerWidget {
     final count = ref.watch(audioCacheEntryCountProvider).value;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SwitchListTile(
           secondary: const Icon(Icons.cached_outlined),
@@ -224,6 +225,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
     };
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── Statistics ──
         ListTile(
@@ -234,7 +236,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
         const Divider(height: 1),
 
         // ── Scan roots ──
-        _ScanRootHeader(isSyncing: isSyncing),
+        _ScanRootHeader(isSyncing: isSyncing, onAdd: () => _addFolder(ref)),
         scanRootsAsync.when(
           loading: () => const Padding(
             padding: EdgeInsets.all(16),
@@ -251,9 +253,14 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
           ),
           data: (roots) {
             if (roots.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Text('未配置扫描根目录', style: TextStyle(color: Colors.grey)),
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  '未配置扫描根目录',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               );
             }
             return Column(
@@ -415,9 +422,10 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
 
 /// Header row for the scan roots sub-section with an add-folder action.
 class _ScanRootHeader extends StatelessWidget {
-  const _ScanRootHeader({required this.isSyncing});
+  const _ScanRootHeader({required this.isSyncing, required this.onAdd});
 
   final bool isSyncing;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -434,7 +442,7 @@ class _ScanRootHeader extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.create_new_folder_outlined),
             tooltip: '添加文件夹',
-            onPressed: isSyncing ? null : () {},
+            onPressed: isSyncing ? null : onAdd,
           ),
         ],
       ),

@@ -187,17 +187,17 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    expect(find.text('首页'), findsOneWidget);
+    // Labels match the screen each destination shows: search / library / settings.
+    expect(find.text('搜索'), findsNWidgets(2)); // nav label + the search AppBar
     expect(find.text('曲库'), findsOneWidget);
-    expect(find.text('账户'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget); // nav label only; settings is offstage
 
-    // The old navigation destinations are gone. The SearchScreen's AppBar
-    // still says "搜索", but it should not appear as a nav destination label.
-    expect(find.text('设置'), findsNothing);
+    // The previously mismatched labels are gone.
+    expect(find.text('首页'), findsNothing);
+    expect(find.text('账户'), findsNothing);
     expect(find.text('正在播放'), findsNothing);
-    // Verify no old nav icons remain.
-    expect(find.byIcon(Icons.play_circle_outline), findsNothing);
-    expect(find.byIcon(Icons.settings_outlined), findsNothing);
+    expect(find.byIcon(Icons.home_outlined), findsNothing);
+    expect(find.byIcon(Icons.account_circle_outlined), findsNothing);
   });
 
   testWidgets('tapping 曲库 shows the library screen', (tester) async {
@@ -215,11 +215,11 @@ void main() {
     expect(find.text('曲库还是空的'), findsOneWidget);
   });
 
-  testWidgets('tapping 账户 shows the settings screen', (tester) async {
+  testWidgets('tapping 设置 shows the settings screen', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('账户'));
+    await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
 
     // SettingsScreen shows the cache settings.

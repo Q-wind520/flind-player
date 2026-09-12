@@ -145,6 +145,7 @@ class _FakePlaybackController implements PlaybackController {
   int togglePlayPauseCalls = 0;
   int pauseCalls = 0;
   int nextCalls = 0;
+  final List<Duration> seeks = <Duration>[];
 
   @override
   Future<void> togglePlayPause() async {
@@ -180,7 +181,9 @@ class _FakePlaybackController implements PlaybackController {
   @override
   Future<void> previous() async {}
   @override
-  Future<void> seek(Duration position) async {}
+  Future<void> seek(Duration position) async {
+    seeks.add(position);
+  }
   @override
   Future<void> setRepeatMode(RepeatMode mode) async {}
   @override
@@ -324,7 +327,7 @@ void main() {
     expect(find.byKey(HomeShell.playerPanelKey), findsNothing);
   });
 
-  testWidgets('at 1200 px: tapping mini bar again toggles panel closed', (
+  testWidgets('at 1200 px: opening the panel hides the mini bar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -334,15 +337,58 @@ void main() {
     await tester.pumpWidget(_app(state: _playingState()));
     await tester.pumpAndSettle();
 
-    // Open.
+    expect(find.byKey(MiniPlayerBar.barKey), findsOneWidget);
+
+    // The panel carries the same transport controls as the mini bar, so the
+    // bar is hidden while the panel is open to avoid duplicate controls.
     await tester.tap(find.byKey(MiniPlayerBar.barKey));
     await tester.pumpAndSettle();
     expect(find.byKey(HomeShell.playerPanelKey), findsOneWidget);
+    expect(find.byKey(MiniPlayerBar.barKey), findsNothing);
 
-    // Toggle closed.
-    await tester.tap(find.byKey(MiniPlayerBar.barKey));
+    // Closing restores the mini bar.
+    await tester.tap(find.byKey(HomeShell.playerPanelCloseKey));
     await tester.pumpAndSettle();
     expect(find.byKey(HomeShell.playerPanelKey), findsNothing);
+    expect(find.byKey(MiniPlayerBar.barKey), findsOneWidget);
+  });
+
+  testWidgets('dragging the progress slider tracks the finger and seeks', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final fakeController = _FakePlaybackController();
+    await tester.pumpWidget(
+      _app(state: _playingState(), controller: fakeController),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(MiniPlayerBar.barKey));
+    await tester.pumpAndSettle();
+
+    // _playingState is 0:30 of 3:00.
+    expect(find.text('0:30'), findsOneWidget);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(Slider)),
+    );
+    await gesture.moveBy(const Offset(40, 0));
+    await tester.pump();
+
+    // Mid-drag the thumb and the elapsed label follow the finger, and nothing
+    // is committed until the gesture ends.
+    expect(find.text('0:30'), findsNothing);
+    expect(fakeController.seeks, isEmpty);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    // The drag started at the centre, so the committed seek is past 1:30.
+    expect(fakeController.seeks, hasLength(1));
+    expect(fakeController.seeks.single.inSeconds, greaterThan(90));
   });
 
   testWidgets('resize from 1200 to 400 with panel open does not throw', (
@@ -366,7 +412,7 @@ void main() {
 
     expect(find.byKey(HomeShell.playerPanelKey), findsNothing);
     // App still renders navigation.
-    expect(find.text('首页'), findsOneWidget);
+    expect(find.text('搜索'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 

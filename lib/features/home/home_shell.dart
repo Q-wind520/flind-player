@@ -58,9 +58,9 @@ class _HomeShellState extends State<HomeShell> {
   static const List<NavigationDestination> _destinations =
       <NavigationDestination>[
         NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
-          label: '首页',
+          icon: Icon(Icons.search_outlined),
+          selectedIcon: Icon(Icons.search),
+          label: '搜索',
         ),
         NavigationDestination(
           icon: Icon(Icons.library_music_outlined),
@@ -68,18 +68,18 @@ class _HomeShellState extends State<HomeShell> {
           label: '曲库',
         ),
         NavigationDestination(
-          icon: Icon(Icons.account_circle_outlined),
-          selectedIcon: Icon(Icons.account_circle),
-          label: '账户',
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: '设置',
         ),
       ];
 
   static const List<NavigationRailDestination> _railDestinations =
       <NavigationRailDestination>[
         NavigationRailDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
-          label: Text('首页'),
+          icon: Icon(Icons.search_outlined),
+          selectedIcon: Icon(Icons.search),
+          label: Text('搜索'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.library_music_outlined),
@@ -87,9 +87,9 @@ class _HomeShellState extends State<HomeShell> {
           label: Text('曲库'),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.account_circle_outlined),
-          selectedIcon: Icon(Icons.account_circle),
-          label: Text('账户'),
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: Text('设置'),
         ),
       ];
 
@@ -139,11 +139,12 @@ class _HomeShellState extends State<HomeShell> {
                                   children: _screens,
                                 ),
                               ),
-                              MiniPlayerBar(
-                                onTap: wideEnoughForPanel
-                                    ? _togglePlayerPanel
-                                    : null,
-                              ),
+                              if (!(_playerPanelOpen && wideEnoughForPanel))
+                                MiniPlayerBar(
+                                  onTap: wideEnoughForPanel
+                                      ? _togglePlayerPanel
+                                      : null,
+                                ),
                             ],
                           ),
                         ),
