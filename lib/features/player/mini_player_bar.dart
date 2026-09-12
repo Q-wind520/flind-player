@@ -13,14 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_sheet.dart';
+import 'package:flind_player/shared/cover_image.dart';
 
 /// A compact bar docked above the navigation that shows the currently playing
 /// track and basic transport controls.
@@ -144,11 +143,9 @@ class _MiniCover extends StatelessWidget {
         height: _size,
         color: scheme.surfaceContainerHighest,
         child: hasCover
-            ? Image.file(
-                File(coverPath),
-                width: _size,
-                height: _size,
-                fit: BoxFit.cover,
+            ? CoverImage(
+                path: coverPath,
+                size: _size,
                 errorBuilder: (context, error, stackTrace) =>
                     _placeholder(scheme),
               )

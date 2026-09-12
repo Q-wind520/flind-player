@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'dart:io';
 import 'dart:math' as math;
 
 // Flutter 3.47 exports its own `RepeatMode` (for `RepeatingAnimationBuilder`),
@@ -27,6 +26,7 @@ import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
+import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 
 /// The "now playing" screen: artwork, progress and transport controls.
@@ -131,11 +131,9 @@ class _PlayerCover extends StatelessWidget {
         height: size,
         color: scheme.surfaceContainerHighest,
         child: hasCover
-            ? Image.file(
-                File(coverPath),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
+            ? CoverImage(
+                path: coverPath,
+                size: size,
                 errorBuilder: (context, error, stackTrace) =>
                     _placeholder(scheme),
               )

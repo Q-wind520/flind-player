@@ -14,7 +14,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +33,7 @@ import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -866,11 +866,9 @@ class _TrackCover extends StatelessWidget {
       height: useFixedSize ? size : null,
       color: scheme.surfaceContainerHighest,
       child: hasCover
-          ? Image.file(
-              File(coverPath),
-              width: useFixedSize ? size : null,
-              height: useFixedSize ? size : null,
-              fit: BoxFit.cover,
+          ? CoverImage(
+              path: coverPath,
+              size: size,
               errorBuilder: (context, error, stackTrace) =>
                   _placeholder(scheme),
             )
