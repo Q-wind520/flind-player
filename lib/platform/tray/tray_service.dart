@@ -15,10 +15,12 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' show Size;
+import 'dart:ui' show PlatformDispatcher, Size;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/widgets.dart'
+    show WidgetsBinding, WidgetsBindingObserver;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -109,7 +111,7 @@ Future<void> handleTrayMenuAction(
 /// The desktop session (e.g. COSMIC on Wayland) may not display AppIndicator
 /// icons at all; every platform call is guarded so that degrades gracefully
 /// instead of crashing the app.
-class TrayService with TrayListener, WindowListener {
+class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
   TrayService({required this.playback});
 
   static const WindowOptions _windowOptions = WindowOptions(
@@ -150,13 +152,12 @@ class TrayService with TrayListener, WindowListener {
     try {
       windowManager.addListener(this);
       trayManager.addListener(this);
+      WidgetsBinding.instance.addObserver(this);
     } catch (error, stackTrace) {
       debugPrint('TrayService: addListener failed: $error\n$stackTrace');
     }
 
-    await _guard('setIcon', () async {
-      await trayManager.setIcon(await _resolveTrayIcon());
-    });
+    await _guard('setIcon', _applyTrayIcon);
     // tray_manager's Linux plugin does not implement setToolTip.
     if (Platform.isWindows || Platform.isMacOS) {
       await _guard('setToolTip', () => trayManager.setToolTip('Flind Player'));
@@ -181,6 +182,7 @@ class TrayService with TrayListener, WindowListener {
     try {
       trayManager.removeListener(this);
       windowManager.removeListener(this);
+      WidgetsBinding.instance.removeObserver(this);
     } catch (error, stackTrace) {
       debugPrint('TrayService: removeListener failed: $error\n$stackTrace');
     }
@@ -200,13 +202,35 @@ class TrayService with TrayListener, WindowListener {
     unawaited(_guard('hide on close', windowManager.hide));
   }
 
-  /// Loads the bundled placeholder icon and writes it to app support once,
-  /// returning the filesystem path the tray plugin expects on Linux/Windows.
+  /// Re-applies the tray icon when the system switches light/dark mode.
+  @override
+  void didChangePlatformBrightness() {
+    unawaited(_guard('setIcon (brightness)', _applyTrayIcon));
+  }
+
+  Future<void> _applyTrayIcon() async {
+    await trayManager.setIcon(await _resolveTrayIcon());
+  }
+
+  /// A white glyph vanishes on a light panel (and a dark glyph on a dark one),
+  /// so two monochrome variants ship and the one matching the panel brightness
+  /// is chosen. `platformBrightness` follows the system theme, which on Linux
+  /// is also what the panel follows.
+  static String _trayIconAsset(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? 'assets/tray/tray_icon_white.png' // dark panel -> white glyph
+      : 'assets/tray/tray_icon_black.png'; // light panel -> dark glyph
+
+  /// Copies the matching bundled icon into app support once and returns the
+  /// filesystem path the tray plugin expects on Linux/Windows.
   Future<String> _resolveTrayIcon() async {
+    final asset = _trayIconAsset(
+      PlatformDispatcher.instance.platformBrightness,
+    );
     final directory = await getApplicationSupportDirectory();
-    final file = File(p.join(directory.path, 'tray_icon.png'));
+    final file = File(p.join(directory.path, p.basename(asset)));
     if (!await file.exists()) {
-      final data = await rootBundle.load('assets/tray/tray_icon.png');
+      final data = await rootBundle.load(asset);
       await file.create(recursive: true);
       await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
     }

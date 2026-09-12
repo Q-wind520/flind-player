@@ -41,10 +41,43 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   file_picker_platform_interface: ^3.4.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
   assets:
-    # Placeholder tray icon (copied from web/icons/Icon-192.png); a proper
-    # monochrome brand icon is a follow-up.
+    # App icon assets used by flutter_launcher_icons and the Linux CMake install.
+    - assets/icon/
+    # Monochrome tray icon (white on transparent, 96x96).
     - assets/tray/
+
+# =============================================================================
+# flutter_launcher_icons — regenerate with: dart run flutter_launcher_icons
+# Or use the full pipeline: ./tool/generate_icons.sh
+# =============================================================================
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+
+  android:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    adaptive_icon_background: "#FE9288"
+    adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+  ios:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    remove_alpha_ios: true
+
+  web:
+    generate: true
+    background_color: "#FE9288"
+    theme_color: "#FE9288"
+
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
