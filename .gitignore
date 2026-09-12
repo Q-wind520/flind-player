@@ -50,3 +50,9 @@ app.*.map.json
 # Local tooling (codegraph index symlink)
 .codegraph
 .omo/
+
+# Signing material — defense in depth; android/.gitignore already covers the
+# android/ paths, but a keystore kept at the repo root must never be committed.
+*.jks
+*.keystore
+key.properties

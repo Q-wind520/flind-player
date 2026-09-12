@@ -115,18 +115,23 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Universal APK: friendliest for sideloading (works on any device).
       - name: Build universal APK
         run: flutter build apk --release
 
-      # App Bundle: required by Google Play.
+      - name: Build split APKs
+        run: flutter build apk --release --split-per-abi
+
       - name: Build App Bundle
         run: flutter build appbundle --release
 
-      - name: Rename artifacts with the version tag
+      - name: Stage artifacts with the version tag
         run: |
           mv build/app/outputs/flutter-apk/app-release.apk \
-             "FlindPlayer-${GITHUB_REF_NAME}.apk"
+             "FlindPlayer-${GITHUB_REF_NAME}-universal.apk"
+          for abi in armeabi-v7a arm64-v8a; do
+            mv "build/app/outputs/flutter-apk/app-${abi}-release.apk" \
+               "FlindPlayer-${GITHUB_REF_NAME}-${abi}.apk"
+          done
           mv build/app/outputs/bundle/release/app-release.aab \
              "FlindPlayer-${GITHUB_REF_NAME}.aab"
 
@@ -134,7 +139,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: android-release
-          path: FlindPlayer-${{ github.ref_name }}.*
+          # No dot after the tag, so the `-<abi>` / `-universal` suffixed names match.
+          path: FlindPlayer-${{ github.ref_name }}*
           if-no-files-found: error
           retention-days: 7
 
@@ -181,7 +187,15 @@ jobs:
             | 文件 | 说明 |
             | --- | --- |
             | `FlindPlayer-${{ github.ref_name }}-linux-x64.tar.gz` | Linux 桌面版（解压后运行 `flind_player`；需要系统 `libmpv.so.2`） |
-            | `FlindPlayer-${{ github.ref_name }}.apk` | Android 通用 APK（含全部 CPU 架构，体积较大） |
+            | `FlindPlayer-${{ github.ref_name }}-arm64-v8a.apk` | **绝大多数现代手机选这个**（体积最小） |
+            | `FlindPlayer-${{ github.ref_name }}-armeabi-v7a.apk` | 较老的 32 位 Android 设备 |
+            | `FlindPlayer-${{ github.ref_name }}-universal.apk` | 通用包（含全部架构，体积约为单架构的 2.5 倍；不确定架构时用这个） |
             | `FlindPlayer-${{ github.ref_name }}.aab` | Android App Bundle（用于 Google Play 上架） |
 
-            > 图标为当前占位稿，后续会替换。
+            > **预览版说明**：0.1.x 使用调试签名，**各版本之间不支持覆盖升级**。安装新版本
+            > 前需先卸载旧版本，本地数据（曲库索引、收藏、播放队列）会随之清除。正式签名
+            > 将在 1.0 引入。
+            >
+            > **Preview builds**: 0.1.x is signed with the debug key, so builds are
+            > **not upgradable in place** — uninstall the previous version first.
+            > Release signing arrives in 1.0.

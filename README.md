@@ -39,9 +39,13 @@ sudo apt-get install -y libgtk-3-dev libmpv-dev libayatana-appindicator3-dev lib
 flutter build linux --release
 # 产物：build/linux/x64/release/bundle/
 
-# Android
+# Android 通用包（含全部 CPU 架构）
 flutter build apk --release
-# 产物：build/app/outputs/flutter-apk/app-release.apk
+# 产物：build/app/outputs/flutter-apk/app-release.apk（约 75 MB）
+
+# Android 按架构拆分（体积约为通用包的 40%，推荐分发给用户）
+flutter build apk --release --split-per-abi
+# 产物：app-arm64-v8a-release.apk（现代手机）、app-armeabi-v7a-release.apk（32 位老设备）
 ```
 
 ### 签名发布（Android）
@@ -87,8 +91,12 @@ git push origin v0.1.0
 缺少 `ANDROID_KEYSTORE_BASE64` 时，发布仍会进行，但 APK 使用 debug 签名。发布说明中
 包含 GPL-3.0 §6 要求的对应源码指向（本仓库的对应 tag）。
 
-> **图标占位**：当前应用图标仍为占位图（`assets/tray/tray_icon.png`），待维护者选定
-> 正式图标后替换。
+> **0.1.x 预览版签名**：0.1.x 阶段继续使用 debug 签名，因此**各版本之间不支持覆盖
+> 安装**，升级需先卸载旧版本（本地数据会清除）。正式签名计划在 1.0 引入。
+
+> **图标**：全平台图标由 `docs/FlindPlayer.png` 经 `tool/generate_icons.sh` 生成
+> （Android 自适应、iOS 无 alpha、Windows 多档 `.ico` 等）。该美术稿是当前占位设计；
+> 替换后重跑脚本即可。
 
 ## Documentation
 
@@ -98,7 +106,10 @@ git push origin v0.1.0
 
 ## Status
 
-Scaffold initialized and architecture designed. Next milestone: **M0** (skeleton + Riverpod wiring + drift + local file playback).
+M0–M6 已完成（本地曲库、Bilibili 在线音源、离线缓存、系统集成、队列持久化与收藏）。
+当前处于 **0.1.x** 预览阶段：CI 与发布流水线已跑通，使用 debug 签名发布。
+
+已延后：歌词、QR 登录与个人收藏夹（v1.1）、Web 端（v2）。
 
 ## License
 
