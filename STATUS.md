@@ -40,19 +40,17 @@ Release 说明中已加入「各版本不支持覆盖升级」的提示。
 
 ### 2. APK 按架构拆分（体积降约 60%）
 
-`release.yml` 现在同时产出通用包与分架构包。本地实测：
+`release.yml` 只产出分架构 APK 与 AAB，**不再构建 / 发布通用包**。本地实测：
 
 | 产物 | 体积 |
 | --- | --- |
-| `app-release.apk`（universal） | 75.2 MB |
 | `app-arm64-v8a-release.apk` | **30.7 MB** |
 | `app-armeabi-v7a-release.apk` | **28.5 MB** |
 | `app-x86_64-release.apk` | 32.2 MB |
 
-发布时提供 arm64-v8a、armeabi-v7a 与 universal 三种（x86_64 仅供模拟器，不发布）。
+发布时提供 arm64-v8a 与 armeabi-v7a 两种（x86_64 仅供模拟器，不发布）。
 
-顺带纠正一个我最初的错误判断：`--split-per-abi` **不会**覆盖 universal 产物
-（实测 `app-release.apk` 仍在），两者输出文件名本就不同。
+> 后续计划：pre 版尝试加入 Windows 安装包。
 
 ### 3. 加固密钥防泄漏
 

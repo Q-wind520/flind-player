@@ -39,11 +39,7 @@ sudo apt-get install -y libgtk-3-dev libmpv-dev libayatana-appindicator3-dev lib
 flutter build linux --release
 # 产物：build/linux/x64/release/bundle/
 
-# Android 通用包（含全部 CPU 架构）
-flutter build apk --release
-# 产物：build/app/outputs/flutter-apk/app-release.apk（约 75 MB）
-
-# Android 按架构拆分（体积约为通用包的 40%，推荐分发给用户）
+# Android 按架构拆分（体积远小于通用包，推荐分发给用户）
 flutter build apk --release --split-per-abi
 # 产物：app-arm64-v8a-release.apk（现代手机）、app-armeabi-v7a-release.apk（32 位老设备）
 ```
