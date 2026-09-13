@@ -148,7 +148,6 @@ void main() {
       store: store,
       downloader: downloader,
       resolver: resolver,
-      settings: settings,
     );
   });
 
@@ -168,7 +167,9 @@ void main() {
       extension: 'm4a',
     );
     file.parent.createSync(recursive: true);
-    file.writeAsBytesSync(List<int>.filled(bytes, 0));
+    // Distinct content per track so content-hash deduplication does not
+    // collapse pinned entries that merely share a size.
+    file.writeAsBytesSync(List<int>.filled(bytes, trackId.hashCode & 0xFF));
     return store.insert(
       source: 'bilibili',
       sourceTrackId: trackId,
@@ -323,20 +324,6 @@ void main() {
     expect(events.last.error.toString(), contains('缓存空间不足'));
     expect(await store.lookup('bilibili', 'pinnedA'), isNotNull);
     expect(await store.lookup('bilibili', 'pinnedB'), isNotNull);
-    expect(await manager.isCached(biliTrack), isFalse);
-  });
-
-  test('caching disabled emits skipped and downloads nothing', () async {
-    settings.current = CacheSettings.defaults.copyWith(enabled: false);
-
-    final events = <DownloadProgress>[];
-    final subscription = manager.progress.listen(events.add);
-    addTearDown(subscription.cancel);
-
-    await manager.cacheTrack(biliTrack);
-
-    expect(downloader.calls, 0);
-    expect(events.last.phase, DownloadPhase.skipped);
     expect(await manager.isCached(biliTrack), isFalse);
   });
 

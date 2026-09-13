@@ -15,7 +15,7 @@
 | P0 死按钮（扫描根目录） | ✅ 已修（接上 `_addFolder`，新增测试覆盖） |
 | P0 进度条拖动不跟手 | ✅ 已修（本地拖拽状态 + 松手才 seek，新增测试覆盖） |
 | P1 导航标签错配（首页→搜索、账户→设置） | ✅ 已修（标签与图标同步更新，测试已更新） |
-| P1 停靠面板与迷你播放器重复 | ✅ 已修（面板展开时隐藏迷你播放器） |
+| P1 停靠面板与迷你播放器重复 | ✅ 已修（移除停靠面板；点击迷你播放器统一打开全屏播放器） |
 | P1 设置页对齐混用 | ✅ 已修（两个 Column 加 `crossAxisAlignment`，截图已确认左对齐） |
 | P1 `Colors.grey` 硬编码 | ✅ 已修（改用 `colorScheme.onSurfaceVariant`） |
 | P2 桌面曲库仅网格 / 圆角 token / 死代码 | ⏳ 未修（待定，部分需产品决策） |
@@ -24,7 +24,8 @@
 | 深色模式来源标签对比度 3.2:1（小字号） | ⏳ 未修（Pass B，轻微） |
 | 非激活传输图标与激活图标视觉权重无差异 | ⏳ 未修（Pass B，轻微） |
 
-> 修复后已重新采集全部 12 张截图并**逐张目视确认**（导航标签、设置页对齐、面板去重均生效）。
+> 修复后已重新采集全部 12 张截图并**逐张目视确认**（导航标签、设置页对齐均生效；
+> 迷你播放器现统一打开全屏播放器）。
 > 采集脚本 `test/ui_capture_test.dart` 为临时工具，已删除（golden 图位于 gitignore 的 `.omo/`，留在仓库会让 CI 失败）。
 
 ---
@@ -36,7 +37,7 @@
 | **P0** | 设置页「扫描根目录」的添加按钮是**空回调**，可点但无反应 | `settings_screen.dart:437` |
 | **P0** | 播放器进度条**拖动不跟手**，只有松手才跳转 | `player_screen.dart:170` |
 | **P1** | 导航标签与内容错配（首页→搜索、账户→设置） | `home_shell.dart:80-92` |
-| **P1** | 停靠播放面板与迷你播放器重复显示 | `player-panel-dark.png` |
+| **P1** | 停靠播放面板与迷你播放器重复显示（已修：停靠面板已移除，迷你播放器改为打开全屏播放器） | `player-panel-dark.png` |
 | **P1** | 设置页对齐方式混用 + `Colors.grey` 绕过主题 | `settings_screen.dart:89/226/256` |
 | **P1** | 「存入曲库」两处交互不一致；收藏夹行缺收藏/缓存 | `bilibili_favorites_screen.dart:523` |
 | **P2** | 桌面曲库仅网格、无列表开关 | `library_screen.dart:390` |
@@ -125,7 +126,8 @@ NavigationRailDestination(icon: Icon(Icons.account_circle_outlined),label: Text(
 
 源码依据：`home_shell.dart:142-146` 无条件渲染 `MiniPlayerBar`，面板作为 trailing 兄弟节点。
 
-**修法**：`_playerPanelOpen && wideEnoughForPanel` 时隐藏迷你播放器。
+**修法（后续跟进）**：停靠面板与模态底部弹层均已移除；点击迷你播放器在**所有平台与
+窗口宽度**统一打开全屏播放器页（`PlayerScreen`），面板与迷你播放器并存的重复不复存在。
 
 ---
 
@@ -183,15 +185,15 @@ return _trackList(...);
 
 ### 8. 封面圆角无统一 token
 
-网格卡 `4.0`、列表/迷你/搜索 `8`、播放器 `24`、底部面板 `28`（`library_screen.dart:862`、
-`player_screen.dart:128`、`player_sheet.dart:56`）。建议抽一组 `AppRadius` 常量。
+网格卡 `4.0`、列表/迷你/搜索 `8`、播放器 `24`（`library_screen.dart:862`、
+`player_screen.dart:128`）。建议抽一组 `AppRadius` 常量。
 
 ### 9. 死代码
 
 - `track_actions_button.dart:141-152`：`_cacheTrack` 的 if / else 两个分支**代码完全相同**
 - `track_actions_button.dart:169` 与 `player_screen.dart:295`：两个**完全重复**的收藏 provider
-- `player_sheet.dart:47-51`：`DraggableScrollableSheet` 的 controller 从未被任何可滚动组件挂载，
-  导致 `minChildSize: 0.4` / `maxChildSize: 0.95` **永远不可达**（面板高度实际固定）
+- `player_sheet.dart` 已随全屏播放器改造删除，其 `DraggableScrollableSheet`
+  死参数一并消失
 
 ---
 
@@ -275,7 +277,7 @@ return _trackList(...);
 | 搜索 · 有结果 | 深色 | — |
 | 设置 | 浅色 / 深色 | — |
 | B站收藏夹 · 文件夹 / 曲目 | 深色 | — |
-| 播放器 · 停靠面板 / 全屏 | 深色 | — |
+| 播放器 · 全屏 | 深色 | — |
 
 ---
 

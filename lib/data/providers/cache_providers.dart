@@ -86,7 +86,6 @@ final downloadManagerProvider = Provider<DownloadManager>((ref) {
     store: ref.watch(audioCacheStoreProvider),
     downloader: ref.watch(audioDownloaderProvider),
     resolver: ref.watch(innerStreamResolverProvider),
-    settings: ref.watch(settingsRepositoryProvider),
   );
   ref.onDispose(manager.dispose);
   return manager;

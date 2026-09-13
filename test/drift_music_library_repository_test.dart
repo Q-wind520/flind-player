@@ -953,5 +953,46 @@ void main() {
       expect(updated.mtimeMs, 20);
       expect(updated.scanRoot, '/music');
     });
+
+    test('v5 -> v6 adds the cache content hash without losing rows', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v6');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current-schema file, then roll the cache table back to v5 by
+      // dropping the column v6 introduced.
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement(
+        'INSERT INTO audio_cache '
+        '(source, source_track_id, file_path, bytes, quality_id, pinned, '
+        'cached_at, last_accessed_at) '
+        "VALUES ('bilibili', 'BV1:1', '/tmp/x.m4a', 10, '30280', 0, 1, 1)",
+      );
+      await before.customStatement(
+        'ALTER TABLE audio_cache DROP COLUMN content_hash',
+      );
+      await before.customStatement('PRAGMA user_version = 5');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      // The existing cache row survives with a null hash.
+      final migrated = await after
+          .customSelect('SELECT content_hash FROM audio_cache')
+          .getSingle();
+      expect(migrated.data['content_hash'], isNull);
+
+      // The added column is writable after the upgrade.
+      await after.customStatement(
+        "UPDATE audio_cache SET content_hash = 'abc'",
+      );
+      final updated = await after
+          .customSelect('SELECT content_hash FROM audio_cache')
+          .getSingle();
+      expect(updated.data['content_hash'], 'abc');
+    });
   });
 }

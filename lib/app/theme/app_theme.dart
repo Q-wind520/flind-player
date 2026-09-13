@@ -33,7 +33,17 @@ class AppTheme {
       seedColor: seedColor,
       brightness: brightness,
     );
-    return ThemeData(useMaterial3: true, colorScheme: colorScheme);
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      // Every SnackBar renders as a rounded floating bubble clear of the
+      // screen edges instead of a full-width bottom bar.
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 }
 
@@ -47,10 +57,18 @@ class AppBreakpoints {
   /// Below this width the layout is medium (tablet-like); above it expanded.
   static const double medium = 1000;
 
-  /// Width at which the player switches from a modal bottom sheet to a docked
-  /// right-hand side panel.  Matches [medium] because at 1000 px there is
-  /// enough room for the NavigationRail (~80 px) + content + a 400 px panel
-  /// without crowding the main content area.  Between [compact] and this
-  /// threshold the player still opens as a bottom sheet to avoid overflow.
-  static const double playerPanel = 1000;
+  /// Whether the window [size] should use the compact (phone/portrait)
+  /// layout.
+  ///
+  /// A window is compact when it is narrower than [compact] logical px
+  /// **or** at least as tall as it is wide.  This catches the common
+  /// desktop case where the window is wide enough in px but squeezed into
+  /// a portrait ratio (e.g. 700 × 1000) — that window must still get the
+  /// single-column mobile layout.
+  static bool isCompact(Size size) =>
+      size.width < compact || size.height >= size.width;
+
+  /// Whether the window [size] should use the expanded (two-pane)
+  /// layout.  The inverse of [isCompact].
+  static bool isExpanded(Size size) => !isCompact(size);
 }

@@ -116,7 +116,9 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
 
   static const WindowOptions _windowOptions = WindowOptions(
     title: 'Flind Player',
-    minimumSize: Size(800, 600),
+    // 360x480 is the smallest viewport every surface is verified to support
+    // without layout overflow (see test/responsive_layout_test.dart).
+    minimumSize: Size(360, 480),
     center: true,
   );
 

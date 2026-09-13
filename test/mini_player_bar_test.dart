@@ -21,11 +21,13 @@ import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
-import 'package:flind_player/features/player/player_sheet.dart';
+import 'package:flind_player/features/player/player_screen.dart';
 
 /// A minimal fake [PlaybackController] that records calls.
 class _FakePlaybackController implements PlaybackController {
@@ -72,6 +74,27 @@ class _FakePlaybackController implements PlaybackController {
   Future<void> dispose() async {}
 }
 
+/// Minimal in-memory [FavoritesRepository] used only for read paths.
+class _FakeFavoritesRepository implements FavoritesRepository {
+  @override
+  Stream<List<Track>> watchFavorites() => Stream.value(const <Track>[]);
+
+  @override
+  Future<List<Track>> allFavorites() async => const <Track>[];
+
+  @override
+  Future<bool> isFavorite(String uri) async => false;
+
+  @override
+  Future<void> addFavorite(Track track) async {}
+
+  @override
+  Future<void> removeFavorite(String uri) async {}
+
+  @override
+  Future<bool> toggleFavorite(Track track) async => false;
+}
+
 Track _track(String title, {String? artist}) {
   return Track(
     source: 'local',
@@ -91,6 +114,7 @@ Widget _app({
     overrides: [
       playbackStateProvider.overrideWith((ref) => Stream.value(state)),
       playbackControllerProvider.overrideWith((ref) => fakeController),
+      favoritesRepositoryProvider.overrideWithValue(_FakeFavoritesRepository()),
     ],
     child: const MaterialApp(home: Scaffold(body: MiniPlayerBar())),
   );
@@ -223,13 +247,13 @@ void main() {
     expect(fakeController.nextCalls, 1);
   });
 
-  testWidgets('tapping the bar opens the player sheet', (tester) async {
+  testWidgets('tapping the bar opens the full-screen player', (tester) async {
     final state = PlaybackState(
       isPlaying: false,
       isBuffering: false,
       isCompleted: false,
       position: Duration.zero,
-      currentTrack: _track('Sheet Test'),
+      currentTrack: _track('Player Test'),
     );
 
     await tester.pumpWidget(_app(state: state));
@@ -239,8 +263,9 @@ void main() {
     await tester.tap(find.byKey(MiniPlayerBar.barKey));
     await tester.pumpAndSettle();
 
-    // The drag handle of the PlayerSheet should appear.
-    expect(find.byKey(PlayerSheet.dragHandleKey), findsOneWidget);
+    // The full-screen player route is on top.
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    expect(find.text('正在播放'), findsOneWidget);
   });
 
   testWidgets('does not overflow at 400 px width', (tester) async {

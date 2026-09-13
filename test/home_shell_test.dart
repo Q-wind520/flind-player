@@ -16,23 +16,31 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
+import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track_sort.dart';
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/favorites_repository.dart';
+import 'package:flind_player/core/repositories/settings_repository.dart';
+import 'package:flind_player/core/services/playback_controller.dart';
+import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/player/mini_player_bar.dart';
+import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 
@@ -96,11 +104,22 @@ class _FakeCacheStore implements AudioCacheStore {
     required int bytes,
     required String qualityId,
     required bool pinned,
+    String? contentHash,
   }) async => throw UnimplementedError();
 
   @override
   Future<EvictionResult> ensureSpace(int incomingBytes) async =>
       const EvictionResult(evictedCount: 0, freedBytes: 0, hasSpace: true);
+
+  @override
+  Future<EvictionResult> enforceLimit() async =>
+      const EvictionResult(evictedCount: 0, freedBytes: 0, hasSpace: true);
+
+  @override
+  Future<String> cacheDirectoryPath() async => Directory.systemTemp.path;
+
+  @override
+  Future<int> deduplicateByContent() async => 0;
 
   @override
   Future<IntegrityReport> checkIntegrity() async =>
@@ -114,18 +133,103 @@ class _FakeCacheStore implements AudioCacheStore {
   }) => throw UnimplementedError();
 }
 
+/// Records calls so the player route never constructs the real controller.
+class _FakePlaybackController implements PlaybackController {
+  @override
+  Stream<PlaybackState> get state => const Stream.empty();
+
+  @override
+  PlaybackState get currentState => PlaybackState.idle;
+
+  @override
+  PlaybackQueue get queue => PlaybackQueue.empty;
+
+  @override
+  Future<void> playQueue(
+    PlaybackQueue queue, {
+    int index = 0,
+    bool autoPlay = true,
+  }) async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> togglePlayPause() async {}
+
+  @override
+  Future<void> next() async {}
+
+  @override
+  Future<void> previous() async {}
+
+  @override
+  Future<void> seek(Duration position) async {}
+
+  @override
+  Future<void> setRepeatMode(RepeatMode mode) async {}
+
+  @override
+  Future<void> setShuffle(bool enabled) async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// Minimal in-memory [FavoritesRepository] used only for read paths.
+class _FakeFavoritesRepository implements FavoritesRepository {
+  @override
+  Stream<List<Track>> watchFavorites() => Stream.value(const <Track>[]);
+
+  @override
+  Future<List<Track>> allFavorites() async => const <Track>[];
+
+  @override
+  Future<bool> isFavorite(String uri) async => false;
+
+  @override
+  Future<void> addFavorite(Track track) async {}
+
+  @override
+  Future<void> removeFavorite(String uri) async {}
+
+  @override
+  Future<bool> toggleFavorite(Track track) async => false;
+}
+
+/// A loaded, playing state so the mini player bar is visible.
+PlaybackState _playingState() => PlaybackState(
+  isPlaying: true,
+  isBuffering: false,
+  isCompleted: false,
+  position: const Duration(seconds: 10),
+  duration: const Duration(minutes: 3),
+  currentTrack: Track(
+    source: 'local',
+    sourceTrackId: const LocalTrackId('/music/test.mp3'),
+    uri: 'local:/music/test.mp3',
+    title: '测试歌曲',
+    artist: '测试艺术家',
+  ),
+);
+
 /// Pumps [HomeShell] with all providers overridden so no real database,
 /// network, controller or sync service is constructed.
-Widget _app() {
+Widget _app({PlaybackState playback = PlaybackState.idle}) {
   final settings = _FakeSettingsRepository(CacheSettings.defaults);
   final store = _FakeCacheStore();
 
   return ProviderScope(
     overrides: [
       // Playback.
-      playbackStateProvider.overrideWith(
-        (ref) => Stream.value(PlaybackState.idle),
+      playbackStateProvider.overrideWith((ref) => Stream.value(playback)),
+      playbackControllerProvider.overrideWith(
+        (ref) => _FakePlaybackController(),
       ),
+      favoritesRepositoryProvider.overrideWithValue(_FakeFavoritesRepository()),
       // Library.
       libraryTracksProvider.overrideWith((ref) => Stream.value(<Track>[])),
       librarySyncStateProvider.overrideWith(
@@ -190,7 +294,10 @@ void main() {
     // Labels match the screen each destination shows: search / library / settings.
     expect(find.text('搜索'), findsNWidgets(2)); // nav label + the search AppBar
     expect(find.text('曲库'), findsOneWidget);
-    expect(find.text('设置'), findsOneWidget); // nav label only; settings is offstage
+    expect(
+      find.text('设置'),
+      findsOneWidget,
+    ); // nav label only; settings is offstage
 
     // The previously mismatched labels are gone.
     expect(find.text('首页'), findsNothing);
@@ -223,7 +330,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // SettingsScreen shows the cache settings.
-    expect(find.text('启用缓存'), findsOneWidget);
+    expect(find.text('缓存上限'), findsOneWidget);
   });
 
   testWidgets('does not have 正在播放 in navigation', (tester) async {
@@ -233,5 +340,64 @@ void main() {
     // Verify no NavigationDestination with 正在播放 label exists.
     expect(find.text('正在播放'), findsNothing);
     expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+  });
+
+  testWidgets('portrait desktop (700×1000) uses mobile shell', (tester) async {
+    tester.view.physicalSize = const Size(700, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    // A portrait-taller-than-wide desktop window must use the mobile
+    // layout: bottom NavigationBar present, NavigationRail absent.
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
+  });
+
+  testWidgets('landscape desktop (1200×800) uses expanded shell', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    // A wide landscape window must use the expanded layout with
+    // NavigationRail and no bottom NavigationBar.
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  // The mini bar opens the same full-screen player regardless of window
+  // width: no bottom sheet on compact, no docked panel on expanded.
+  group('mini player opens the full-screen player', () {
+    for (final size in <Size>[const Size(400, 800), const Size(1200, 800)]) {
+      testWidgets('at ${size.width}x${size.height}', (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(_app(playback: _playingState()));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(MiniPlayerBar.barKey), findsOneWidget);
+
+        await tester.tap(find.byKey(MiniPlayerBar.barKey));
+        await tester.pumpAndSettle();
+
+        // The full-screen player route is pushed on every window size.
+        expect(find.byType(PlayerScreen), findsOneWidget);
+        expect(find.text('正在播放'), findsOneWidget);
+
+        // The collapse affordance returns to the shell.
+        await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+        await tester.pumpAndSettle();
+        expect(find.byType(PlayerScreen), findsNothing);
+      });
+    }
   });
 }

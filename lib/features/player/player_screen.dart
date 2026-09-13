@@ -28,17 +28,25 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
+import 'package:flind_player/shared/responsive_center.dart';
 
 /// The "now playing" screen: artwork, progress and transport controls.
 ///
-/// Wraps [PlayerView] in a [Scaffold] with an [AppBar].
+/// Shown full-screen on every platform, wrapped in a [Scaffold] with an
+/// [AppBar] whose leading button collapses back to the previous route.
 class PlayerScreen extends ConsumerWidget {
   const PlayerScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: const Text('正在播放')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: const Text('正在播放'),
+      ),
       body: const PlayerView(),
     );
   }
@@ -46,8 +54,8 @@ class PlayerScreen extends ConsumerWidget {
 
 /// The core now-playing content: artwork, progress and transport controls.
 ///
-/// Extracted so both [PlayerScreen] and [PlayerSheet] can embed it without
-/// duplicating layout code.
+/// Embedded by [PlayerScreen] as the full-screen body without duplicating the
+/// layout in the route that opens it.
 class PlayerView extends ConsumerWidget {
   const PlayerView({super.key});
 
@@ -62,7 +70,7 @@ class PlayerView extends ConsumerWidget {
     final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < AppBreakpoints.compact;
+        final compact = AppBreakpoints.isCompact(constraints.biggest);
         final coverSize = math
             .min(constraints.maxWidth * 0.7, constraints.maxHeight * 0.45)
             .clamp(140.0, 320.0);
@@ -216,7 +224,7 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
   }
 }
 
-/// Shuffle / previous / play-pause / next / repeat / favourite controls.
+/// Favourite / previous / play-pause / next / play-mode controls.
 class _TransportControls extends ConsumerWidget {
   const _TransportControls({required this.state});
 
@@ -226,50 +234,49 @@ class _TransportControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final controller = ref.read(playbackControllerProvider);
-    final repeatMode = state.repeatMode;
-    final repeatActive = repeatMode != RepeatMode.off;
     final track = state.currentTrack;
+    final mode = _PlayMode.fromState(state);
 
+    // Five icon buttons never fit a 280 px-wide content column, so the row is
+    // allowed to scale down as a whole instead of overflowing. Above its
+    // intrinsic width the controls stay at full size.
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 420),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          IconButton(
-            onPressed: () => controller.setShuffle(!state.shuffleEnabled),
-            icon: const Icon(Icons.shuffle),
-            color: state.shuffleEnabled ? scheme.primary : null,
-            tooltip: state.shuffleEnabled ? '随机播放：开' : '随机播放：关',
-          ),
-          IconButton(
-            onPressed: state.hasPrevious ? controller.previous : null,
-            icon: const Icon(Icons.skip_previous),
-            iconSize: 36,
-            tooltip: '上一首',
-          ),
-          IconButton.filled(
-            onPressed: controller.togglePlayPause,
-            icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-            iconSize: 36,
-            tooltip: state.isPlaying ? '暂停' : '播放',
-          ),
-          IconButton(
-            onPressed: state.hasNext ? controller.next : null,
-            icon: const Icon(Icons.skip_next),
-            iconSize: 36,
-            tooltip: '下一首',
-          ),
-          IconButton(
-            onPressed: () =>
-                controller.setRepeatMode(_nextRepeatMode(repeatMode)),
-            icon: Icon(
-              repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            if (track != null) _FavoriteButton(track: track),
+            IconButton(
+              onPressed: state.hasPrevious ? controller.previous : null,
+              icon: const Icon(Icons.skip_previous),
+              iconSize: 36,
             ),
-            color: repeatActive ? scheme.primary : null,
-            tooltip: _repeatTooltip(repeatMode),
-          ),
-          if (track != null) _FavoriteButton(track: track),
-        ],
+            IconButton.filled(
+              onPressed: controller.togglePlayPause,
+              icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+              iconSize: 36,
+            ),
+            IconButton(
+              onPressed: state.hasNext ? controller.next : null,
+              icon: const Icon(Icons.skip_next),
+              iconSize: 36,
+            ),
+            IconButton(
+              onPressed: () {
+                final next = mode.next;
+                // Shuffle first so the queue is (un)shuffled before the
+                // controller applies the new repeat mode.
+                controller.setShuffle(next.shuffle);
+                controller.setRepeatMode(next.repeat);
+              },
+              icon: Icon(mode.icon),
+              color: mode.isActive ? scheme.primary : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -306,7 +313,6 @@ class _FavoriteButton extends ConsumerWidget {
       },
       icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
       color: isFavourite ? scheme.primary : null,
-      tooltip: isFavourite ? '取消收藏' : '收藏',
     );
   }
 }
@@ -318,18 +324,60 @@ final _playerFavoriteProvider = FutureProvider.family<bool, String>((ref, uri) {
   return ref.watch(favoritesRepositoryProvider).isFavorite(uri);
 }, retry: (_, _) => null);
 
-/// Cycles repeat mode off → all → one → off.
-RepeatMode _nextRepeatMode(RepeatMode mode) => switch (mode) {
-  RepeatMode.off => RepeatMode.all,
-  RepeatMode.all => RepeatMode.one,
-  RepeatMode.one => RepeatMode.off,
-};
+/// The playback modes cycled by the transport's single mode button.
+///
+/// Each mode maps to one `(repeatMode, shuffle)` pair on the controller.
+enum _PlayMode {
+  /// Plays through the queue once, in order.
+  sequential(icon: Icons.playlist_play, repeat: RepeatMode.off, shuffle: false),
 
-String _repeatTooltip(RepeatMode mode) => switch (mode) {
-  RepeatMode.off => '顺序播放',
-  RepeatMode.all => '列表循环',
-  RepeatMode.one => '单曲循环',
-};
+  /// Loops the whole queue.
+  repeatAll(icon: Icons.repeat, repeat: RepeatMode.all, shuffle: false),
+
+  /// Repeats the current track.
+  repeatOne(icon: Icons.repeat_one, repeat: RepeatMode.one, shuffle: false),
+
+  /// Shuffles the queue without repeating.
+  shufflePlay(icon: Icons.shuffle, repeat: RepeatMode.off, shuffle: true);
+
+  const _PlayMode({
+    required this.icon,
+    required this.repeat,
+    required this.shuffle,
+  });
+
+  /// Icon shown on the button.
+  final IconData icon;
+
+  /// Repeat mode the controller is put into for this mode.
+  final RepeatMode repeat;
+
+  /// Whether the queue is shuffled in this mode.
+  final bool shuffle;
+
+  /// Whether this mode differs from plain sequential playback.
+  bool get isActive => this != _PlayMode.sequential;
+
+  /// The mode reached by the next tap, wrapping 随机 → 顺序.
+  _PlayMode get next => switch (this) {
+    _PlayMode.sequential => _PlayMode.repeatAll,
+    _PlayMode.repeatAll => _PlayMode.repeatOne,
+    _PlayMode.repeatOne => _PlayMode.shufflePlay,
+    _PlayMode.shufflePlay => _PlayMode.sequential,
+  };
+
+  /// Derives the mode from [state]; shuffle takes precedence over repeat.
+  static _PlayMode fromState(PlaybackState state) {
+    if (state.shuffleEnabled) {
+      return _PlayMode.shufflePlay;
+    }
+    return switch (state.repeatMode) {
+      RepeatMode.off => _PlayMode.sequential,
+      RepeatMode.all => _PlayMode.repeatAll,
+      RepeatMode.one => _PlayMode.repeatOne,
+    };
+  }
+}
 
 /// Shown when nothing is loaded.
 class _NothingPlaying extends StatelessWidget {
@@ -338,7 +386,7 @@ class _NothingPlaying extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(

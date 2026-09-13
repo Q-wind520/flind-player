@@ -17,10 +17,12 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:flind_player/core/repositories/settings_repository.dart';
+import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
@@ -36,15 +38,6 @@ import 'package:flind_player/shared/format_bytes.dart';
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  /// Preset cache caps offered as choice chips (`docs/local-library.md` §4.4).
-  static const List<int> limitOptions = <int>[
-    256 * 1024 * 1024,
-    512 * 1024 * 1024,
-    1024 * 1024 * 1024,
-    2 * 1024 * 1024 * 1024,
-    5 * 1024 * 1024 * 1024,
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
@@ -54,7 +47,7 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           // ── 播放 ──
           const _SectionHeader('播放'),
-          _PlaybackSection(limitOptions: limitOptions),
+          const _PlaybackSection(),
 
           // ── 曲库 ──
           const _SectionHeader('曲库'),
@@ -75,89 +68,160 @@ class SettingsScreen extends ConsumerWidget {
 
 /// Cache / playback settings, moved from the original single-section layout.
 class _PlaybackSection extends ConsumerWidget {
-  const _PlaybackSection({required this.limitOptions});
-
-  final List<int> limitOptions;
+  const _PlaybackSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings =
         ref.watch(cacheSettingsProvider).value ?? CacheSettings.defaults;
     final usage = ref.watch(audioCacheUsageProvider).value ?? 0;
-    final count = ref.watch(audioCacheEntryCountProvider).value;
+
+    // Keep usage fresh when downloads finish, skip, or fail.
+    ref.listen(downloadProgressProvider, (prev, next) {
+      final phase = next.value?.phase;
+      if (phase == DownloadPhase.done ||
+          phase == DownloadPhase.skipped ||
+          phase == DownloadPhase.failed) {
+        ref.invalidate(audioCacheUsageProvider);
+        ref.invalidate(audioCacheEntryCountProvider);
+      }
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SwitchListTile(
-          secondary: const Icon(Icons.cached_outlined),
-          title: const Text('启用缓存'),
-          subtitle: const Text('把在线音频缓存到本地，离线也能播放'),
-          value: settings.enabled,
-          onChanged: (value) => _write(ref, settings.copyWith(enabled: value)),
+        ListTile(
+          leading: const Icon(Icons.folder_outlined),
+          title: const Text('缓存位置'),
+          subtitle: FutureBuilder<String>(
+            future: ref.read(audioCacheStoreProvider).cacheDirectoryPath(),
+            builder: (context, snapshot) => Text(
+              snapshot.data ?? '…',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          onTap: () => _showCacheLocationDialog(context, ref),
         ),
-        SwitchListTile(
-          secondary: const Icon(Icons.play_circle_outline),
-          title: const Text('播放时自动缓存'),
-          subtitle: const Text('播放时在后台缓存，不计入手动下载'),
-          value: settings.autoOnPlay,
-          onChanged: settings.enabled
-              ? (value) => _write(ref, settings.copyWith(autoOnPlay: value))
-              : null,
-        ),
-        const Divider(height: 1),
         ListTile(
           leading: const Icon(Icons.sd_storage_outlined),
           title: const Text('缓存上限'),
-          subtitle: Text('当前：${formatBytes(settings.limitBytes)}'),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final limit in limitOptions)
-                ChoiceChip(
-                  label: Text(formatBytes(limit)),
-                  selected: settings.limitBytes == limit,
-                  onSelected: (_) =>
-                      _write(ref, settings.copyWith(limitBytes: limit)),
-                ),
-            ],
+          subtitle: Text(
+            '已用 ${formatBytes(usage)} / ${formatBytes(settings.limitBytes)}',
           ),
-        ),
-        const Divider(height: 1),
-        _UsageSection(
-          usageBytes: usage,
-          limitBytes: settings.limitBytes,
-          trackCount: count,
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.tonalIcon(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-              ),
-              onPressed: () => _confirmClear(context, ref),
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('清空缓存'),
-            ),
-          ),
+          onTap: () => _showCustomLimitDialog(context, ref, settings),
         ),
       ],
     );
   }
 
-  /// Persists [next] and refreshes the usage figures it can affect.
-  Future<void> _write(WidgetRef ref, CacheSettings next) async {
-    await ref.read(settingsRepositoryProvider).updateCacheSettings(next);
-    ref.invalidate(audioCacheUsageProvider);
-    ref.invalidate(audioCacheEntryCountProvider);
+  /// Shows a dialog with the cache directory path, a copy action, and a
+  /// destructive clear-cache action.
+  Future<void> _showCacheLocationDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final store = ref.read(audioCacheStoreProvider);
+    final pathFuture = store.cacheDirectoryPath();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _CacheLocationDialog(pathFuture: pathFuture),
+    );
+  }
+
+  /// Shows a dialog for entering a custom cache size limit.
+  Future<void> _showCustomLimitDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CacheSettings settings,
+  ) async {
+    final limitBytes = settings.limitBytes;
+    final gb = 1024 * 1024 * 1024;
+    final mb = 1024 * 1024;
+
+    // Choose the cleanest unit: whole GB → GB, else MB.
+    final bool useGb = limitBytes % gb == 0;
+    final double initialNumber = useGb ? limitBytes / gb : limitBytes / mb;
+    final String initialUnit = useGb ? 'GB' : 'MB';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _CustomLimitDialog(
+        initialNumber: initialNumber,
+        initialUnit: initialUnit,
+        onConfirm: (bytes) async {
+          await ref
+              .read(settingsRepositoryProvider)
+              .updateCacheSettings(settings.copyWith(limitBytes: bytes));
+          await ref.read(audioCacheStoreProvider).enforceLimit();
+          ref.invalidate(audioCacheUsageProvider);
+          ref.invalidate(audioCacheEntryCountProvider);
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cache-location dialog
+// ---------------------------------------------------------------------------
+
+/// Dialog showing the cache directory path with copy and clear actions.
+class _CacheLocationDialog extends ConsumerWidget {
+  const _CacheLocationDialog({required this.pathFuture});
+
+  final Future<String> pathFuture;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AlertDialog(
+      title: const Text('缓存位置'),
+      content: FutureBuilder<String>(
+        future: pathFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox(
+              height: 24,
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final path = snapshot.data ?? '未知路径';
+          return SelectableText(
+            path,
+            style: Theme.of(context).textTheme.bodyMedium,
+          );
+        },
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: () async {
+            final snapshot = await pathFuture;
+            if (!context.mounted) return;
+            await Clipboard.setData(ClipboardData(text: snapshot));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('已复制路径')));
+          },
+          icon: const Icon(Icons.copy_outlined),
+          label: const Text('复制'),
+        ),
+        TextButton.icon(
+          onPressed: () async {
+            await _confirmClear(context, ref);
+          },
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('清空缓存'),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
   }
 
   /// Asks for confirmation, then deletes every cached file and row.
@@ -192,6 +256,122 @@ class _PlaybackSection extends ConsumerWidget {
     ref.invalidate(audioCacheEntryCountProvider);
     messenger.showSnackBar(
       SnackBar(content: Text('已清空缓存，释放 ${formatBytes(freed)}')),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Custom-limit dialog
+// ---------------------------------------------------------------------------
+
+/// Dialog for entering a custom cache size limit with a numeric field and a
+/// unit selector.
+class _CustomLimitDialog extends StatefulWidget {
+  const _CustomLimitDialog({
+    required this.initialNumber,
+    required this.initialUnit,
+    required this.onConfirm,
+  });
+
+  final double initialNumber;
+  final String initialUnit;
+  final Future<void> Function(int bytes) onConfirm;
+
+  @override
+  State<_CustomLimitDialog> createState() => _CustomLimitDialogState();
+}
+
+class _CustomLimitDialogState extends State<_CustomLimitDialog> {
+  late final TextEditingController _controller;
+  late String _unit;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: _formatNumber(widget.initialNumber),
+    );
+    _unit = widget.initialUnit;
+  }
+
+  /// Formats [value] without a trailing `.0`: `1.0` renders as `1`, while
+  /// `1.5` stays `1.5`.
+  static String _formatNumber(double value) {
+    return value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toString();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int get _unitMultiplier => _unit == 'GB' ? 1024 * 1024 * 1024 : 1024 * 1024;
+
+  bool _validate() {
+    final number = double.tryParse(_controller.text);
+    if (number == null || number <= 0) return false;
+    return true;
+  }
+
+  Future<void> _confirm() async {
+    if (!_validate()) return;
+    final number = double.parse(_controller.text);
+    final bytes = (number * _unitMultiplier).toInt();
+    await widget.onConfirm(bytes);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final errorText = _controller.text.isEmpty
+        ? null
+        : (_validate() ? null : '请输入正数');
+
+    return AlertDialog(
+      // The field + unit selector exceed a short landscape viewport; scrolling
+      // the content keeps every control reachable instead of overflowing.
+      scrollable: true,
+      title: const Text('自定义缓存上限'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: '数值',
+              errorText: errorText,
+              border: const OutlineInputBorder(),
+            ),
+            autofocus: true,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'MB', label: Text('MB')),
+              ButtonSegment(value: 'GB', label: Text('GB')),
+            ],
+            selected: {_unit},
+            onSelectionChanged: (selection) {
+              setState(() => _unit = selection.first);
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _validate() ? _confirm : null,
+          child: const Text('确定'),
+        ),
+      ],
     );
   }
 }
@@ -233,7 +413,6 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
           title: const Text('曲库统计'),
           subtitle: Text(_trackCountLabel(trackCount, cacheCount)),
         ),
-        const Divider(height: 1),
 
         // ── Scan roots ──
         _ScanRootHeader(isSyncing: isSyncing, onAdd: () => _addFolder(ref)),
@@ -291,7 +470,6 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
           title: const Text('添加文件夹'),
           onTap: isSyncing ? null : () => _addFolder(ref),
         ),
-        const Divider(height: 1),
 
         // ── Rescan ──
         ListTile(
@@ -482,7 +660,6 @@ class _AboutSection extends ConsumerWidget {
             subtitle: Text('v${info.version} (${info.buildNumber})'),
           ),
         ),
-        const Divider(height: 1),
         ListTile(
           leading: const Icon(Icons.description_outlined),
           title: const Text('开源许可'),
@@ -492,7 +669,6 @@ class _AboutSection extends ConsumerWidget {
             applicationName: 'Flind Player',
           ),
         ),
-        const Divider(height: 1),
         ListTile(
           leading: const Icon(Icons.code_outlined),
           title: const Text('项目主页'),
@@ -536,55 +712,6 @@ class _SectionHeader extends StatelessWidget {
         style: theme.textTheme.titleSmall?.copyWith(
           color: theme.colorScheme.primary,
         ),
-      ),
-    );
-  }
-}
-
-/// Current usage against the configured cap, plus the cached track count.
-class _UsageSection extends StatelessWidget {
-  const _UsageSection({
-    required this.usageBytes,
-    required this.limitBytes,
-    required this.trackCount,
-  });
-
-  final int usageBytes;
-  final int limitBytes;
-  final int? trackCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final ratio = limitBytes > 0
-        ? (usageBytes / limitBytes).clamp(0.0, 1.0)
-        : 0.0;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('用量', style: theme.textTheme.titleSmall),
-              const Spacer(),
-              Text(
-                '${formatBytes(usageBytes)} / ${formatBytes(limitBytes)}',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: ratio),
-          const SizedBox(height: 8),
-          Text(
-            trackCount == null ? '已缓存 — 首' : '已缓存 $trackCount 首',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }

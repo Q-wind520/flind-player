@@ -16,6 +16,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
@@ -38,6 +39,7 @@ class CachedAudio {
     required this.pinned,
     required this.cachedAt,
     required this.lastAccessedAt,
+    this.contentHash,
   });
 
   final int id;
@@ -49,6 +51,9 @@ class CachedAudio {
   final bool pinned;
   final DateTime cachedAt;
   final DateTime lastAccessedAt;
+
+  /// SHA-1 hex digest of the file's bytes, or `null` for legacy rows.
+  final String? contentHash;
 }
 
 /// Outcome of [AudioCacheStore.ensureSpace].
@@ -209,6 +214,13 @@ class AudioCacheStore {
   }
 
   /// Inserts or updates the index row for a cached file, returning it.
+  ///
+  /// [contentHash] is the SHA-1 hex digest of [filePath]'s bytes. When it is
+  /// omitted it is computed from the file; when the file does not exist the
+  /// hash stays `null`. If another row already indexes the same content under a
+  /// different path, the freshly written duplicate is deleted and this row is
+  /// pointed at the existing physical file instead, so identical audio is
+  /// stored and counted once.
   Future<CachedAudio> insert({
     required String source,
     required String sourceTrackId,
@@ -216,18 +228,35 @@ class AudioCacheStore {
     required int bytes,
     required String qualityId,
     required bool pinned,
+    String? contentHash,
   }) async {
     await _resolveDir();
+    final resolvedHash = contentHash ?? await _hashFile(filePath);
+
+    var resolvedPath = filePath;
+    var resolvedBytes = bytes;
+    if (resolvedHash != null) {
+      final duplicate = await _findByContentHash(resolvedHash, filePath);
+      if (duplicate != null) {
+        // The freshly written copy is redundant: drop it and reuse the file
+        // that is already on disk.
+        _deleteFile(filePath);
+        resolvedPath = duplicate.filePath;
+        resolvedBytes = duplicate.bytes;
+      }
+    }
+
     final now = DateTime.now().millisecondsSinceEpoch;
     final companion = AudioCacheCompanion.insert(
       source: source,
       sourceTrackId: sourceTrackId,
-      filePath: filePath,
-      bytes: bytes,
+      filePath: resolvedPath,
+      bytes: resolvedBytes,
       qualityId: qualityId,
       pinned: Value(pinned),
       cachedAt: now,
       lastAccessedAt: now,
+      contentHash: Value(resolvedHash),
     );
     final row = await _db
         .into(_db.audioCache)
@@ -241,7 +270,7 @@ class AudioCacheStore {
     return _toDomain(row);
   }
 
-  /// Deletes the row for [id] and its file.
+  /// Deletes the row for [id] and its file, unless another row still shares it.
   ///
   /// The row is removed even when the file is already gone.
   Future<void> remove(int id) async {
@@ -249,28 +278,45 @@ class AudioCacheStore {
     final row = await (_db.select(
       _db.audioCache,
     )..where((t) => t.id.equals(id))).getSingleOrNull();
-    if (row != null) {
-      _deleteFile(row.filePath);
-    }
+    if (row == null) return;
     await (_db.delete(_db.audioCache)..where((t) => t.id.equals(id))).go();
+    await _deleteFileIfUnreferenced(row.filePath);
   }
 
-  /// Deletes every row and every file it references.
+  /// Deletes every row and every file under the cache root.
   Future<void> clear() async {
-    await _resolveDir();
-    final rows = await _db.select(_db.audioCache).get();
-    for (final row in rows) {
-      _deleteFile(row.filePath);
-    }
+    final base = await _resolveDir();
     await _db.delete(_db.audioCache).go();
+    try {
+      await for (final entity in base.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is! File) continue;
+        if (!_isUnderBaseDir(entity.path, base)) continue;
+        try {
+          entity.deleteSync();
+        } catch (error) {
+          debugPrint('AudioCacheStore: failed to delete $entity: $error');
+        }
+      }
+    } catch (error) {
+      debugPrint('AudioCacheStore: clear failed: $error');
+    }
   }
 
-  /// Sum of the `bytes` column across every cached row.
+  /// Total bytes occupied on disk, counting each physical file once.
+  ///
+  /// Rows that share a [CachedAudio.filePath] (identical content deduplicated
+  /// across logical keys) contribute their size a single time.
   Future<int> totalBytes() async {
-    final sum = _db.audioCache.bytes.sum();
-    final query = _db.selectOnly(_db.audioCache)..addColumns([sum]);
+    final query = _db.customSelect(
+      'SELECT COALESCE(SUM(bytes), 0) AS total FROM ('
+      'SELECT DISTINCT file_path, bytes FROM audio_cache)',
+      readsFrom: {_db.audioCache},
+    );
     final row = await query.getSingle();
-    return row.read(sum) ?? 0;
+    return row.read<int>('total');
   }
 
   /// Every cached row, oldest `lastAccessedAt` first (LRU order).
@@ -291,22 +337,13 @@ class AudioCacheStore {
   /// applies immediately. Pinned entries are never evicted; when they alone
   /// exceed the limit, [EvictionResult.hasSpace] is `false`.
   ///
-  /// When caching is disabled ([CacheSettings.enabled] is `false`) nothing is
-  /// evicted and `hasSpace` still reports whether the configured limit would
-  /// have been respected. Callers are expected to skip caching entirely in
-  /// that case; `ensureSpace` does not enforce the switch by itself.
+  /// Only files no other row references are deleted and counted as freed, so a
+  /// physical file shared by a pinned and a non-pinned row survives eviction of
+  /// the latter.
   Future<EvictionResult> ensureSpace(int incomingBytes) async {
     await _resolveDir();
     final settings = await _settings.cacheSettings();
     final used = await totalBytes();
-
-    if (!settings.enabled) {
-      return EvictionResult(
-        evictedCount: 0,
-        freedBytes: 0,
-        hasSpace: used + incomingBytes <= settings.limitBytes,
-      );
-    }
 
     if (used + incomingBytes <= settings.limitBytes) {
       return const EvictionResult(
@@ -329,12 +366,17 @@ class AudioCacheStore {
     var freedBytes = 0;
     for (final candidate in candidates) {
       if (used - freedBytes + incomingBytes <= settings.limitBytes) break;
-      _deleteFile(candidate.filePath);
       await (_db.delete(
         _db.audioCache,
       )..where((t) => t.id.equals(candidate.id))).go();
-      freedBytes += candidate.bytes;
       evictedCount++;
+      final stillReferenced = await (_db.select(
+        _db.audioCache,
+      )..where((t) => t.filePath.equals(candidate.filePath))).get();
+      if (stillReferenced.isEmpty) {
+        _deleteFile(candidate.filePath);
+        freedBytes += candidate.bytes;
+      }
     }
 
     return EvictionResult(
@@ -342,6 +384,55 @@ class AudioCacheStore {
       freedBytes: freedBytes,
       hasSpace: used - freedBytes + incomingBytes <= settings.limitBytes,
     );
+  }
+
+  /// Evicts non-pinned entries oldest-first until usage fits the configured cap.
+  ///
+  /// Used when the user lowers the cap; equivalent to [ensureSpace] with no
+  /// incoming bytes.
+  Future<EvictionResult> enforceLimit() => ensureSpace(0);
+
+  /// Absolute path of the resolved cache root directory.
+  Future<String> cacheDirectoryPath() async => (await _resolveDir()).path;
+
+  /// Best-effort one-time repair for caches written before content hashing.
+  ///
+  /// Every row is ensured a content hash (its file is hashed when the column is
+  /// `null` and the file still exists), then rows sharing a hash are collapsed
+  /// onto one physical file: all sharing rows are pointed at the first file and
+  /// the redundant copies are deleted. Returns the number of duplicate files
+  /// removed. Never throws; failures are logged and the repair stops.
+  Future<int> deduplicateByContent() async {
+    await _resolveDir();
+    var removed = 0;
+    try {
+      final rows = await _db.select(_db.audioCache).get();
+      final canonicalByHash = <String, AudioCacheRow>{};
+      for (final row in rows) {
+        var hash = row.contentHash;
+        if (hash == null) {
+          hash = await _hashFile(row.filePath);
+          if (hash == null) continue; // File gone; checkIntegrity removes it.
+          await (_db.update(_db.audioCache)..where((t) => t.id.equals(row.id)))
+              .write(AudioCacheCompanion(contentHash: Value(hash)));
+        }
+        if (!File(row.filePath).existsSync()) continue;
+
+        final canonical = canonicalByHash[hash];
+        if (canonical == null) {
+          canonicalByHash[hash] = row;
+          continue;
+        }
+        if (row.filePath == canonical.filePath) continue;
+        await (_db.update(_db.audioCache)..where((t) => t.id.equals(row.id)))
+            .write(AudioCacheCompanion(filePath: Value(canonical.filePath)));
+        _deleteFile(row.filePath);
+        removed++;
+      }
+    } catch (error) {
+      debugPrint('AudioCacheStore: deduplicateByContent failed: $error');
+    }
+    return removed;
   }
 
   /// Reconciles the index with the filesystem.
@@ -422,6 +513,43 @@ class AudioCacheStore {
     }
   }
 
+  /// Deletes [path] unless another row still points at the same file.
+  Future<void> _deleteFileIfUnreferenced(String path) async {
+    final remaining = await (_db.select(
+      _db.audioCache,
+    )..where((t) => t.filePath.equals(path))).get();
+    if (remaining.isEmpty) {
+      _deleteFile(path);
+    }
+  }
+
+  /// The first existing row with [contentHash] whose file is not [filePath].
+  Future<AudioCacheRow?> _findByContentHash(
+    String contentHash,
+    String filePath,
+  ) async {
+    final rows = await (_db.select(
+      _db.audioCache,
+    )..where((t) => t.contentHash.equals(contentHash))).get();
+    for (final row in rows) {
+      if (row.filePath == filePath) continue;
+      if (File(row.filePath).existsSync()) return row;
+    }
+    return null;
+  }
+
+  /// SHA-1 hex digest of [path]'s bytes, or `null` when the file is missing.
+  ///
+  /// Hashing runs in a background isolate so large audio files never block the
+  /// UI isolate; only the path string crosses the isolate boundary.
+  static Future<String?> _hashFile(String path) async {
+    if (!File(path).existsSync()) return null;
+    return Isolate.run(() async {
+      final digest = await sha1.bind(File(path).openRead()).first;
+      return digest.toString();
+    });
+  }
+
   bool _isUnderBaseDir(String path, Directory base) {
     final normalized = p.canonicalize(path);
     final basePath = p.canonicalize(base.path);
@@ -439,6 +567,7 @@ class AudioCacheStore {
       pinned: row.pinned,
       cachedAt: DateTime.fromMillisecondsSinceEpoch(row.cachedAt),
       lastAccessedAt: DateTime.fromMillisecondsSinceEpoch(row.lastAccessedAt),
+      contentHash: row.contentHash,
     );
   }
 }

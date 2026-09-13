@@ -98,7 +98,6 @@ class CacheActionButton extends ConsumerWidget {
     if (entry == null) {
       return _iconButton(
         icon: Icons.download_outlined,
-        tooltip: '缓存到本地',
         onPressed: () =>
             ref.read(downloadManagerProvider).cacheTrack(track, pinned: true),
       );
@@ -107,14 +106,12 @@ class CacheActionButton extends ConsumerWidget {
     if (entry.pinned) {
       return _iconButton(
         icon: Icons.download_done,
-        tooltip: '已缓存，点击取消',
         onPressed: () => _confirmRemove(context, ref, entry),
       );
     }
 
     return _iconButton(
       icon: Icons.offline_pin_outlined,
-      tooltip: '已缓存',
       onPressed: () {
         // Already downloaded, so only the pin flag is missing. `cacheTrack`
         // skips the network download for an indexed file. Note: the current
@@ -162,14 +159,9 @@ class CacheActionButton extends ConsumerWidget {
 }
 
 /// Compact, overflow-safe icon button sized to sit beside a row's duration.
-Widget _iconButton({
-  required IconData icon,
-  required String tooltip,
-  required VoidCallback onPressed,
-}) {
+Widget _iconButton({required IconData icon, required VoidCallback onPressed}) {
   return IconButton(
     icon: Icon(icon),
-    tooltip: tooltip,
     onPressed: onPressed,
     iconSize: 20,
     visualDensity: VisualDensity.compact,

@@ -26,6 +26,7 @@ import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
+import 'package:flind_player/shared/responsive_center.dart';
 
 /// Bilibili search: submit a keyword, browse the results, tap one to play.
 ///
@@ -113,7 +114,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           ? null
                           : IconButton(
                               icon: const Icon(Icons.clear),
-                              tooltip: '清空',
                               onPressed: _clear,
                             ),
                       border: const OutlineInputBorder(),
@@ -239,7 +239,7 @@ class _SearchHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -274,7 +274,7 @@ class _NoResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -312,7 +312,7 @@ class _SearchError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(

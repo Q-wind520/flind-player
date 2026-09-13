@@ -1888,6 +1888,17 @@ class $AudioCacheTable extends AudioCache
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _contentHashMeta = const VerificationMeta(
+    'contentHash',
+  );
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+    'content_hash',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1899,6 +1910,7 @@ class $AudioCacheTable extends AudioCache
     pinned,
     cachedAt,
     lastAccessedAt,
+    contentHash,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1983,6 +1995,15 @@ class $AudioCacheTable extends AudioCache
     } else if (isInserting) {
       context.missing(_lastAccessedAtMeta);
     }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+        _contentHashMeta,
+        contentHash.isAcceptableOrUnknown(
+          data['content_hash']!,
+          _contentHashMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2032,6 +2053,10 @@ class $AudioCacheTable extends AudioCache
         DriftSqlType.int,
         data['${effectivePrefix}last_accessed_at'],
       )!,
+      contentHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_hash'],
+      ),
     );
   }
 
@@ -2067,6 +2092,13 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
 
   /// Unix timestamp of the last read; the LRU ordering key.
   final int lastAccessedAt;
+
+  /// SHA-1 hex digest of the cached file's bytes (schema v6).
+  ///
+  /// Identical content written under two logical keys shares one physical
+  /// file; this column is how those rows are grouped. `null` for legacy rows
+  /// written before v6 and for rows whose file could not be hashed.
+  final String? contentHash;
   const AudioCacheRow({
     required this.id,
     required this.source,
@@ -2077,6 +2109,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     required this.pinned,
     required this.cachedAt,
     required this.lastAccessedAt,
+    this.contentHash,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2090,6 +2123,9 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     map['pinned'] = Variable<bool>(pinned);
     map['cached_at'] = Variable<int>(cachedAt);
     map['last_accessed_at'] = Variable<int>(lastAccessedAt);
+    if (!nullToAbsent || contentHash != null) {
+      map['content_hash'] = Variable<String>(contentHash);
+    }
     return map;
   }
 
@@ -2104,6 +2140,9 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       pinned: Value(pinned),
       cachedAt: Value(cachedAt),
       lastAccessedAt: Value(lastAccessedAt),
+      contentHash: contentHash == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentHash),
     );
   }
 
@@ -2122,6 +2161,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       pinned: serializer.fromJson<bool>(json['pinned']),
       cachedAt: serializer.fromJson<int>(json['cachedAt']),
       lastAccessedAt: serializer.fromJson<int>(json['lastAccessedAt']),
+      contentHash: serializer.fromJson<String?>(json['contentHash']),
     );
   }
   @override
@@ -2137,6 +2177,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       'pinned': serializer.toJson<bool>(pinned),
       'cachedAt': serializer.toJson<int>(cachedAt),
       'lastAccessedAt': serializer.toJson<int>(lastAccessedAt),
+      'contentHash': serializer.toJson<String?>(contentHash),
     };
   }
 
@@ -2150,6 +2191,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     bool? pinned,
     int? cachedAt,
     int? lastAccessedAt,
+    Value<String?> contentHash = const Value.absent(),
   }) => AudioCacheRow(
     id: id ?? this.id,
     source: source ?? this.source,
@@ -2160,6 +2202,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     pinned: pinned ?? this.pinned,
     cachedAt: cachedAt ?? this.cachedAt,
     lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+    contentHash: contentHash.present ? contentHash.value : this.contentHash,
   );
   AudioCacheRow copyWithCompanion(AudioCacheCompanion data) {
     return AudioCacheRow(
@@ -2176,6 +2219,9 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       lastAccessedAt: data.lastAccessedAt.present
           ? data.lastAccessedAt.value
           : this.lastAccessedAt,
+      contentHash: data.contentHash.present
+          ? data.contentHash.value
+          : this.contentHash,
     );
   }
 
@@ -2190,7 +2236,8 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
           ..write('qualityId: $qualityId, ')
           ..write('pinned: $pinned, ')
           ..write('cachedAt: $cachedAt, ')
-          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('contentHash: $contentHash')
           ..write(')'))
         .toString();
   }
@@ -2206,6 +2253,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     pinned,
     cachedAt,
     lastAccessedAt,
+    contentHash,
   );
   @override
   bool operator ==(Object other) =>
@@ -2219,7 +2267,8 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
           other.qualityId == this.qualityId &&
           other.pinned == this.pinned &&
           other.cachedAt == this.cachedAt &&
-          other.lastAccessedAt == this.lastAccessedAt);
+          other.lastAccessedAt == this.lastAccessedAt &&
+          other.contentHash == this.contentHash);
 }
 
 class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
@@ -2232,6 +2281,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
   final Value<bool> pinned;
   final Value<int> cachedAt;
   final Value<int> lastAccessedAt;
+  final Value<String?> contentHash;
   const AudioCacheCompanion({
     this.id = const Value.absent(),
     this.source = const Value.absent(),
@@ -2242,6 +2292,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     this.pinned = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.lastAccessedAt = const Value.absent(),
+    this.contentHash = const Value.absent(),
   });
   AudioCacheCompanion.insert({
     this.id = const Value.absent(),
@@ -2253,6 +2304,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     this.pinned = const Value.absent(),
     required int cachedAt,
     required int lastAccessedAt,
+    this.contentHash = const Value.absent(),
   }) : source = Value(source),
        sourceTrackId = Value(sourceTrackId),
        filePath = Value(filePath),
@@ -2270,6 +2322,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     Expression<bool>? pinned,
     Expression<int>? cachedAt,
     Expression<int>? lastAccessedAt,
+    Expression<String>? contentHash,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2281,6 +2334,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
       if (pinned != null) 'pinned': pinned,
       if (cachedAt != null) 'cached_at': cachedAt,
       if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+      if (contentHash != null) 'content_hash': contentHash,
     });
   }
 
@@ -2294,6 +2348,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     Value<bool>? pinned,
     Value<int>? cachedAt,
     Value<int>? lastAccessedAt,
+    Value<String?>? contentHash,
   }) {
     return AudioCacheCompanion(
       id: id ?? this.id,
@@ -2305,6 +2360,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
       pinned: pinned ?? this.pinned,
       cachedAt: cachedAt ?? this.cachedAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+      contentHash: contentHash ?? this.contentHash,
     );
   }
 
@@ -2338,6 +2394,9 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     if (lastAccessedAt.present) {
       map['last_accessed_at'] = Variable<int>(lastAccessedAt.value);
     }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
     return map;
   }
 
@@ -2352,7 +2411,8 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
           ..write('qualityId: $qualityId, ')
           ..write('pinned: $pinned, ')
           ..write('cachedAt: $cachedAt, ')
-          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('contentHash: $contentHash')
           ..write(')'))
         .toString();
   }
@@ -4356,6 +4416,7 @@ typedef $$AudioCacheTableCreateCompanionBuilder = AudioCacheCompanion Function({
   Value<bool> pinned,
   required int cachedAt,
   required int lastAccessedAt,
+  Value<String?> contentHash,
 });
 typedef $$AudioCacheTableUpdateCompanionBuilder = AudioCacheCompanion Function({
   Value<int> id,
@@ -4367,6 +4428,7 @@ typedef $$AudioCacheTableUpdateCompanionBuilder = AudioCacheCompanion Function({
   Value<bool> pinned,
   Value<int> cachedAt,
   Value<int> lastAccessedAt,
+  Value<String?> contentHash,
 });
 
 class $$AudioCacheTableFilterComposer
@@ -4420,6 +4482,11 @@ class $$AudioCacheTableFilterComposer
 
   ColumnFilters<int> get lastAccessedAt => $composableBuilder(
     column: $table.lastAccessedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4477,6 +4544,11 @@ class $$AudioCacheTableOrderingComposer
     column: $table.lastAccessedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AudioCacheTableAnnotationComposer
@@ -4516,6 +4588,11 @@ class $$AudioCacheTableAnnotationComposer
 
   GeneratedColumn<int> get lastAccessedAt => $composableBuilder(
     column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
     builder: (column) => column,
   );
 }
@@ -4560,6 +4637,7 @@ class $$AudioCacheTableTableManager
                 Value<bool> pinned = const Value.absent(),
                 Value<int> cachedAt = const Value.absent(),
                 Value<int> lastAccessedAt = const Value.absent(),
+                Value<String?> contentHash = const Value.absent(),
               }) => AudioCacheCompanion(
                 id: id,
                 source: source,
@@ -4570,6 +4648,7 @@ class $$AudioCacheTableTableManager
                 pinned: pinned,
                 cachedAt: cachedAt,
                 lastAccessedAt: lastAccessedAt,
+                contentHash: contentHash,
               ),
           createCompanionCallback:
               ({
@@ -4582,6 +4661,7 @@ class $$AudioCacheTableTableManager
                 Value<bool> pinned = const Value.absent(),
                 required int cachedAt,
                 required int lastAccessedAt,
+                Value<String?> contentHash = const Value.absent(),
               }) => AudioCacheCompanion.insert(
                 id: id,
                 source: source,
@@ -4592,6 +4672,7 @@ class $$AudioCacheTableTableManager
                 pinned: pinned,
                 cachedAt: cachedAt,
                 lastAccessedAt: lastAccessedAt,
+                contentHash: contentHash,
               ),
           withReferenceMapper: (p0) => p0
               .map(

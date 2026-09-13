@@ -50,11 +50,7 @@ void main() {
   test('updates round-trip through shared_preferences', () async {
     final repository = PrefsSettingsRepository();
     addTearDown(repository.dispose);
-    const updated = CacheSettings(
-      enabled: false,
-      limitBytes: 2048,
-      autoOnPlay: false,
-    );
+    const updated = CacheSettings(limitBytes: 2048);
 
     await repository.updateCacheSettings(updated);
 
@@ -71,8 +67,6 @@ void main() {
     final settings = await repository.cacheSettings();
 
     expect(settings.limitBytes, CacheSettings.defaults.limitBytes);
-    expect(settings.enabled, CacheSettings.defaults.enabled);
-    expect(settings.autoOnPlay, CacheSettings.defaults.autoOnPlay);
   });
 
   test('watchCacheSettings emits the current value on subscribe and '
@@ -86,11 +80,7 @@ void main() {
     await _waitFor(() => emissions.isNotEmpty);
     expect(emissions, [CacheSettings.defaults]);
 
-    const updated = CacheSettings(
-      enabled: true,
-      limitBytes: 4096,
-      autoOnPlay: false,
-    );
+    const updated = CacheSettings(limitBytes: 4096);
     await repository.updateCacheSettings(updated);
 
     await _waitFor(() => emissions.length >= 2);

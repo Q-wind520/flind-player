@@ -134,6 +134,13 @@ class AudioCache extends Table {
   /// Unix timestamp of the last read; the LRU ordering key.
   IntColumn get lastAccessedAt => integer()();
 
+  /// SHA-1 hex digest of the cached file's bytes (schema v6).
+  ///
+  /// Identical content written under two logical keys shares one physical
+  /// file; this column is how those rows are grouped. `null` for legacy rows
+  /// written before v6 and for rows whose file could not be hashed.
+  TextColumn get contentHash => text().nullable()();
+
   @override
   List<Set<Column>> get uniqueKeys => [
     {source, sourceTrackId},

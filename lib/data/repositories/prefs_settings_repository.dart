@@ -28,14 +28,8 @@ import 'package:flind_player/core/repositories/settings_repository.dart';
 /// [watchCacheSettings] is broadcast and seeds each subscriber with the current
 /// value before forwarding updates pushed by [updateCacheSettings].
 class PrefsSettingsRepository implements SettingsRepository {
-  /// Preferences key for [CacheSettings.enabled].
-  static const String enabledKey = 'cache.enabled';
-
   /// Preferences key for [CacheSettings.limitBytes].
   static const String limitBytesKey = 'cache.limitBytes';
-
-  /// Preferences key for [CacheSettings.autoOnPlay].
-  static const String autoOnPlayKey = 'cache.autoOnPlay';
 
   /// Preferences key for the library sort order.
   static const String librarySortKey = 'library.sort';
@@ -57,9 +51,7 @@ class PrefsSettingsRepository implements SettingsRepository {
   @override
   Future<void> updateCacheSettings(CacheSettings settings) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(enabledKey, settings.enabled);
     await prefs.setInt(limitBytesKey, settings.limitBytes);
-    await prefs.setBool(autoOnPlayKey, settings.autoOnPlay);
     _updates.add(settings);
   }
 
@@ -111,17 +103,13 @@ class PrefsSettingsRepository implements SettingsRepository {
   }
 
   CacheSettings _read(SharedPreferences prefs) {
-    final enabled = prefs.getBool(enabledKey);
     final limitBytes = prefs.getInt(limitBytesKey);
-    final autoOnPlay = prefs.getBool(autoOnPlayKey);
 
     return CacheSettings(
-      enabled: enabled ?? CacheSettings.defaults.enabled,
       // A non-positive cap is corrupt data; keep the documented 1 GiB default.
       limitBytes: (limitBytes != null && limitBytes > 0)
           ? limitBytes
           : CacheSettings.defaults.limitBytes,
-      autoOnPlay: autoOnPlay ?? CacheSettings.defaults.autoOnPlay,
     );
   }
 }

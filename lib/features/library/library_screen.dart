@@ -37,6 +37,7 @@ import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
+import 'package:flind_player/shared/responsive_center.dart';
 
 /// Actions exposed by the library overflow menu.
 enum _LibraryAction { addFolder, rescan, importFiles, bilibiliFavorites }
@@ -227,7 +228,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ref.read(librarySortProvider.notifier).setSort(sort),
           ),
           PopupMenuButton<_LibraryAction>(
-            tooltip: '更多操作',
+            // Empty message suppresses the default "Show menu" hover bubble.
+            tooltip: '',
             onSelected: _onAction,
             itemBuilder: (context) => <PopupMenuEntry<_LibraryAction>>[
               PopupMenuItem(
@@ -274,7 +276,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         ? null
                         : IconButton(
                             icon: const Icon(Icons.clear),
-                            tooltip: '清空',
                             onPressed: _clearSearch,
                           ),
                     border: const OutlineInputBorder(),
@@ -387,7 +388,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget _trackDisplay(List<Track> tracks, String? currentUri, bool isPlaying) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= AppBreakpoints.compact) {
+        if (!AppBreakpoints.isCompact(constraints.biggest)) {
           return _trackGrid(tracks, currentUri, isPlaying);
         }
         return _trackList(tracks, currentUri, isPlaying);
@@ -511,7 +512,8 @@ class _SortButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<TrackSort>(
-      tooltip: '排序',
+      // Empty message suppresses the default "Show menu" hover bubble.
+      tooltip: '',
       initialValue: currentSort,
       onSelected: onSortChanged,
       itemBuilder: (context) => [
@@ -900,7 +902,7 @@ class _EmptyLibrary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -947,7 +949,7 @@ class _NoSearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -982,7 +984,7 @@ class _EmptyFavourites extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -1017,7 +1019,7 @@ class _NoFavouritesSearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -1060,7 +1062,7 @@ class _LibraryError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(

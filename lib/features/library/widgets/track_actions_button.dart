@@ -63,7 +63,8 @@ class TrackActionsButton extends ConsumerWidget {
     final isLocal = track.source == 'local';
 
     return PopupMenuButton<_TrackAction>(
-      tooltip: '操作',
+      // Empty message suppresses PopupMenuButton's default "Show menu" bubble.
+      tooltip: '',
       onSelected: (action) =>
           _onSelected(context, ref, action, cacheEntry: cacheEntry),
       itemBuilder: (context) => [

@@ -20,56 +20,33 @@ import 'package:flind_player/core/models/track_sort.dart';
 /// User-configurable offline audio cache settings.
 ///
 /// Mirrors the `SettingsRepository` keys in `docs/local-library.md` §4.4: the
-/// cache can be toggled, capped in bytes, and written automatically while a
-/// track streams.
+/// cache is always on and capped in bytes; LRU eviction keeps it under the cap.
 @immutable
 class CacheSettings {
-  const CacheSettings({
-    required this.enabled,
-    required this.limitBytes,
-    required this.autoOnPlay,
-  });
-
-  /// Whether offline caching is enabled at all.
-  final bool enabled;
+  const CacheSettings({required this.limitBytes});
 
   /// Maximum number of bytes the cache may occupy before LRU eviction runs.
   final int limitBytes;
 
-  /// Whether playing a track should cache it in the background.
-  final bool autoOnPlay;
-
-  /// Defaults from `docs/local-library.md` §4.4: enabled, 1 GiB, cache on play.
+  /// Defaults from `docs/local-library.md` §4.4: 1 GiB.
   static const CacheSettings defaults = CacheSettings(
-    enabled: true,
     limitBytes: 1024 * 1024 * 1024,
-    autoOnPlay: true,
   );
 
-  CacheSettings copyWith({bool? enabled, int? limitBytes, bool? autoOnPlay}) {
-    return CacheSettings(
-      enabled: enabled ?? this.enabled,
-      limitBytes: limitBytes ?? this.limitBytes,
-      autoOnPlay: autoOnPlay ?? this.autoOnPlay,
-    );
+  CacheSettings copyWith({int? limitBytes}) {
+    return CacheSettings(limitBytes: limitBytes ?? this.limitBytes);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is CacheSettings &&
-        other.enabled == enabled &&
-        other.limitBytes == limitBytes &&
-        other.autoOnPlay == autoOnPlay;
+    return other is CacheSettings && other.limitBytes == limitBytes;
   }
 
   @override
-  int get hashCode => Object.hash(enabled, limitBytes, autoOnPlay);
+  int get hashCode => limitBytes.hashCode;
 
   @override
-  String toString() {
-    return 'CacheSettings(enabled: $enabled, limitBytes: $limitBytes, '
-        'autoOnPlay: $autoOnPlay)';
-  }
+  String toString() => 'CacheSettings(limitBytes: $limitBytes)';
 }
 
 /// Persistence for user settings.

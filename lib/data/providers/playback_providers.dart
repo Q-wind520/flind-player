@@ -25,15 +25,14 @@ import 'package:flind_player/data/providers/cache_providers.dart';
 /// Resolves tracks to playable streams, cache first.
 ///
 /// Cached tracks return a `file:` URL with no headers (offline playback); a
-/// miss delegates to the online/local resolver and, when playback caching is
-/// enabled, enqueues a background download. The download manager uses the
-/// *inner* resolver, not this one, to avoid a dependency cycle.
+/// miss delegates to the online/local resolver and enqueues a background
+/// download. The download manager uses the *inner* resolver, not this one, to
+/// avoid a dependency cycle.
 final streamResolverProvider = Provider<StreamResolver>((ref) {
   return CachedStreamResolver(
     inner: ref.watch(innerStreamResolverProvider),
     store: ref.watch(audioCacheStoreProvider),
     manager: ref.watch(downloadManagerProvider),
-    settings: ref.watch(settingsRepositoryProvider),
   );
 });
 

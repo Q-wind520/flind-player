@@ -30,7 +30,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -70,6 +70,11 @@ class AppDatabase extends _$AppDatabase {
         await _addColumnIfMissing(m, tracks, tracks.mtimeMs);
         await _addColumnIfMissing(m, tracks, tracks.scanRoot);
       }
+      if (from < 6) {
+        // v5 had no content hash, so identical audio under two logical keys
+        // could not be deduplicated. Guarded for the same reason as above.
+        await _addColumnIfMissing(m, audioCache, audioCache.contentHash);
+      }
     },
   );
 
@@ -82,9 +87,9 @@ class AppDatabase extends _$AppDatabase {
 
   /// Adds [column] to [table] unless the physical table already has it.
   ///
-  /// Used for the v4 -> v5 upgrade so re-running the migration over a database
-  /// that already carries the column is a no-op (drift's [Migrator.addColumn]
-  /// would otherwise fail with "duplicate column name").
+  /// Used for the v4 -> v5 and v5 -> v6 upgrades so re-running a migration over
+  /// a database that already carries the column is a no-op (drift's
+  /// [Migrator.addColumn] would otherwise fail with "duplicate column name").
   Future<void> _addColumnIfMissing(
     Migrator m,
     TableInfo table,

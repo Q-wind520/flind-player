@@ -24,6 +24,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:flind_player/app/app.dart';
 import 'package:flind_player/app/di/application_overrides.dart';
+import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
@@ -94,6 +95,27 @@ Future<void> main() async {
       'Flind Player: playback persistence start failed: $error\n$stackTrace',
     );
   }
+
+  // Reconcile the offline cache with the filesystem, then collapse identical
+  // audio content left behind by pre-hash builds. Both run fire-and-forget so
+  // they never block or break startup.
+  final audioCacheStore = container.read(audioCacheStoreProvider);
+  unawaited(
+    audioCacheStore.checkIntegrity().then<void>(
+      (_) {},
+      onError: (Object error) {
+        debugPrint('Flind Player: cache integrity check failed: $error');
+      },
+    ),
+  );
+  unawaited(
+    audioCacheStore.deduplicateByContent().then<void>(
+      (_) {},
+      onError: (Object error) {
+        debugPrint('Flind Player: cache deduplication failed: $error');
+      },
+    ),
+  );
 
   runApp(
     UncontrolledProviderScope(container: container, child: const FlindApp()),

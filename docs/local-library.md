@@ -153,35 +153,42 @@ CREATE TABLE audio_cache (
   pinned           INTEGER NOT NULL DEFAULT 0,
   cached_at        INTEGER NOT NULL,
   last_accessed_at INTEGER NOT NULL,
+  content_hash     TEXT,                   -- v6: 文件字节的 SHA-1，去重键（旧行为 NULL）
   UNIQUE(source, source_track_id)
 );
 CREATE INDEX idx_audio_cache_lru ON audio_cache(pinned, last_accessed_at);
+CREATE INDEX idx_audio_cache_content_hash ON audio_cache(content_hash);
 ```
 
-设置项（`SettingsRepository`）：
+设置项（`SettingsRepository`）：缓存只有一个可配置项——上限。
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `cache_enabled` | `true` | 总开关 |
-| `cache_limit_bytes` | `1073741824`（1 GiB） | 上限，可配置 |
-| `cache_auto_on_play` | `true` | 播放即缓存 |
+| `cache_limit_bytes` | `1073741824`（1 GiB） | 上限，可自定义 MB / GB |
+
+> 缓存始终开启（在线音频播放时后台写入）；旧版本写入的 `cache_enabled` /
+> `cache_auto_on_play` 键不再读取。
 
 ### 4.5 淘汰算法（LRU）
 
 ```
 写入前检查:
-  used = SUM(bytes)
+  used = SUM(bytes) over DISTINCT file_path   -- 内容去重后多行可共享一个物理文件，只计一次
   if used + new_bytes > limit:
       candidates = SELECT * FROM audio_cache
                    WHERE pinned = 0
                    ORDER BY last_accessed_at ASC
-      逐个删除直到腾出足够空间
+      逐个删除：先删行；仅当没有其他行引用同一 file_path 时才删文件并计入释放量
       if 仍不足（pinned 占用过多）:
           拒绝新的播放缓存；手动下载前提示用户
 ```
 
-- 删除文件与 DB 行在同一事务语义下（先删文件，再删行；文件不存在也删行）
-- 启动时做一次一致性检查：DB 有行但文件不存在 → 清理；文件存在但无行 → 孤儿清理
+- **内容去重**：下载完成后按字节计算 SHA-1；若已有行索引同一 `content_hash`，
+  新下载的文件被删除，本行指向既有物理文件。因此同一份音频只占一份磁盘、只计一次用量。
+- **引用计数删除**：`remove` / 淘汰只在最后一个引用该 `file_path` 的行消失时才删文件；
+  pinned 行会保护其共享文件不被淘汰。
+- 启动时做一次一致性检查：DB 有行但文件不存在 → 清理；文件存在但无行 → 孤儿清理；
+  并以 `deduplicateByContent()` 回填旧行哈希、合并历史重复内容。
 
 ### 4.6 播放集成
 
@@ -198,10 +205,8 @@ Future<StreamInfo> resolveStream(Track track) async {
   // 2. 解析在线流
   final info = await bili.resolve(track);
 
-  // 3. 若开启播放缓存 → 后台边播边写
-  if (settings.cacheAutoOnPlay) {
-    unawaited(downloader.enqueue(track, info, pinned: false));
-  }
+  // 3. 在线流解析成功后，后台边播边写（缓存始终开启，唯一可配置项是上限）
+  unawaited(downloader.enqueue(track, info, pinned: false));
   return info;
 }
 ```
@@ -216,10 +221,10 @@ Future<StreamInfo> resolveStream(Track track) async {
 
 > **M3 实现现状**
 >
-> 已实现：`audio_cache` 索引表（schema v3）、LRU 淘汰（pinned 豁免）、下载器（`.part` 暂存 + 完成才 rename +
-> `Range` 断点续传 + 指数退避重试 + 403/404 立即判定 URL 过期）、单并发下载队列（FIFO）、缓存优先解析器
-> （命中返回 `file:` 且 **headers 为空**）、缓存设置（开关 / 上限 / 播放自动缓存，默认 1 GiB）、
-> 完整性检查（清理无文件的索引行 + 孤儿文件）。
+> 已实现：`audio_cache` 索引表（schema v3，v6 起含 `content_hash`）、内容哈希去重（同一份音频只存/只计一次）、
+> LRU 淘汰（pinned 豁免，引用计数删除）、下载器（`.part` 暂存 + 完成才 rename + `Range` 断点续传 + 指数退避重试 +
+> 403/404 立即判定 URL 过期）、单并发下载队列（FIFO）、缓存优先解析器（命中返回 `file:` 且 **headers 为空**）、
+> 缓存设置（唯一项：上限，默认 1 GiB，可自定义 MB/GB）、完整性检查（清理无文件的索引行 + 孤儿文件 + 合并历史重复内容）。
 >
 > 实现细节与偏差：
 > 1. **容量检查分两次**：`StreamInfo` 不含字节数，下载前只能按估算值（未知时为 0）预留；下载完成后按**真实

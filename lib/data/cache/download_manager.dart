@@ -19,7 +19,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
@@ -104,16 +103,13 @@ class DownloadManager {
     required AudioCacheStore store,
     required AudioDownloader downloader,
     required StreamResolver resolver,
-    required SettingsRepository settings,
   }) : _store = store, // ignore: prefer_initializing_formals
        _downloader = downloader, // ignore: prefer_initializing_formals
-       _resolver = resolver, // ignore: prefer_initializing_formals
-       _settings = settings; // ignore: prefer_initializing_formals
+       _resolver = resolver; // ignore: prefer_initializing_formals
 
   final AudioCacheStore _store;
   final AudioDownloader _downloader;
   final StreamResolver _resolver;
-  final SettingsRepository _settings;
 
   final StreamController<DownloadProgress> _progress =
       StreamController<DownloadProgress>.broadcast();
@@ -214,12 +210,6 @@ class DownloadManager {
 
   Future<void> _run(_QueuedDownload task) async {
     final track = task.track;
-
-    final settings = await _settings.cacheSettings();
-    if (!settings.enabled) {
-      _emit(task, DownloadPhase.skipped);
-      return;
-    }
 
     CachedAudio? cachedEntry;
     try {

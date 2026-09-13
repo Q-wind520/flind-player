@@ -102,7 +102,6 @@ class _SpyManager extends DownloadManager {
     required super.store,
     required super.downloader,
     required super.resolver,
-    required super.settings,
   });
 
   final List<Track> cachedTracks = <Track>[];
@@ -157,7 +156,6 @@ void main() {
       store: store,
       downloader: AudioDownloader(sleeper: (_) async {}),
       resolver: _UnusedResolver(),
-      settings: settings,
     );
     inner = _RecordingInner();
   });
@@ -175,7 +173,6 @@ void main() {
       inner: inner,
       store: cacheStore ?? store,
       manager: manager,
-      settings: settings,
     );
   }
 
@@ -239,11 +236,6 @@ void main() {
   test(
     'a miss returns the inner info unchanged and enqueues auto-caching',
     () async {
-      settings.current = CacheSettings.defaults.copyWith(
-        enabled: true,
-        autoOnPlay: true,
-      );
-
       final info = await buildResolver().resolve(biliTrack);
 
       expect(info, same(inner.info));
@@ -255,28 +247,19 @@ void main() {
     },
   );
 
-  test('autoOnPlay false does not enqueue a download', () async {
-    settings.current = CacheSettings.defaults.copyWith(
-      enabled: true,
-      autoOnPlay: false,
+  test('a local file miss does not enqueue a download', () async {
+    final localTrack = Track(
+      source: 'local',
+      sourceTrackId: const LocalTrackId('/music/song.mp3'),
+      uri: 'local:/music/song.mp3',
+      title: 'Local Song',
     );
+    inner.info = StreamInfo(url: Uri.file('/music/song.mp3'));
 
-    await buildResolver().resolve(biliTrack);
+    await buildResolver().resolve(localTrack);
     await Future<void>.delayed(Duration.zero);
 
     expect(inner.calls, 1);
-    expect(manager.cachedTracks, isEmpty);
-  });
-
-  test('caching disabled does not enqueue a download', () async {
-    settings.current = CacheSettings.defaults.copyWith(
-      enabled: false,
-      autoOnPlay: true,
-    );
-
-    await buildResolver().resolve(biliTrack);
-    await Future<void>.delayed(Duration.zero);
-
     expect(manager.cachedTracks, isEmpty);
   });
 

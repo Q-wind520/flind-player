@@ -18,24 +18,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
-import 'package:flind_player/features/player/player_sheet.dart';
+import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
 /// A compact bar docked above the navigation that shows the currently playing
 /// track and basic transport controls.
 ///
-/// When nothing is playing, renders [SizedBox.shrink]. Tapping the bar invokes
-/// [onTap] if provided, otherwise opens the full player via
-/// [PlayerSheet.showPlayerSheet].
+/// When nothing is playing, renders [SizedBox.shrink]. Tapping the bar opens
+/// the full-screen [PlayerScreen] on every platform.
 class MiniPlayerBar extends ConsumerWidget {
-  const MiniPlayerBar({super.key, this.onTap});
+  const MiniPlayerBar({super.key});
 
-  /// Optional callback when the bar area (excluding transport buttons) is
-  /// tapped.  The shell supplies this to open the docked panel on wide screens
-  /// while the default opens the modal bottom sheet.
-  final VoidCallback? onTap;
-
-  /// A well-known key so tests can tap the bar area to open the sheet.
+  /// A well-known key so tests can tap the bar area to open the player.
   static const Key barKey = Key('mini_player_bar');
 
   @override
@@ -67,7 +61,9 @@ class MiniPlayerBar extends ConsumerWidget {
             ),
           InkWell(
             key: barKey,
-            onTap: onTap ?? () => PlayerSheet.showPlayerSheet(context),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const PlayerScreen()),
+            ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
@@ -104,7 +100,6 @@ class MiniPlayerBar extends ConsumerWidget {
                     icon: Icon(
                       state.isPlaying ? Icons.pause : Icons.play_arrow,
                     ),
-                    tooltip: state.isPlaying ? '暂停' : '播放',
                   ),
                   // Next.
                   IconButton(
@@ -112,7 +107,6 @@ class MiniPlayerBar extends ConsumerWidget {
                         ? () => ref.read(playbackControllerProvider).next()
                         : null,
                     icon: const Icon(Icons.skip_next),
-                    tooltip: '下一首',
                   ),
                 ],
               ),

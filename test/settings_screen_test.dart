@@ -29,6 +29,7 @@ import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
+import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
@@ -85,6 +86,7 @@ class _FakeSettingsRepository implements SettingsRepository {
 class _FakeCacheStore implements AudioCacheStore {
   int clearCalls = 0;
   int removeCalls = 0;
+  int enforceLimitCalls = 0;
 
   @override
   Future<void> clear() async {
@@ -120,11 +122,24 @@ class _FakeCacheStore implements AudioCacheStore {
     required int bytes,
     required String qualityId,
     required bool pinned,
+    String? contentHash,
   }) async => throw UnimplementedError();
 
   @override
   Future<EvictionResult> ensureSpace(int incomingBytes) async =>
       const EvictionResult(evictedCount: 0, freedBytes: 0, hasSpace: true);
+
+  @override
+  Future<EvictionResult> enforceLimit() async {
+    enforceLimitCalls++;
+    return const EvictionResult(evictedCount: 0, freedBytes: 0, hasSpace: true);
+  }
+
+  @override
+  Future<String> cacheDirectoryPath() async => Directory.systemTemp.path;
+
+  @override
+  Future<int> deduplicateByContent() async => 0;
 
   @override
   Future<IntegrityReport> checkIntegrity() async =>
@@ -295,6 +310,9 @@ Widget _app({
       audioCacheStoreProvider.overrideWith((ref) => store),
       audioCacheUsageProvider.overrideWith((ref) async => usageBytes),
       audioCacheEntryCountProvider.overrideWith((ref) async => trackCount),
+      downloadProgressProvider.overrideWith(
+        (ref) => const Stream<DownloadProgress>.empty(),
+      ),
       // Library
       libraryTracksProvider.overrideWith(
         (ref) => Stream<List<Track>>.value(tracks),
@@ -375,37 +393,58 @@ void main() {
     expect(find.text('设置'), findsOneWidget);
   });
 
-  // -- 播放 section (existing tests, adapted) --
+  // -- 播放 section (two cache rows) --
 
-  testWidgets('renders the cache switches, chips and usage', (tester) async {
+  testWidgets('the cache rows show location, usage, and limit', (tester) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
     await tester.pumpWidget(
-      _app(
-        settings: settings,
-        store: store,
-        usageBytes: 300 * 1024 * 1024,
-        trackCount: 3,
-      ),
+      _app(settings: settings, store: store, usageBytes: 300 * 1024 * 1024),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('启用缓存'), findsOneWidget);
-    expect(find.text('播放时自动缓存'), findsOneWidget);
-    expect(find.text('256 MB'), findsOneWidget);
-    expect(find.text('512 MB'), findsOneWidget);
-    expect(find.text('1 GB'), findsWidgets);
-    expect(find.text('2 GB'), findsOneWidget);
-    expect(find.text('5 GB'), findsOneWidget);
-    expect(find.text('300 MB / 1 GB'), findsOneWidget);
-    expect(find.text('已缓存 3 首'), findsOneWidget);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    // 缓存位置 row: directory path resolved through the store.
+    expect(find.text('缓存位置'), findsOneWidget);
+    expect(find.text(Directory.systemTemp.path), findsOneWidget);
+    // 缓存上限 row: usage / cap.
+    expect(find.text('缓存上限'), findsOneWidget);
+    expect(find.text('已用 300 MB / 1 GB'), findsOneWidget);
+    // The whole row opens the dialog now; the pencil is gone.
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    // Old controls must not appear.
+    expect(find.text('256 MB'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('清空缓存'), findsNothing);
+  });
+
+  testWidgets('tapping 缓存位置 opens the cache-location dialog', (tester) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+
+    // Tap the main body of the 缓存位置 row.
+    await tester.tap(find.text('缓存位置'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text(Directory.systemTemp.path),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('复制'), findsOneWidget);
     expect(find.text('清空缓存'), findsOneWidget);
+    expect(find.text('关闭'), findsOneWidget);
   });
 
-  testWidgets('toggling 启用缓存 persists enabled: false', (tester) async {
+  testWidgets('tapping 缓存上限 opens the custom-limit dialog', (tester) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
@@ -413,15 +452,51 @@ void main() {
     await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('启用缓存'));
+    await tester.tap(find.text('缓存上限'));
     await tester.pumpAndSettle();
 
-    expect(settings.writes, isNotEmpty);
-    expect(settings.current.enabled, isFalse);
-    expect(settings.current.limitBytes, CacheSettings.defaults.limitBytes);
+    expect(find.text('自定义缓存上限'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('MB'), findsOneWidget);
+    expect(find.text('GB'), findsOneWidget);
+    expect(find.text('取消'), findsOneWidget);
+    expect(find.text('确定'), findsOneWidget);
   });
 
-  testWidgets('selecting a chip persists the new limit', (tester) async {
+  testWidgets(
+    'entering 2 GB and confirming persists limitBytes and enforces the limit',
+    (tester) async {
+      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final store = _FakeCacheStore();
+      addTearDown(settings.dispose);
+
+      await tester.pumpWidget(_app(settings: settings, store: store));
+      await tester.pumpAndSettle();
+
+      // The row tap opens the custom-limit dialog.
+      await tester.tap(find.text('缓存上限'));
+      await tester.pumpAndSettle();
+
+      // Clear the field and enter '2'.
+      final field = find.byType(TextField);
+      await tester.enterText(field, '2');
+
+      // Select GB.
+      await tester.tap(find.text('GB'));
+      await tester.pumpAndSettle();
+
+      // Confirm.
+      await tester.tap(find.text('确定'));
+      await tester.pumpAndSettle();
+
+      expect(settings.current.limitBytes, 2 * 1024 * 1024 * 1024);
+      expect(store.enforceLimitCalls, 1);
+    },
+  );
+
+  testWidgets('lowering the cap calls enforceLimit() on the store', (
+    tester,
+  ) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
@@ -429,48 +504,88 @@ void main() {
     await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('256 MB'));
+    // Open the custom-limit dialog from the 缓存上限 row.
+    await tester.tap(find.text('缓存上限'));
     await tester.pumpAndSettle();
 
-    expect(settings.current.limitBytes, 256 * 1024 * 1024);
-    expect(settings.current.enabled, isTrue);
+    // Enter a smaller limit (256 MB).
+    final field = find.byType(TextField);
+    await tester.enterText(field, '256');
+    await tester.tap(find.text('MB'));
+    await tester.pumpAndSettle();
+
+    // Confirm.
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(store.enforceLimitCalls, 1);
   });
 
-  testWidgets('清空缓存 asks for confirmation before clearing', (tester) async {
+  testWidgets(
+    'clearing from the path dialog calls clear() after confirmation',
+    (tester) async {
+      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final store = _FakeCacheStore();
+      addTearDown(settings.dispose);
+
+      await tester.pumpWidget(
+        _app(settings: settings, store: store, usageBytes: 300 * 1024 * 1024),
+      );
+      await tester.pumpAndSettle();
+
+      // Open the cache-location dialog from the 缓存位置 row.
+      await tester.tap(find.text('缓存位置'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+
+      // Tap 清空缓存 inside the dialog.
+      await tester.tap(find.text('清空缓存'));
+      await tester.pumpAndSettle();
+
+      // Confirmation dialog.
+      expect(find.text('清空缓存？'), findsOneWidget);
+      expect(store.clearCalls, 0);
+
+      // Cancel first.
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(store.clearCalls, 0);
+      expect(find.text('清空缓存？'), findsNothing);
+
+      // Tap 清空缓存 again, then confirm.
+      await tester.tap(find.text('清空缓存'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('清空'));
+      await tester.pumpAndSettle();
+
+      expect(store.clearCalls, 1);
+      expect(find.textContaining('已清空缓存'), findsOneWidget);
+    },
+  );
+
+  testWidgets('the cache enable / auto-cache switches are removed', (
+    tester,
+  ) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
-    await tester.pumpWidget(
-      _app(
-        settings: settings,
-        store: store,
-        usageBytes: 300 * 1024 * 1024,
-        trackCount: 3,
-      ),
-    );
+    await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('清空缓存'));
+    expect(find.text('启用缓存'), findsNothing);
+    expect(find.text('播放时自动缓存'), findsNothing);
+  });
+
+  testWidgets('no Divider widgets remain in the settings list', (tester) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
-    expect(find.text('清空缓存？'), findsOneWidget);
-    expect(store.clearCalls, 0);
-
-    await tester.tap(find.text('取消'));
-    await tester.pumpAndSettle();
-
-    expect(store.clearCalls, 0);
-    expect(find.text('清空缓存？'), findsNothing);
-
-    await tester.tap(find.text('清空缓存'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('清空'));
-    await tester.pumpAndSettle();
-
-    expect(store.clearCalls, 1);
-    expect(find.textContaining('已清空缓存'), findsOneWidget);
-    expect(find.textContaining('300 MB'), findsWidgets);
+    expect(find.byType(Divider), findsNothing);
   });
 
   // -- 曲库 section --
@@ -545,8 +660,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The delete icon for scan roots is inside the ListTile that shows
-      // the root path. The cache section also has a delete icon, so use
-      // a descendant-of-tile finder to disambiguate.
+      // the root path. Use a descendant-of-tile finder to disambiguate.
       final rootTile = find.byWidgetPredicate(
         (w) =>
             w is ListTile &&

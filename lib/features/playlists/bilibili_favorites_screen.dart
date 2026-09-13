@@ -26,6 +26,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
+import 'package:flind_player/shared/responsive_center.dart';
 
 /// Browses a Bilibili user's **public** favourite folders by UID.
 ///
@@ -240,7 +241,6 @@ class _BilibiliFavoritesScreenState
             ? null
             : IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: '返回收藏夹',
                 onPressed: _backToFolders,
               ),
         title: Text(
@@ -522,7 +522,6 @@ class _FavoriteTrackTile extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.library_add_outlined),
-            tooltip: '存入曲库',
             onPressed: onSave,
           ),
         ],
@@ -546,7 +545,7 @@ class _FavoritesHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -580,7 +579,7 @@ class _FavoritesError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
+    return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(

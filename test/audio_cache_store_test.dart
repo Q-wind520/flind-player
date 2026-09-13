@@ -81,7 +81,9 @@ void main() {
       extension: 'm4a',
     );
     file.parent.createSync(recursive: true);
-    file.writeAsBytesSync(List<int>.filled(bytes, 0));
+    // Distinct content per track so the store's content-hash deduplication
+    // does not collapse entries that merely share a size.
+    file.writeAsBytesSync(List<int>.filled(bytes, trackId.hashCode & 0xFF));
 
     final entry = await store.insert(
       source: source,
@@ -296,31 +298,18 @@ void main() {
       expect(await store.totalBytes(), 400);
     });
 
-    test('never evicts while caching is disabled', () async {
-      settings.current = CacheSettings.defaults.copyWith(
-        enabled: false,
-        limitBytes: 1000,
-      );
-      await addEntry('a', bytes: 800, lastAccessedAt: 1000);
-      await addEntry('b', bytes: 800, lastAccessedAt: 2000);
+    test('enforceLimit evicts non-pinned entries down to the cap', () async {
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
+      await addEntry('a', bytes: 400, lastAccessedAt: 1000);
+      await addEntry('b', bytes: 400, lastAccessedAt: 2000);
+      await addEntry('c', bytes: 400, lastAccessedAt: 3000);
 
-      final overLimit = await store.ensureSpace(0);
+      final result = await store.enforceLimit();
 
-      // Documented: disabled means callers skip caching; ensureSpace still
-      // reports whether the limit would have been respected and never evicts.
-      expect(overLimit.evictedCount, 0);
-      expect(overLimit.freedBytes, 0);
-      expect(overLimit.hasSpace, isFalse);
-      expect(await store.totalBytes(), 1600);
-
-      settings.current = CacheSettings.defaults.copyWith(
-        enabled: false,
-        limitBytes: 4000,
-      );
-      final underLimit = await store.ensureSpace(0);
-
-      expect(underLimit.hasSpace, isTrue);
-      expect(await store.totalBytes(), 1600);
+      expect(result.evictedCount, 1);
+      expect(result.freedBytes, 400);
+      expect(result.hasSpace, isTrue);
+      expect(await store.totalBytes(), 800);
     });
   });
 
@@ -346,6 +335,144 @@ void main() {
       for (final id in ['a', 'b', 'c']) {
         expect(File(pathFor(id)).existsSync(), isFalse);
       }
+    });
+  });
+
+  group('content deduplication', () {
+    test('identical content is stored once and counted once', () async {
+      final first = File('${root.path}/bilibili/first.bin')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(64, 7));
+      final second = File('${root.path}/bilibili/second.bin')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(64, 7));
+
+      final entryA = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        filePath: first.path,
+        bytes: 64,
+        qualityId: '30280',
+        pinned: false,
+      );
+      final entryB = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'b',
+        filePath: second.path,
+        bytes: 64,
+        qualityId: '30280',
+        pinned: false,
+      );
+
+      expect(entryB.filePath, entryA.filePath);
+      expect(entryB.bytes, entryA.bytes);
+      expect(entryB.contentHash, entryA.contentHash);
+      expect(File(second.path).existsSync(), isFalse);
+      expect(File(first.path).existsSync(), isTrue);
+      expect(await store.totalBytes(), 64);
+      expect((await store.entries()).length, 2);
+
+      // One logical row removed: the shared file stays because the other row
+      // still references it.
+      await store.remove(entryA.id);
+      expect(File(first.path).existsSync(), isTrue);
+      expect(await store.totalBytes(), 64);
+
+      // Last reference removed: the physical file is deleted.
+      await store.remove(entryB.id);
+      expect(File(first.path).existsSync(), isFalse);
+      expect(await store.totalBytes(), 0);
+    });
+
+    test('a shared file referenced by a pinned row survives eviction', () async {
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 50);
+      final shared = File('${root.path}/bilibili/shared.bin')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(80, 1));
+      final duplicate = File('${root.path}/bilibili/duplicate.bin')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(80, 1));
+
+      final pinned = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'pinned',
+        filePath: shared.path,
+        bytes: 80,
+        qualityId: '30280',
+        pinned: true,
+      );
+      final auto = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'auto',
+        filePath: duplicate.path,
+        bytes: 80,
+        qualityId: '30280',
+        pinned: false,
+      );
+
+      // Both rows now share the pinned row's physical file.
+      expect(auto.filePath, pinned.filePath);
+      expect(File(duplicate.path).existsSync(), isFalse);
+      expect(await store.totalBytes(), 80);
+
+      final result = await store.ensureSpace(0);
+
+      // Evicting the unpinned co-owner must not free bytes nor delete the file
+      // the pinned row still references.
+      expect(result.evictedCount, 1);
+      expect(result.freedBytes, 0);
+      expect(await store.lookup('bilibili', 'auto'), isNull);
+      expect(await store.lookup('bilibili', 'pinned'), isNotNull);
+      expect(File(shared.path).existsSync(), isTrue);
+      expect(await store.totalBytes(), 80);
+    });
+
+    test('deduplicateByContent repairs legacy rows with null hashes', () async {
+      final first = File('${root.path}/bilibili/legacy_a.bin')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(32, 3));
+      final second = File('${root.path}/bilibili/legacy_b.bin')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(List<int>.filled(32, 3));
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await db
+          .into(db.audioCache)
+          .insert(
+            AudioCacheCompanion.insert(
+              source: 'bilibili',
+              sourceTrackId: 'legacyA',
+              filePath: first.path,
+              bytes: 32,
+              qualityId: '30280',
+              cachedAt: now,
+              lastAccessedAt: now,
+            ),
+          );
+      await db
+          .into(db.audioCache)
+          .insert(
+            AudioCacheCompanion.insert(
+              source: 'bilibili',
+              sourceTrackId: 'legacyB',
+              filePath: second.path,
+              bytes: 32,
+              qualityId: '30280',
+              cachedAt: now,
+              lastAccessedAt: now,
+            ),
+          );
+
+      final removed = await store.deduplicateByContent();
+
+      expect(removed, 1);
+      final entries = await store.entries();
+      expect(entries.length, 2);
+      expect(entries.every((e) => e.contentHash != null), isTrue);
+      expect(entries.map((e) => e.filePath).toSet().length, 1);
+      expect(File(first.path).existsSync(), isTrue);
+      expect(File(second.path).existsSync(), isFalse);
+      expect(await store.totalBytes(), 32);
     });
   });
 
