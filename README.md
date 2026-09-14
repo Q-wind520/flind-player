@@ -4,14 +4,14 @@ A cross-platform music player built with Flutter.
 
 ## Platforms
 
-| Platform | Priority |
-| -------- | -------- |
-| Android  | Primary  |
-| Linux    | Primary  |
-| Windows  | Secondary |
-| macOS    | Secondary |
-| iOS      | Secondary |
-| Web      | Deferred (v2) |
+| Platform | Priority | Notes |
+| -------- | -------- | ----- |
+| Android  | Primary  | — |
+| Linux    | Primary  | 需要系统 `libmpv` |
+| Windows  | Secondary | 内置 mpv |
+| macOS    | Secondary | **未签名**预览（保留沙盒，仅加网络权限） |
+| iOS      | Secondary | **未签名**预览，需自行签名安装；暂不支持本地曲库 |
+| Web      | Deferred (v2) | — |
 
 ## Identifiers
 
@@ -48,6 +48,14 @@ flutter build windows --release
 # Android 按架构拆分（体积远小于通用包，推荐分发给用户）
 flutter build apk --release --split-per-abi
 # 产物：app-arm64-v8a-release.apk（现代手机）、app-armeabi-v7a-release.apk（32 位老设备）
+
+# macOS 桌面（未签名，macOS 上构建）
+flutter build macos --release
+# 产物：build/macos/Build/Products/Release/Flind Player.app
+
+# iOS（未签名，macOS 上构建；CI 会打成未签名 .ipa 供自签安装）
+flutter build ios --release --no-codesign
+# 产物：build/ios/iphoneos/Runner.app
 ```
 
 > **mpv 预编译包**：Windows 播放内核 (media_kit) 自带 mpv，不依赖系统库。构建时
@@ -59,6 +67,10 @@ flutter build apk --release --split-per-abi
 > `build/windows/x64/` 后重新构建即可（CMake 校验通过后不会再下载）。CI 中用
 > `actions/cache` 缓存该归档，升级 `media_kit_libs_windows_audio` 时请同步更新
 > 工作流中的归档文件名与缓存 key。
+
+> **Apple 平台为未签名预览版**：长期不做签名 / 公证，也不上架 App Store。macOS 解压后需先
+> `xattr -dr com.apple.quarantine "Flind Player.app"` 再打开；iOS 的 `.ipa` 未签名，需用
+> AltStore / Sideloadly 等工具以你自己的证书签名后安装；iOS 暂不支持本地曲库。
 
 ### 签名发布（Android）
 

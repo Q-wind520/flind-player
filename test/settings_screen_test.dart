@@ -18,6 +18,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_picker_platform_interface/file_picker_platform_interface.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -586,6 +587,42 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Divider), findsNothing);
+  });
+
+  // -- 曲库 on platforms without a local library --
+
+  testWidgets('under iOS the 曲库 controls are replaced by a note', (
+    tester,
+  ) async {
+    // flutter_test verifies foundation debug variables before package:test
+    // tear-downs run, so the override must also be cleared in the body.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    try {
+      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final store = _FakeCacheStore();
+      addTearDown(settings.dispose);
+
+      await tester.pumpWidget(
+        _app(settings: settings, store: store, scanRoots: ['/home/user/Music']),
+      );
+      await tester.pumpAndSettle();
+
+      // The muted note replaces every local-library control.
+      expect(find.text('iOS 暂不支持本地曲库'), findsOneWidget);
+      expect(find.text('曲库统计'), findsNothing);
+      expect(find.text('扫描根目录'), findsNothing);
+      expect(find.text('添加文件夹'), findsNothing);
+      expect(find.text('重新扫描'), findsNothing);
+      expect(find.text('/home/user/Music'), findsNothing);
+      expect(find.text('未配置扫描根目录'), findsNothing);
+
+      // The 播放 section is untouched.
+      expect(find.text('缓存位置'), findsOneWidget);
+      expect(find.text('缓存上限'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   // -- 曲库 section --

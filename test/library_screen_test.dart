@@ -15,6 +15,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -209,6 +210,43 @@ void main() {
     expect(find.text('曲库还是空的'), findsOneWidget);
     expect(find.text('导入本地音乐'), findsOneWidget);
     expect(find.byType(ListView), findsNothing);
+  });
+
+  testWidgets('under iOS the local-library actions are replaced by a note', (
+    tester,
+  ) async {
+    // flutter_test verifies foundation debug variables before package:test
+    // tear-downs run, so the override must also be cleared in the body.
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    try {
+      await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+      await tester.pumpAndSettle();
+
+      // The note replaces the library body even when tracks exist.
+      expect(find.text('iOS 暂不支持本地曲库'), findsOneWidget);
+      expect(find.text('曲库还是空的'), findsNothing);
+
+      // No library-management entry points: add folder, import, rescan, sort.
+      expect(find.text('添加文件夹'), findsNothing);
+      expect(find.text('导入文件'), findsNothing);
+      expect(find.byIcon(Icons.sort), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+
+      // The Bilibili favourites browser stays available. Its overflow icon
+      // adapts to the platform, so find the button itself.
+      final menuButton = find.byWidgetPredicate(
+        (widget) => widget is PopupMenuButton,
+      );
+      expect(menuButton, findsOneWidget);
+      await tester.tap(menuButton);
+      await tester.pumpAndSettle();
+      expect(find.text('浏览 B 站收藏夹'), findsOneWidget);
+      expect(find.text('重新扫描'), findsNothing);
+      expect(find.text('添加文件夹'), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('renders local and bilibili tracks with source badges', (

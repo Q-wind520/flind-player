@@ -33,6 +33,7 @@ import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/format_bytes.dart';
+import 'package:flind_player/shared/platform_support.dart';
 
 /// Application settings: playback (cache), library, and about sections.
 class SettingsScreen extends ConsumerWidget {
@@ -51,7 +52,10 @@ class SettingsScreen extends ConsumerWidget {
 
           // ── 曲库 ──
           const _SectionHeader('曲库'),
-          const _LibrarySection(),
+          if (supportsLocalLibrary)
+            const _LibrarySection()
+          else
+            const _UnsupportedLibraryNotice(),
 
           // ── 关于 ──
           const _SectionHeader('关于'),
@@ -379,6 +383,26 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
 // ---------------------------------------------------------------------------
 // 曲库 section
 // ---------------------------------------------------------------------------
+
+/// Muted replacement for the library controls on platforms that expose no
+/// user-selectable filesystem roots (iOS).
+class _UnsupportedLibraryNotice extends StatelessWidget {
+  const _UnsupportedLibraryNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Text(
+        'iOS 暂不支持本地曲库',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
 
 /// Library statistics, scan root management and rescan trigger.
 class _LibrarySection extends ConsumerStatefulWidget {

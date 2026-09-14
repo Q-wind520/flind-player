@@ -117,6 +117,89 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-macos:
+    name: Build macOS (release)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS bundle
+        run: flutter build macos --release
+
+      - name: Package macOS bundle
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent \
+            "Flind Player.app" \
+            "$GITHUB_WORKSPACE/FlindPlayer-${GITHUB_REF_NAME}-macos-x64.zip"
+
+      - name: Upload macOS archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-release
+          path: FlindPlayer-*-macos-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  build-ios:
+    name: Build iOS (release, unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry "FlindPlayer-${GITHUB_REF_NAME}-ios-unsigned.ipa" Payload
+
+      - name: Upload iOS archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-release
+          path: FlindPlayer-*-ios-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
+
   build-android:
     name: Build Android (release)
     runs-on: ubuntu-latest
@@ -198,7 +281,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [build-linux, build-windows, build-android]
+    needs: [build-linux, build-windows, build-macos, build-ios, build-android]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -215,6 +298,8 @@ jobs:
           files: |
             artifacts/linux-release/*.tar.gz
             artifacts/windows-release/*.zip
+            artifacts/macos-release/*.zip
+            artifacts/ios-release/*.ipa
             artifacts/android-release/*.apk
             artifacts/android-release/*.aab
           # GPL-3.0 §6: distributing binaries obliges us to offer the
@@ -243,6 +328,8 @@ jobs:
             | --- | --- |
             | `FlindPlayer-${{ github.ref_name }}-linux-x64.tar.gz` | Linux 桌面版（解压后运行 `flind_player`；需要系统 `libmpv.so.2`） |
             | `FlindPlayer-${{ github.ref_name }}-windows-x64.zip` | Windows 桌面版（解压后运行 `flind_player.exe`，已内置 mpv，无需额外依赖） |
+            | `FlindPlayer-${{ github.ref_name }}-macos-x64.zip` | macOS 桌面版（**未签名**；解压后需 `xattr -dr com.apple.quarantine "Flind Player.app"` 再打开） |
+            | `FlindPlayer-${{ github.ref_name }}-ios-unsigned.ipa` | iOS（**未签名**；需用 AltStore / Sideloadly 等工具自行签名安装；暂不支持本地曲库） |
             | `FlindPlayer-${{ github.ref_name }}-arm64-v8a.apk` | **绝大多数现代手机选这个**（体积最小） |
             | `FlindPlayer-${{ github.ref_name }}-armeabi-v7a.apk` | 较老的 32 位 Android 设备 |
             | `FlindPlayer-${{ github.ref_name }}.aab` | Android App Bundle（用于 Google Play 上架） |

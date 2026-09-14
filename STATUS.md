@@ -105,6 +105,20 @@ release 工作流曾用临时 tag `v0.0.0-citest` 端到端实测：三个 job �
 
 ---
 
+## 平台构建现状
+
+| 平台 | 产物 |
+| --- | --- |
+| Android | 分架构 APK + AAB（debug 签名） |
+| Linux | release bundle（需系统 libmpv） |
+| Windows | release zip（内置 mpv） |
+| macOS | **未签名** zip（保留沙盒，仅加网络权限；需去隔离） |
+| iOS | **未签名** IPA（自签安装；本地曲库已隐藏） |
+
+Apple 平台为非主推，**长期不做签名 / 公证 / TestFlight**；iOS 沙盒下无文件系统根，暂不提供本地曲库。
+
+---
+
 ## 其他候选（未开始）
 
 - Android 目录扫描：唯一代码 TODO；需真机验证，设备按约定保持未授权
@@ -114,7 +128,7 @@ release 工作流曾用临时 tag `v0.0.0-citest` 端到端实测：三个 job �
 
 ## 已知延后
 
-歌词（未排期）、QR 登录与个人收藏夹（v1.1）、Web 端（v2）。
+歌词（未排期）、QR 登录与个人收藏夹（v1.1）、Web 端（v2）、Apple 平台的签名 / 公证 / TestFlight（长期推迟）。
 
 ---
 

@@ -37,6 +37,7 @@ import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
+import 'package:flind_player/shared/platform_support.dart';
 import 'package:flind_player/shared/responsive_center.dart';
 
 /// Actions exposed by the library overflow menu.
@@ -208,6 +209,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasLocalLibrary = supportsLocalLibrary;
     final syncState =
         ref.watch(librarySyncStateProvider).value ?? LibrarySyncState.idle;
     final isSyncing = switch (syncState.phase) {
@@ -221,34 +223,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       appBar: AppBar(
         title: const Text('音乐库'),
         actions: [
-          _SortButton(
-            currentSort:
-                ref.watch(librarySortProvider).value ?? TrackSort.title,
-            onSortChanged: (sort) =>
-                ref.read(librarySortProvider.notifier).setSort(sort),
-          ),
+          if (hasLocalLibrary)
+            _SortButton(
+              currentSort:
+                  ref.watch(librarySortProvider).value ?? TrackSort.title,
+              onSortChanged: (sort) =>
+                  ref.read(librarySortProvider.notifier).setSort(sort),
+            ),
           PopupMenuButton<_LibraryAction>(
             // Empty message suppresses the default "Show menu" hover bubble.
             tooltip: '',
             onSelected: _onAction,
             itemBuilder: (context) => <PopupMenuEntry<_LibraryAction>>[
-              PopupMenuItem(
-                value: _LibraryAction.addFolder,
-                enabled: !isSyncing,
-                child: const _MenuRow(
-                  icon: Icons.create_new_folder_outlined,
-                  label: '添加文件夹',
+              if (hasLocalLibrary) ...[
+                PopupMenuItem(
+                  value: _LibraryAction.addFolder,
+                  enabled: !isSyncing,
+                  child: const _MenuRow(
+                    icon: Icons.create_new_folder_outlined,
+                    label: '添加文件夹',
+                  ),
                 ),
-              ),
-              PopupMenuItem(
-                value: _LibraryAction.rescan,
-                enabled: !isSyncing,
-                child: const _MenuRow(icon: Icons.refresh, label: '重新扫描'),
-              ),
-              const PopupMenuItem(
-                value: _LibraryAction.importFiles,
-                child: _MenuRow(icon: Icons.add, label: '导入文件'),
-              ),
+                PopupMenuItem(
+                  value: _LibraryAction.rescan,
+                  enabled: !isSyncing,
+                  child: const _MenuRow(icon: Icons.refresh, label: '重新扫描'),
+                ),
+                const PopupMenuItem(
+                  value: _LibraryAction.importFiles,
+                  child: _MenuRow(icon: Icons.add, label: '导入文件'),
+                ),
+              ],
               const PopupMenuItem(
                 value: _LibraryAction.bilibiliFavorites,
                 child: _MenuRow(icon: Icons.cloud_outlined, label: '浏览 B 站收藏夹'),
@@ -256,46 +261,51 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ],
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _searchController,
-              builder: (context, value, child) {
-                return TextField(
-                  controller: _searchController,
-                  textInputAction: TextInputAction.search,
-                  onChanged: _onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: _filter == LibraryFilter.favourites
-                        ? '搜索收藏'
-                        : '搜索曲库',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: value.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: _clearSearch,
-                          ),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
+        bottom: hasLocalLibrary ? _buildSearchBar() : null,
       ),
-      body: Column(
-        children: [
-          _SyncStatus(state: syncState),
-          _FilterBar(
-            filter: _filter,
-            onFilterChanged: (f) => setState(() => _filter = f),
-          ),
-          Expanded(child: _buildBody()),
-        ],
+      body: hasLocalLibrary
+          ? Column(
+              children: [
+                _SyncStatus(state: syncState),
+                _FilterBar(
+                  filter: _filter,
+                  onFilterChanged: (f) => setState(() => _filter = f),
+                ),
+                Expanded(child: _buildBody()),
+              ],
+            )
+          : const _UnsupportedLibraryNotice(),
+    );
+  }
+
+  /// The search field pinned under the library AppBar.
+  PreferredSize _buildSearchBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(64),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _searchController,
+          builder: (context, value, child) {
+            return TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: _filter == LibraryFilter.favourites ? '搜索收藏' : '搜索曲库',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: value.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: _clearSearch,
+                      ),
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -890,6 +900,42 @@ class _TrackCover extends StatelessWidget {
       color: scheme.onSurfaceVariant,
     ),
   );
+}
+
+/// Shown when the platform offers no local library (iOS): explains the
+/// limitation instead of prompting the user to add folders or import files.
+class _UnsupportedLibraryNotice extends StatelessWidget {
+  const _UnsupportedLibraryNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ResponsiveCenter(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.library_music_outlined,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text('iOS 暂不支持本地曲库', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'iOS 沙盒不提供用户可选择的文件系统目录，可在 B 站收藏夹中收听在线音乐',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Shown when the library has no tracks yet.
