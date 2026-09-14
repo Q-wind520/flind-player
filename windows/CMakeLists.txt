@@ -32,6 +32,13 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
+# Microsoft removed <experimental/coroutine> in newer MSVC toolsets (VS 2026+,
+# STL1011 hard error). permission_handler_windows uses C++/WinRT coroutines
+# whose headers pull it in transitively, so silence that deprecation until
+# upstream migrates to <coroutine>. Harmless on older toolsets where the header
+# still exists.
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
