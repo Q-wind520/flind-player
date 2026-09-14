@@ -39,10 +39,26 @@ sudo apt-get install -y libgtk-3-dev libmpv-dev libayatana-appindicator3-dev lib
 flutter build linux --release
 # 产物：build/linux/x64/release/bundle/
 
+# Windows 桌面（首次构建时 media_kit_libs_windows_audio 会自动下载预编译的
+# mpv 7z 包并做 MD5 校验；若 GitHub 下载不稳定，可手动下载同名归档放到
+# build/windows/x64/ 下，见下方「mpv 预编译包」说明）
+flutter build windows --release
+# 产物：build/windows/x64/runner/Release/（运行 flind_player.exe，已内置 mpv）
+
 # Android 按架构拆分（体积远小于通用包，推荐分发给用户）
 flutter build apk --release --split-per-abi
 # 产物：app-arm64-v8a-release.apk（现代手机）、app-armeabi-v7a-release.apk（32 位老设备）
 ```
+
+> **mpv 预编译包**：Windows 播放内核 (media_kit) 自带 mpv，不依赖系统库。构建时
+> `media_kit_libs_windows_audio` 会从
+> `https://github.com/media-kit/libmpv-win32-audio-build/releases/download/2023-09-24/`
+> 下载 `mpv-dev-x86_64-20230924-git-652a1dd.7z`（约 5 MB）并校验 MD5
+> （`cd738e16e2a19626d7cfa48801524f8c`）。国内网络可能下载失败（表现为生成构建
+> 时报 "Integrity check failed"），此时用任意方式手动下载该归档放入
+> `build/windows/x64/` 后重新构建即可（CMake 校验通过后不会再下载）。CI 中用
+> `actions/cache` 缓存该归档，升级 `media_kit_libs_windows_audio` 时请同步更新
+> 工作流中的归档文件名与缓存 key。
 
 ### 签名发布（Android）
 
@@ -67,7 +83,7 @@ flutter build apk --release --split-per-abi
 
 ### 触发发布工作流
 
-打 tag 并推送即可，GitHub Actions 会构建 Linux 与 Android 产物并创建 Release：
+打 tag 并推送即可，GitHub Actions 会构建 Linux、Windows 与 Android 产物并创建 Release：
 
 ```bash
 git tag v0.1.0

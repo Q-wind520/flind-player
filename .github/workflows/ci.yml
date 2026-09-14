@@ -45,6 +45,54 @@ jobs:
       - name: Test
         run: flutter test
 
+  # Windows: prove the desktop build compiles. Unlike Linux, playback does not
+  # need a system libmpv — media_kit_libs_windows_audio downloads a prebuilt
+  # mpv 7z archive at CMake configure time. The archive is cached across runs
+  # (a fresh download from GitHub can be flaky); CMake still verifies its MD5,
+  # so a corrupt cached/downloaded file is caught at build time.
+  build-windows:
+    name: Build Windows (release)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # The archive filename embeds its pinned build (2023-09-24);
+      # bump the key in lockstep with media_kit_libs_windows_audio in pubspec.
+      - name: Cache libmpv archive (media_kit_libs_windows_audio)
+        id: cache-mpv
+        uses: actions/cache@v6
+        with:
+          path: build/windows/x64/mpv-dev-x86_64-20230924-git-652a1dd.7z
+          key: mpv-win32-audio-20230924-652a1dd
+
+      - name: Download libmpv archive if not cached
+        if: steps.cache-mpv.outputs.cache-hit != 'true'
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows/x64 | Out-Null
+          curl.exe -L --retry 5 --retry-delay 2 --connect-timeout 30 `
+            -o build/windows/x64/mpv-dev-x86_64-20230924-git-652a1dd.7z `
+            https://github.com/media-kit/libmpv-win32-audio-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows bundle
+        run: flutter build windows --release
+
   # Optional but useful: prove the desktop build still compiles and ships a
   # runnable bundle. Linux builds need system libmpv (see docs/local-library.md
   # §5: `libsecret` for credentials, `libmpv-dev` + `mpv` for playback,

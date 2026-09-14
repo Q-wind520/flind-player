@@ -60,6 +60,63 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-windows:
+    name: Build Windows (release)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # media_kit_libs_windows_audio downloads this prebuilt mpv 7z at CMake
+      # configure time; cache it (fresh GitHub downloads can be flaky) and let
+      # the plugin's own MD5 check catch any corruption.
+      - name: Cache libmpv archive (media_kit_libs_windows_audio)
+        id: cache-mpv
+        uses: actions/cache@v6
+        with:
+          path: build/windows/x64/mpv-dev-x86_64-20230924-git-652a1dd.7z
+          key: mpv-win32-audio-20230924-652a1dd
+
+      - name: Download libmpv archive if not cached
+        if: steps.cache-mpv.outputs.cache-hit != 'true'
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows/x64 | Out-Null
+          curl.exe -L --retry 5 --retry-delay 2 --connect-timeout 30 `
+            -o build/windows/x64/mpv-dev-x86_64-20230924-git-652a1dd.7z `
+            https://github.com/media-kit/libmpv-win32-audio-build/releases/download/2023-09-24/mpv-dev-x86_64-20230924-git-652a1dd.7z
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows bundle
+        run: flutter build windows --release
+
+      - name: Package Windows bundle
+        run: |
+          Compress-Archive -Path build/windows/x64/runner/Release/* `
+            -DestinationPath "FlindPlayer-$env:GITHUB_REF_NAME-windows-x64.zip"
+
+      - name: Upload Windows archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-release
+          path: FlindPlayer-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
   build-android:
     name: Build Android (release)
     runs-on: ubuntu-latest
@@ -141,7 +198,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [build-linux, build-android]
+    needs: [build-linux, build-windows, build-android]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -157,6 +214,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             artifacts/linux-release/*.tar.gz
+            artifacts/windows-release/*.zip
             artifacts/android-release/*.apk
             artifacts/android-release/*.aab
           # GPL-3.0 §6: distributing binaries obliges us to offer the
@@ -184,6 +242,7 @@ jobs:
             | 文件 | 说明 |
             | --- | --- |
             | `FlindPlayer-${{ github.ref_name }}-linux-x64.tar.gz` | Linux 桌面版（解压后运行 `flind_player`；需要系统 `libmpv.so.2`） |
+            | `FlindPlayer-${{ github.ref_name }}-windows-x64.zip` | Windows 桌面版（解压后运行 `flind_player.exe`，已内置 mpv，无需额外依赖） |
             | `FlindPlayer-${{ github.ref_name }}-arm64-v8a.apk` | **绝大多数现代手机选这个**（体积最小） |
             | `FlindPlayer-${{ github.ref_name }}-armeabi-v7a.apk` | 较老的 32 位 Android 设备 |
             | `FlindPlayer-${{ github.ref_name }}.aab` | Android App Bundle（用于 Google Play 上架） |
