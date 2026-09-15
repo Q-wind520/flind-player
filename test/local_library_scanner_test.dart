@@ -19,6 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 import 'package:flind_player/data/sources/local/local_metadata_reader.dart';
+import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
 
 void main() {
   late Directory root;
@@ -159,7 +160,7 @@ void main() {
 
   test('skips an unchanged file but still reports it as seen', () async {
     final file = copyFixture('known.mp3');
-    final knownUri = 'local:${file.path}';
+    final knownUri = LocalStreamResolver.uriForPath(file.path);
 
     final result = await scanner.scan(
       roots: [root.path],
@@ -179,7 +180,7 @@ void main() {
 
   test('re-parses a file whose mtime changed', () async {
     final file = copyFixture('touched.mp3');
-    final uri = 'local:${file.path}';
+    final uri = LocalStreamResolver.uriForPath(file.path);
     final stat = file.statSync();
     final stale = FileFingerprint(
       sizeBytes: stat.size,
@@ -199,7 +200,7 @@ void main() {
 
   test('re-parses a file whose size changed', () async {
     final file = copyFixture('resized.mp3');
-    final uri = 'local:${file.path}';
+    final uri = LocalStreamResolver.uriForPath(file.path);
     final stat = file.statSync();
     final stale = FileFingerprint(
       sizeBytes: stat.size + 1,
@@ -214,7 +215,7 @@ void main() {
 
   test('treats a fingerprint with null fields as stale', () async {
     final file = copyFixture('legacy.mp3');
-    final uri = 'local:${file.path}';
+    final uri = LocalStreamResolver.uriForPath(file.path);
 
     final result = await scanner.scan(
       roots: [root.path],
@@ -228,12 +229,12 @@ void main() {
   test('reports every discovered file but only parsed tracks', () async {
     final unchanged = copyFixture('unchanged.mp3');
     final changed = copyFixture('changed.mp3');
-    final changedUri = 'local:${changed.path}';
+    final changedUri = LocalStreamResolver.uriForPath(changed.path);
 
     final result = await scanner.scan(
       roots: [root.path],
       known: {
-        'local:${unchanged.path}': fingerprintOf(unchanged),
+        LocalStreamResolver.uriForPath(unchanged.path): fingerprintOf(unchanged),
         changedUri: const FileFingerprint(sizeBytes: 0, mtimeMs: 0),
       },
     );

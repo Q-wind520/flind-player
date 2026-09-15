@@ -9,7 +9,7 @@ A cross-platform music player built with Flutter.
 | Android  | Primary  | — |
 | Linux    | Primary  | 需要系统 `libmpv` |
 | Windows  | Secondary | 内置 mpv |
-| macOS    | Secondary | **未签名**预览（保留沙盒，仅加网络权限） |
+| macOS    | Secondary | **未签名**预览（Apple Silicon/arm64，保留沙盒，仅加网络权限） |
 | iOS      | Secondary | **未签名**预览，需自行签名安装；暂不支持本地曲库 |
 | Web      | Deferred (v2) | — |
 
@@ -49,7 +49,7 @@ flutter build windows --release
 flutter build apk --release --split-per-abi
 # 产物：app-arm64-v8a-release.apk（现代手机）、app-armeabi-v7a-release.apk（32 位老设备）
 
-# macOS 桌面（未签名，macOS 上构建）
+# macOS 桌面（Apple Silicon / arm64，未签名，macOS 上构建）
 flutter build macos --release
 # 产物：build/macos/Build/Products/Release/Flind Player.app
 

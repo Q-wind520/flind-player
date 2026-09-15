@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
@@ -37,7 +38,7 @@ void main() {
 
       expect(info.url, Uri.file(path));
       expect(info.url.scheme, 'file');
-      expect(info.url.toFilePath(), path);
+      expect(info.url.toFilePath(), p.normalize(path));
     });
 
     test('preserves spaces and unicode in paths', () async {
@@ -46,7 +47,7 @@ void main() {
       final info = await resolver.resolve(_localTrack(path));
 
       expect(info.url.scheme, 'file');
-      expect(info.url.toFilePath(), path);
+      expect(info.url.toFilePath(), p.normalize(path));
     });
 
     test('produces no headers and no expiry for local files', () async {

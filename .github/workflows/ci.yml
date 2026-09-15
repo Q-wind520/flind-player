@@ -127,7 +127,7 @@ jobs:
           cd build/macos/Build/Products/Release
           ditto -c -k --sequesterRsrc --keepParent \
             "Flind Player.app" \
-            "$GITHUB_WORKSPACE/FlindPlayer-${{ github.ref_name }}-macos-x64.zip"
+            "$GITHUB_WORKSPACE/FlindPlayer-${{ github.ref_name }}-macos-$(uname -m).zip"
 
   build-ios:
     name: Build iOS (release, unsigned)

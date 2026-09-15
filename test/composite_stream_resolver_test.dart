@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/music_source.dart';
@@ -61,7 +62,7 @@ void main() {
       final info = await resolver.resolve(localTrack);
 
       expect(info.url.scheme, 'file');
-      expect(info.url.toFilePath(), '/music/song.flac');
+      expect(info.url.toFilePath(), p.normalize('/music/song.flac'));
     });
 
     test('routes bilibili tracks to the registered source', () async {

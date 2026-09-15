@@ -21,6 +21,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
 
 /// Reads embedded metadata from a local audio file into a [Track].
 class LocalMetadataReader {
@@ -41,7 +42,7 @@ class LocalMetadataReader {
       return Track(
         source: 'local',
         sourceTrackId: LocalTrackId(filePath),
-        uri: 'local:$filePath',
+        uri: LocalStreamResolver.uriForPath(filePath),
         title: (title == null || title.isEmpty)
             ? p.basenameWithoutExtension(filePath)
             : title,

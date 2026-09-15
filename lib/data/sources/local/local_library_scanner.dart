@@ -24,6 +24,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/sources/local/local_metadata_reader.dart';
+import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
 
 /// A throttled progress snapshot emitted while a scan runs.
 ///
@@ -287,7 +288,7 @@ class LocalLibraryScanner {
           if (entity is! File) continue;
           final path = entity.path;
           if (!_isAudioFile(path)) continue;
-          final uri = 'local:$path';
+          final uri = LocalStreamResolver.uriForPath(path);
           if (!seenUris.add(uri)) continue;
 
           final FileStat stat;

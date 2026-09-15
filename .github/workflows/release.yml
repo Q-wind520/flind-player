@@ -147,15 +147,18 @@ jobs:
       - name: Package macOS bundle
         run: |
           cd build/macos/Build/Products/Release
+          # macos-latest runners are Apple Silicon (arm64), so the bundle is
+          # host-arch. Name the archive by the real architecture (uname -m) to
+          # avoid a misleading x64 label.
           ditto -c -k --sequesterRsrc --keepParent \
             "Flind Player.app" \
-            "$GITHUB_WORKSPACE/FlindPlayer-${GITHUB_REF_NAME}-macos-x64.zip"
+            "$GITHUB_WORKSPACE/FlindPlayer-${GITHUB_REF_NAME}-macos-$(uname -m).zip"
 
       - name: Upload macOS archive
         uses: actions/upload-artifact@v7
         with:
           name: macos-release
-          path: FlindPlayer-*-macos-x64.zip
+          path: FlindPlayer-*-macos-*.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -328,7 +331,7 @@ jobs:
             | --- | --- |
             | `FlindPlayer-${{ github.ref_name }}-linux-x64.tar.gz` | Linux 桌面版（解压后运行 `flind_player`；需要系统 `libmpv.so.2`） |
             | `FlindPlayer-${{ github.ref_name }}-windows-x64.zip` | Windows 桌面版（解压后运行 `flind_player.exe`，已内置 mpv，无需额外依赖） |
-            | `FlindPlayer-${{ github.ref_name }}-macos-x64.zip` | macOS 桌面版（**未签名**；解压后需 `xattr -dr com.apple.quarantine "Flind Player.app"` 再打开） |
+            | `FlindPlayer-${{ github.ref_name }}-macos-arm64.zip` | macOS 桌面版（Apple Silicon，**未签名**；解压后需 `xattr -dr com.apple.quarantine "Flind Player.app"` 再打开） |
             | `FlindPlayer-${{ github.ref_name }}-ios-unsigned.ipa` | iOS（**未签名**；需用 AltStore / Sideloadly 等工具自行签名安装；暂不支持本地曲库） |
             | `FlindPlayer-${{ github.ref_name }}-arm64-v8a.apk` | **绝大多数现代手机选这个**（体积最小） |
             | `FlindPlayer-${{ github.ref_name }}-armeabi-v7a.apk` | 较老的 32 位 Android 设备 |

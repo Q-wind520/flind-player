@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:io';
+
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
@@ -26,10 +28,22 @@ class LocalStreamResolver implements StreamResolver {
   /// Source id this resolver accepts.
   static const String sourceId = 'local';
 
-  /// Prefix used by canonical local track uris (`local:/abs/path`).
+  /// Prefix used by canonical local track uris (`local:/abs/path`; on Windows
+  /// `local:C:/abs/path`, always with forward slashes).
   static const String uriPrefix = 'local:';
 
   const LocalStreamResolver();
+
+  /// Builds the canonical `local:` uri for an on-disk [path].
+  ///
+  /// On Windows, backslashes are normalized to forward slashes so that the
+  /// same file reached through scan roots spelled with either separator
+  /// (Dart's [Directory.list] echoes the root's own spelling) yields one
+  /// stable uri — otherwise mixed `\`/`/` spellings break uri-based
+  /// deduplication and lookups. POSIX paths are returned unchanged because a
+  /// backslash is a legal filename character there.
+  static String uriForPath(String path) =>
+      'local:${Platform.isWindows ? path.replaceAll('\\', '/') : path}';
 
   @override
   Future<StreamInfo> resolve(Track track) async {

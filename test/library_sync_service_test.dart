@@ -30,6 +30,7 @@ import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/data/sources/local/artwork_cache.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 import 'package:flind_player/data/sources/local/local_metadata_reader.dart';
+import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -205,8 +206,8 @@ void main() {
     expect(
       visible.map((track) => track.uri),
       containsAll(<String>[
-        'local:${online.path}/online.mp3',
-        'local:${offline.path}/offline.mp3',
+        LocalStreamResolver.uriForPath('${online.path}/online.mp3'),
+        LocalStreamResolver.uriForPath('${offline.path}/offline.mp3'),
       ]),
     );
     expect(service.current.markedMissing, 0);
