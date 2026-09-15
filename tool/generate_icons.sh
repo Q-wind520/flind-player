@@ -158,6 +158,29 @@ else
 fi
 
 echo ""
+echo "[check] Validating windows/runner/resources/app_icon.ico..."
+python3 - <<'PYEOF'
+import struct, sys
+
+# rc.exe rejects ICO entries that are not PNG/BMP (e.g. a converter's JPEG
+# payload) with RC2176 "old DIB", breaking `flutter build windows`.
+path = 'windows/runner/resources/app_icon.ico'
+data = open(path, 'rb').read()
+count = struct.unpack('<H', data[4:6])[0]
+for i in range(count):
+    entry = 6 + i * 16
+    offset = struct.unpack('<BBBBHHII', data[entry:entry + 16])[7]
+    head = data[offset:offset + 4]
+    is_png = head[:4] == b'\x89PNG'
+    is_bmp = struct.unpack('<I', head)[0] in (12, 40, 52, 56, 108, 124)
+    if not (is_png or is_bmp):
+        sys.exit(
+            f'{path}: entry {i} is neither PNG nor BMP (head={head.hex()}); '
+            'rc.exe would fail with RC2176'
+        )
+print(f'  -> {path}: {count} entries, all PNG/BMP')
+PYEOF
+echo ""
 echo "=== Pipeline complete ==="
 echo ""
 echo "Generated artifacts:"
