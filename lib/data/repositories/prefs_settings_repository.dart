@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 
@@ -33,6 +34,9 @@ class PrefsSettingsRepository implements SettingsRepository {
 
   /// Preferences key for the library sort order.
   static const String librarySortKey = 'library.sort';
+
+  /// Preferences key for the UI language.
+  static const String appLanguageKey = 'app.language';
 
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
@@ -100,6 +104,25 @@ class PrefsSettingsRepository implements SettingsRepository {
   Future<void> setLibrarySort(TrackSort sort) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(librarySortKey, sort.name);
+  }
+
+  @override
+  Future<AppLanguage> appLanguage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final name = prefs.getString(appLanguageKey);
+      if (name == null) return AppLanguage.system;
+      return AppLanguage.values.asNameMap()[name] ?? AppLanguage.system;
+    } catch (error) {
+      debugPrint('PrefsSettingsRepository: appLanguage read failed: $error');
+      return AppLanguage.system;
+    }
+  }
+
+  @override
+  Future<void> setAppLanguage(AppLanguage language) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(appLanguageKey, language.name);
   }
 
   CacheSettings _read(SharedPreferences prefs) {

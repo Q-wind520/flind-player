@@ -16,6 +16,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
 
@@ -109,4 +110,30 @@ void main() {
       expect(second, [CacheSettings.defaults]);
     },
   );
+
+  test('appLanguage defaults to system', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.appLanguage(), AppLanguage.system);
+  });
+
+  test('appLanguage round-trips through shared_preferences', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    await repository.setAppLanguage(AppLanguage.simplifiedChinese);
+
+    expect(await repository.appLanguage(), AppLanguage.simplifiedChinese);
+  });
+
+  test('appLanguage falls back to system for a corrupt stored value', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'app.language': 'klingon',
+    });
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.appLanguage(), AppLanguage.system);
+  });
 }
