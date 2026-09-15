@@ -19,8 +19,8 @@ import 'package:flutter/material.dart';
 class AppTheme {
   const AppTheme._();
 
-  /// Seed used to derive the Material 3 colour scheme (deep violet).
-  static const Color seedColor = Color(0xFF5E35B1);
+  /// Seed used to derive the Material 3 colour scheme (teal green).
+  static const Color seedColor = Color(0xFF1BA784);
 
   /// Light theme.
   static final ThemeData light = _build(Brightness.light);
