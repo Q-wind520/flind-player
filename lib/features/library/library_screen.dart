@@ -30,6 +30,7 @@ import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
@@ -115,6 +116,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// Picks a directory, persists it as a scan root and starts a sync.
   Future<void> _addFolder() async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
     final permission = await ref
         .read(permissionCoordinatorProvider)
         .ensureAudioLibrary();
@@ -123,6 +125,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         SnackBar(
           content: Text(
             permissionDeniedMessage(
+              l10n,
               AppPermission.audioLibrary,
               permanentlyDenied:
                   permission == PermissionResult.permanentlyDenied,
@@ -133,14 +136,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       return;
     }
     try {
-      final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
+      final path = await FilePicker.getDirectoryPath(
+        dialogTitle: l10n.selectMusicFolder,
+      );
       if (path == null) {
         return;
       }
       await ref.read(musicLibraryRepositoryProvider).addScanRoot(path);
       ref.invalidate(scanRootsProvider);
       _startSync();
-      messenger.showSnackBar(SnackBar(content: Text('已添加文件夹：$path')));
+      messenger.showSnackBar(SnackBar(content: Text(l10n.folderAdded(path))));
     } catch (error) {
       if (!mounted) return;
       showErrorSnackBar(context, error);
@@ -156,6 +161,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// Picks local files, persists every readable track, and reports the result.
   Future<void> _importFiles() async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
     final permission = await ref
         .read(permissionCoordinatorProvider)
         .ensureAudioLibrary();
@@ -164,6 +170,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         SnackBar(
           content: Text(
             permissionDeniedMessage(
+              l10n,
               AppPermission.audioLibrary,
               permanentlyDenied:
                   permission == PermissionResult.permanentlyDenied,
@@ -179,9 +186,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
       final tracks = await importer.pickAndImport();
       if (tracks.isEmpty) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('未选择或未识别到可导入的音频文件')),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(l10n.noImportableFiles)));
         return;
       }
 
@@ -189,7 +194,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         await repository.upsertTrack(track);
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('已导入 ${tracks.length} 首歌曲')),
+        SnackBar(content: Text(l10n.importedTracks(tracks.length))),
       );
     } catch (error) {
       if (!mounted) return;
@@ -209,6 +214,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final hasLocalLibrary = supportsLocalLibrary;
     final syncState =
         ref.watch(librarySyncStateProvider).value ?? LibrarySyncState.idle;
@@ -221,7 +227,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('音乐库'),
+        title: Text(l10n.musicLibrary),
         actions: [
           if (hasLocalLibrary)
             _SortButton(
@@ -239,24 +245,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 PopupMenuItem(
                   value: _LibraryAction.addFolder,
                   enabled: !isSyncing,
-                  child: const _MenuRow(
+                  child: _MenuRow(
                     icon: Icons.create_new_folder_outlined,
-                    label: '添加文件夹',
+                    label: l10n.addFolder,
                   ),
                 ),
                 PopupMenuItem(
                   value: _LibraryAction.rescan,
                   enabled: !isSyncing,
-                  child: const _MenuRow(icon: Icons.refresh, label: '重新扫描'),
+                  child: _MenuRow(icon: Icons.refresh, label: l10n.rescan),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: _LibraryAction.importFiles,
-                  child: _MenuRow(icon: Icons.add, label: '导入文件'),
+                  child: _MenuRow(icon: Icons.add, label: l10n.importFiles),
                 ),
               ],
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: _LibraryAction.bilibiliFavorites,
-                child: _MenuRow(icon: Icons.cloud_outlined, label: '浏览 B 站收藏夹'),
+                child: _MenuRow(
+                  icon: Icons.cloud_outlined,
+                  label: l10n.browseBiliFavorites,
+                ),
               ),
             ],
           ),
@@ -280,6 +289,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   /// The search field pinned under the library AppBar.
   PreferredSize _buildSearchBar() {
+    final l10n = AppLocalizations.of(context);
     return PreferredSize(
       preferredSize: const Size.fromHeight(64),
       child: Padding(
@@ -292,7 +302,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               textInputAction: TextInputAction.search,
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                hintText: _filter == LibraryFilter.favourites ? '搜索收藏' : '搜索曲库',
+                hintText: _filter == LibraryFilter.favourites
+                    ? l10n.searchFavorites
+                    : l10n.searchLibrary,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: value.text.isEmpty
                     ? null
@@ -311,6 +323,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Widget _buildBody() {
+    final l10n = AppLocalizations.of(context);
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
@@ -325,7 +338,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => _LibraryError(
           error: error,
-          title: '搜索失败',
+          title: l10n.searchFailed,
           onRetry: () => ref.invalidate(librarySearchProvider(_query)),
         ),
         data: (tracks) {
@@ -362,13 +375,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// server-side library sort: the list is small enough that a simple
   /// `List.sort` is cheaper than a round-trip to the repository.
   Widget _buildFavouritesBody(String? currentUri, bool isPlaying) {
+    final l10n = AppLocalizations.of(context);
     final favouritesAsync = ref.watch(favoritesProvider);
     final sort = ref.watch(librarySortProvider).value ?? TrackSort.title;
     return favouritesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _LibraryError(
         error: error,
-        title: '加载收藏失败',
+        title: l10n.loadFavoritesFailed,
         onRetry: () => ref.invalidate(favoritesProvider),
       ),
       data: (favourites) {
@@ -486,17 +500,18 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: SegmentedButton<LibraryFilter>(
-        segments: const [
+        segments: [
           ButtonSegment<LibraryFilter>(
             value: LibraryFilter.all,
-            label: Text('全部'),
+            label: Text(l10n.tabAll),
           ),
           ButtonSegment<LibraryFilter>(
             value: LibraryFilter.favourites,
-            label: Text('收藏'),
+            label: Text(l10n.tabFavorites),
           ),
         ],
         selected: {filter},
@@ -521,6 +536,7 @@ class _SortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PopupMenuButton<TrackSort>(
       // Empty message suppresses the default "Show menu" hover bubble.
       tooltip: '',
@@ -541,7 +557,7 @@ class _SortButton extends StatelessWidget {
                 else
                   const SizedBox(width: 20),
                 const SizedBox(width: 8),
-                Text(_sortLabel(sort)),
+                Text(_sortLabel(l10n, sort)),
               ],
             ),
           ),
@@ -550,12 +566,13 @@ class _SortButton extends StatelessWidget {
     );
   }
 
-  static String _sortLabel(TrackSort sort) => switch (sort) {
-    TrackSort.title => '按标题',
-    TrackSort.artist => '按艺术家',
-    TrackSort.album => '按专辑',
-    TrackSort.recentlyAdded => '最近添加',
-  };
+  static String _sortLabel(AppLocalizations l10n, TrackSort sort) =>
+      switch (sort) {
+        TrackSort.title => l10n.sortByTitle,
+        TrackSort.artist => l10n.sortByArtist,
+        TrackSort.album => l10n.sortByAlbum,
+        TrackSort.recentlyAdded => l10n.sortRecentlyAdded,
+      };
 }
 
 /// A menu entry: leading icon plus label.
@@ -579,11 +596,12 @@ class _SyncStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     return switch (state.phase) {
       LibrarySyncPhase.idle => const SizedBox.shrink(),
       LibrarySyncPhase.scanning => _SyncBanner(
-        text: '扫描中 ${state.processed}/${state.discovered}',
+        text: l10n.scanning(state.processed, state.discovered),
         color: scheme.primary,
         showProgress: true,
         progress: state.discovered > 0
@@ -591,26 +609,31 @@ class _SyncStatus extends StatelessWidget {
             : null,
       ),
       LibrarySyncPhase.saving => _SyncBanner(
-        text: '保存中…',
+        text: l10n.saving,
         color: scheme.primary,
         showProgress: true,
       ),
       LibrarySyncPhase.artwork => _SyncBanner(
-        text: '缓存封面 ${state.coversCached}/${state.saved}',
+        text: l10n.coversCached(state.coversCached, state.saved),
         color: scheme.primary,
         showProgress: true,
         progress: state.saved > 0 ? state.coversCached / state.saved : null,
       ),
       LibrarySyncPhase.done => _SyncBanner(
-        text:
-            '已同步 ${state.discovered} 首 · '
-            '新增 ${state.saved} · 移除 ${state.markedMissing}',
+        text: l10n.syncedAddedRemoved(
+          state.discovered,
+          state.saved,
+          state.markedMissing,
+        ),
         color: scheme.tertiary,
         icon: Icons.check_circle_outline,
       ),
       LibrarySyncPhase.failed => _SyncBanner(
-        text:
-            '同步失败：${state.error == null ? '未知错误' : describeError(state.error!)}',
+        text: l10n.syncFailedWith(
+          state.error == null
+              ? l10n.unknownError
+              : describeError(l10n, state.error!),
+        ),
         color: scheme.error,
         icon: Icons.error_outline,
       ),
@@ -690,6 +713,7 @@ class _TrackTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       onTap: onTap,
@@ -700,7 +724,7 @@ class _TrackTile extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              track.artist ?? '未知艺术家',
+              track.artist ?? l10n.unknownArtist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -748,6 +772,7 @@ class _TrackCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -804,7 +829,7 @@ class _TrackCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    track.artist ?? '未知艺术家',
+                    track.artist ?? l10n.unknownArtist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -833,9 +858,10 @@ class _SourceBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
     final label = switch (source) {
-      'local' => '本地',
-      'bilibili' => 'B站',
+      'local' => l10n.sourceLocal,
+      'bilibili' => l10n.sourceBilibili,
       _ => source,
     };
 
@@ -910,6 +936,7 @@ class _UnsupportedLibraryNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -922,10 +949,13 @@ class _UnsupportedLibraryNotice extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('iOS 暂不支持本地曲库', style: theme.textTheme.titleMedium),
+            Text(
+              l10n.iosLibraryUnsupportedTitle,
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Text(
-              'iOS 沙盒不提供用户可选择的文件系统目录，可在 B 站收藏夹中收听在线音乐',
+              l10n.iosLibraryUnsupportedHint,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -948,6 +978,7 @@ class _EmptyLibrary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -960,10 +991,10 @@ class _EmptyLibrary extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('曲库还是空的', style: theme.textTheme.titleMedium),
+            Text(l10n.emptyLibraryTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '添加一个音乐文件夹开始扫描，或导入本地音乐文件',
+              l10n.emptyLibraryHint,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -973,13 +1004,13 @@ class _EmptyLibrary extends StatelessWidget {
             FilledButton.tonalIcon(
               onPressed: onAddFolder,
               icon: const Icon(Icons.create_new_folder_outlined),
-              label: const Text('添加文件夹'),
+              label: Text(l10n.addFolder),
             ),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: onImport,
               icon: const Icon(Icons.add),
-              label: const Text('导入本地音乐'),
+              label: Text(l10n.importLocalMusic),
             ),
           ],
         ),
@@ -995,6 +1026,7 @@ class _NoSearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1007,10 +1039,10 @@ class _NoSearchResults extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('没有找到匹配的歌曲', style: theme.textTheme.titleMedium),
+            Text(l10n.noMatchingTracks, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '换个关键词试试',
+              l10n.tryAnotherKeyword,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -1030,6 +1062,7 @@ class _EmptyFavourites extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1042,10 +1075,10 @@ class _EmptyFavourites extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('还没有收藏的歌曲', style: theme.textTheme.titleMedium),
+            Text(l10n.noFavorites, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '在曲库或搜索结果中点击操作菜单收藏喜欢的歌曲',
+              l10n.noFavoritesHint,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -1065,6 +1098,7 @@ class _NoFavouritesSearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1077,10 +1111,10 @@ class _NoFavouritesSearchResults extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('没有找到匹配的收藏', style: theme.textTheme.titleMedium),
+            Text(l10n.noMatchingFavorites, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '换个关键词试试',
+              l10n.tryAnotherKeyword,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -1095,19 +1129,16 @@ class _NoFavouritesSearchResults extends StatelessWidget {
 
 /// Shown when the library stream (or a search) fails.
 class _LibraryError extends StatelessWidget {
-  const _LibraryError({
-    required this.error,
-    this.title = '加载音乐库失败',
-    this.onRetry,
-  });
+  const _LibraryError({required this.error, this.title, this.onRetry});
 
   final Object error;
-  final String title;
+  final String? title;
   final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1117,13 +1148,13 @@ class _LibraryError extends StatelessWidget {
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(
-              title,
+              title ?? l10n.loadLibraryFailed,
               style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              describeError(error),
+              describeError(l10n, error),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -1134,7 +1165,7 @@ class _LibraryError extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('重试'),
+                label: Text(l10n.retry),
               ),
             ],
           ],

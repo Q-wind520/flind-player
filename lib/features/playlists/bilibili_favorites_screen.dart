@@ -23,6 +23,7 @@ import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -213,9 +214,12 @@ class _BilibiliFavoritesScreenState
 
   Future<void> _saveToLibrary(Track track) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
     try {
       await ref.read(musicLibraryRepositoryProvider).upsertTrack(track);
-      messenger.showSnackBar(SnackBar(content: Text('已存入曲库：${track.title}')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.savedToLibrary(track.title))),
+      );
     } catch (error) {
       if (!mounted) return;
       showErrorSnackBar(context, error);
@@ -235,6 +239,7 @@ class _BilibiliFavoritesScreenState
   @override
   Widget build(BuildContext context) {
     final folder = _openFolder;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         leading: folder == null
@@ -244,7 +249,7 @@ class _BilibiliFavoritesScreenState
                 onPressed: _backToFolders,
               ),
         title: Text(
-          folder == null ? '浏览 B 站收藏夹' : folder.title,
+          folder == null ? l10n.browseBiliFavorites : folder.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -264,10 +269,10 @@ class _BilibiliFavoritesScreenState
                             FilteringTextInputFormatter.digitsOnly,
                           ],
                           onSubmitted: (_) => _loadFolders(),
-                          decoration: const InputDecoration(
-                            hintText: 'UP 主 UID',
-                            prefixIcon: Icon(Icons.person_outline),
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            hintText: l10n.upUid,
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: const OutlineInputBorder(),
                             isDense: true,
                           ),
                         ),
@@ -275,7 +280,7 @@ class _BilibiliFavoritesScreenState
                       const SizedBox(width: 8),
                       FilledButton(
                         onPressed: _loading ? null : _loadFolders,
-                        child: const Text('加载'),
+                        child: Text(l10n.load),
                       ),
                     ],
                   ),
@@ -301,18 +306,19 @@ class _BilibiliFavoritesScreenState
   }
 
   Widget _buildFolderList() {
+    final l10n = AppLocalizations.of(context);
     if (_uid.isEmpty) {
-      return const _FavoritesHint(
+      return _FavoritesHint(
         icon: Icons.cloud_outlined,
-        title: '浏览公开收藏夹',
-        message: '输入 Bilibili 用户的 UID，查看其公开的收藏夹',
+        title: l10n.browsePublicFavorites,
+        message: l10n.browsePublicFavoritesHint,
       );
     }
     if (_folders.isEmpty) {
-      return const _FavoritesHint(
+      return _FavoritesHint(
         icon: Icons.folder_off_outlined,
-        title: '没有公开的收藏夹',
-        message: '该用户没有公开的收藏夹，或 UID 不存在',
+        title: l10n.noPublicFavorites,
+        message: l10n.noPublicFavoritesHint,
       );
     }
     return ListView.builder(
@@ -331,7 +337,7 @@ class _BilibiliFavoritesScreenState
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            '${folder.trackCount} 个内容',
+            l10n.folderItemCount(folder.trackCount),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -343,15 +349,16 @@ class _BilibiliFavoritesScreenState
   }
 
   Widget _buildTrackList() {
+    final l10n = AppLocalizations.of(context);
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
 
     if (_tracks.isEmpty) {
-      return const _FavoritesHint(
+      return _FavoritesHint(
         icon: Icons.music_off_outlined,
-        title: '没有可播放的视频',
-        message: '这个收藏夹里没有可播放的视频（音频与合集暂不支持）',
+        title: l10n.noPlayableVideos,
+        message: l10n.noPlayableVideosHint,
       );
     }
     return ListView.builder(
@@ -407,6 +414,7 @@ class _TrackListFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     if (loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -425,7 +433,7 @@ class _TrackListFooter extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              describeError(error!),
+              describeError(l10n, error!),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.error,
               ),
@@ -435,7 +443,7 @@ class _TrackListFooter extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
+              label: Text(l10n.retry),
             ),
           ],
         ),
@@ -447,7 +455,7 @@ class _TrackListFooter extends StatelessWidget {
         child: Center(
           child: OutlinedButton(
             onPressed: onLoadMore,
-            child: const Text('加载更多'),
+            child: Text(l10n.loadMore),
           ),
         ),
       );
@@ -457,7 +465,7 @@ class _TrackListFooter extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            '已全部加载',
+            l10n.allLoaded,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -490,6 +498,7 @@ class _FavoriteTrackTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       onTap: onTap,
@@ -505,7 +514,7 @@ class _FavoriteTrackTile extends StatelessWidget {
       ),
       title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        track.artist ?? '未知UP主',
+        track.artist ?? l10n.unknownUp,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -579,6 +588,7 @@ class _FavoritesError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -587,10 +597,10 @@ class _FavoritesError extends StatelessWidget {
           children: [
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
-            Text('加载失败', style: theme.textTheme.titleMedium),
+            Text(l10n.loadFailed, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              describeError(error),
+              describeError(l10n, error),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -600,7 +610,7 @@ class _FavoritesError extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
+              label: Text(l10n.retry),
             ),
           ],
         ),

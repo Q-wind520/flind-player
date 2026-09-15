@@ -42,6 +42,9 @@ import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
+import 'package:flind_player/core/models/app_language.dart';
+
+import 'support/l10n.dart';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -53,12 +56,19 @@ class _FakeSettingsRepository implements SettingsRepository {
   _FakeSettingsRepository(this.current);
 
   CacheSettings current;
+  AppLanguage language = AppLanguage.system;
   final List<CacheSettings> writes = <CacheSettings>[];
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
 
   @override
   Future<CacheSettings> cacheSettings() async => current;
+
+  @override
+  Future<AppLanguage> appLanguage() async => language;
+
+  @override
+  Future<void> setAppLanguage(AppLanguage value) async => language = value;
 
   @override
   Future<TrackSort> librarySort() async => TrackSort.title;
@@ -340,7 +350,7 @@ Widget _app({
             ),
       ),
     ],
-    child: const MaterialApp(home: SettingsScreen()),
+    child: localizedApp(const SettingsScreen()),
   );
 }
 
@@ -366,7 +376,7 @@ void main() {
 
   // -- Section headings --
 
-  testWidgets('renders all three section headings', (tester) async {
+  testWidgets('renders the section headings', (tester) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
@@ -374,6 +384,7 @@ void main() {
     await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
+    expect(find.text('通用'), findsOneWidget);
     expect(find.text('播放'), findsOneWidget);
     expect(find.text('曲库'), findsOneWidget);
 
@@ -381,6 +392,32 @@ void main() {
     await tester.scrollUntilVisible(find.text('关于'), 100);
     await tester.pumpAndSettle();
     expect(find.text('关于'), findsOneWidget);
+  });
+
+  testWidgets('language follows the system by default and can switch', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+
+    expect(find.text('语言'), findsOneWidget);
+    expect(find.text('跟随系统'), findsOneWidget);
+
+    await tester.tap(find.text('语言'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('English'), findsOneWidget);
+    expect(find.text('简体中文'), findsOneWidget);
+
+    await tester.tap(find.text('简体中文'));
+    await tester.pumpAndSettle();
+
+    expect(settings.language, AppLanguage.simplifiedChinese);
+    expect(find.text('简体中文'), findsOneWidget);
   });
 
   testWidgets('renders the AppBar title as 设置', (tester) async {
@@ -910,7 +947,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('v1.2.3 (42)'), 100);
     await tester.pumpAndSettle();
 
-    expect(find.text('Flind Player'), findsWidgets);
+    expect(find.text('风林'), findsWidgets);
     expect(find.text('v1.2.3 (42)'), findsOneWidget);
   });
 

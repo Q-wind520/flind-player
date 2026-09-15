@@ -23,6 +23,8 @@ import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/platform/tray/tray_service.dart';
 
+import 'support/l10n.dart';
+
 /// A [PlaybackController] that records transport calls; no engine is built.
 class _FakePlaybackController implements PlaybackController {
   final StreamController<PlaybackState> _states =
@@ -99,11 +101,11 @@ class _FakePlaybackController implements PlaybackController {
 void main() {
   group('trayPlayPauseLabel', () {
     test('shows 暂停 while playing', () {
-      expect(trayPlayPauseLabel(true), '暂停');
+      expect(trayPlayPauseLabel(testL10n(), true), '暂停');
     });
 
     test('shows 播放 while paused', () {
-      expect(trayPlayPauseLabel(false), '播放');
+      expect(trayPlayPauseLabel(testL10n(), false), '播放');
     });
   });
 

@@ -43,9 +43,18 @@ import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
+import 'package:flind_player/core/models/app_language.dart';
+
+import 'support/l10n.dart';
 
 /// In-memory [SettingsRepository] that satisfies the settings screen.
 class _FakeSettingsRepository implements SettingsRepository {
+  @override
+  Future<AppLanguage> appLanguage() async => AppLanguage.system;
+
+  @override
+  Future<void> setAppLanguage(AppLanguage language) async {}
+
   _FakeSettingsRepository(this.current);
 
   CacheSettings current;
@@ -262,7 +271,7 @@ Widget _app({PlaybackState playback = PlaybackState.idle}) {
         ),
       ),
     ],
-    child: const MaterialApp(home: HomeShell()),
+    child: localizedApp(const HomeShell()),
   );
 }
 

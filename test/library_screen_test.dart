@@ -36,6 +36,8 @@ import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 
+import 'support/l10n.dart';
+
 Track _track(String title, {String? artist, Duration? duration}) {
   final path = '/music/$title.mp3';
   return Track(
@@ -162,8 +164,8 @@ Widget _app({
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
-    child: MaterialApp(
-      home: MediaQuery(
+    child: localizedApp(
+      MediaQuery(
         data: const MediaQueryData(size: Size(400, 800)),
         child: const LibraryScreen(),
       ),

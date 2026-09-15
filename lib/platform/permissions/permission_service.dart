@@ -16,6 +16,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:flind_player/l10n/app_localizations.dart';
+
 /// A runtime permission the app may need.
 enum AppPermission {
   /// Read the user's local audio files.
@@ -148,16 +150,19 @@ class PermissionCoordinator {
   }
 }
 
-/// A user-facing Chinese message explaining a denied [permission].
+/// A user-facing message explaining a denied [permission].
 String permissionDeniedMessage(
+  AppLocalizations l10n,
   AppPermission permission, {
   required bool permanentlyDenied,
 }) {
   final label = switch (permission) {
-    AppPermission.audioLibrary => '访问本地音乐',
-    AppPermission.notifications => '发送播放通知',
+    AppPermission.audioLibrary => l10n.permissionAudioLibrary,
+    AppPermission.notifications => l10n.permissionNotifications,
   };
-  return permanentlyDenied ? '$label权限已被拒绝，请在系统设置中开启' : '需要$label权限才能继续';
+  return permanentlyDenied
+      ? l10n.permissionDeniedSettings(label)
+      : l10n.permissionRequired(label);
 }
 
 /// [PermissionBackend] backed by the real `permission_handler` plugin.

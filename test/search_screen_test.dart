@@ -32,6 +32,8 @@ import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 
+import 'support/l10n.dart';
+
 Track _track(String title, {String? artist, Duration? duration}) {
   final bvid = 'BV_$title';
   return Track(
@@ -131,7 +133,7 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
     ],
-    child: const MaterialApp(home: SearchScreen()),
+    child: localizedApp(const SearchScreen()),
   );
 }
 

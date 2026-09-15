@@ -21,6 +21,7 @@ import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Consolidated row actions for library and search track rows.
 ///
@@ -59,6 +60,7 @@ class TrackActionsButton extends ConsumerWidget {
         ref.watch(_isFavouriteProvider(track.uri)).value ?? false;
     final cacheEntry = ref.watch(audioCacheEntryProvider(track)).value;
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     final isLocal = track.source == 'local';
 
@@ -78,7 +80,7 @@ class TrackActionsButton extends ConsumerWidget {
                 size: 20,
               ),
               const SizedBox(width: 12),
-              Text(isFavourite ? '取消收藏' : '收藏'),
+              Text(isFavourite ? l10n.unfavorite : l10n.favorite),
             ],
           ),
         ),
@@ -89,18 +91,18 @@ class TrackActionsButton extends ConsumerWidget {
               children: [
                 Icon(_cacheIcon(cacheEntry), size: 20),
                 const SizedBox(width: 12),
-                Text(_cacheLabel(cacheEntry)),
+                Text(_cacheLabel(l10n, cacheEntry)),
               ],
             ),
           ),
         if (showSaveToLibrary)
-          const PopupMenuItem<_TrackAction>(
+          PopupMenuItem<_TrackAction>(
             value: _TrackAction.saveToLibrary,
             child: Row(
               children: [
                 Icon(Icons.library_add_outlined, size: 20),
                 SizedBox(width: 12),
-                Text('存入曲库'),
+                Text(l10n.saveToLibrary),
               ],
             ),
           ),
@@ -128,11 +130,12 @@ class TrackActionsButton extends ConsumerWidget {
     final repo = ref.read(favoritesRepositoryProvider);
     final isNowFavourite = await repo.toggleFavorite(track);
     if (context.mounted) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(isNowFavourite ? '已收藏' : '已取消收藏'),
+            content: Text(isNowFavourite ? l10n.favorited : l10n.unfavorited),
             duration: const Duration(seconds: 1),
           ),
         );
@@ -158,10 +161,10 @@ class TrackActionsButton extends ConsumerWidget {
     return Icons.offline_pin_outlined;
   }
 
-  static String _cacheLabel(CachedAudio? entry) {
-    if (entry == null) return '缓存到本地';
-    if (entry.pinned) return '已缓存';
-    return '已缓存（未固定）';
+  static String _cacheLabel(AppLocalizations l10n, CachedAudio? entry) {
+    if (entry == null) return l10n.cacheToLocal;
+    if (entry.pinned) return l10n.cached;
+    return l10n.cachedUnpinned;
   }
 }
 

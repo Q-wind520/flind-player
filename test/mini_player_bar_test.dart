@@ -29,6 +29,8 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
+import 'support/l10n.dart';
+
 /// A minimal fake [PlaybackController] that records calls.
 class _FakePlaybackController implements PlaybackController {
   int togglePlayPauseCalls = 0;
@@ -116,7 +118,7 @@ Widget _app({
       playbackControllerProvider.overrideWith((ref) => fakeController),
       favoritesRepositoryProvider.overrideWithValue(_FakeFavoritesRepository()),
     ],
-    child: const MaterialApp(home: Scaffold(body: MiniPlayerBar())),
+    child: localizedApp(const Scaffold(body: MiniPlayerBar())),
   );
 }
 

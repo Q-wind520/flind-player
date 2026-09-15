@@ -37,6 +37,8 @@ import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 
+import 'support/l10n.dart';
+
 /// An in-memory [FavoritesRepository] for tests.
 class _InMemoryFavoritesRepository implements FavoritesRepository {
   final _favourites = <String, Track>{};
@@ -136,7 +138,7 @@ Widget _app({
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
     ],
-    child: const MaterialApp(home: LibraryScreen()),
+    child: localizedApp(const LibraryScreen()),
   );
 }
 
@@ -299,7 +301,7 @@ void main() {
               );
             }),
           ],
-          child: const MaterialApp(home: LibraryScreen()),
+          child: localizedApp(const LibraryScreen()),
         ),
       );
       await tester.pumpAndSettle();

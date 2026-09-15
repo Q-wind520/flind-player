@@ -16,11 +16,12 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 
-/// Maps an arbitrary [error] to a short, user-facing Chinese message.
+/// Maps an arbitrary [error] to a short, user-facing message in [l10n].
 ///
-/// Pure and Flutter-free so it can be unit-tested and reused from any layer.
 /// Bilibili codes follow `docs/bilibili-source.md` §6:
 ///
 /// * `-412` / `-509` / `-799` are rate limits,
@@ -29,31 +30,37 @@ import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 ///
 /// Never returns a raw stack trace: anything unrecognised falls back to a
 /// generic message.
-String describeError(Object error) {
+String describeError(AppLocalizations l10n, Object error) {
   if (error is BiliApiException) {
     return switch (error.code) {
-      -412 || -509 || -799 => '请求过于频繁，请稍后再试',
-      -352 => '触发风控，请稍后再试',
-      -101 => '需要登录',
-      _ => 'Bilibili 接口错误（code: ${error.code}）',
+      -412 || -509 || -799 => l10n.errRateLimited,
+      -352 => l10n.errRiskControl,
+      -101 => l10n.errLoginRequired,
+      _ => l10n.errBiliApi(error.code),
     };
+  }
+  if (error is CacheCapacityException) {
+    final bytes = error.bytes;
+    return bytes == null
+        ? l10n.errCacheFullManual
+        : l10n.errCacheFullTrack(bytes);
   }
   if (error is SocketException ||
       error is HttpException ||
       error is TimeoutException) {
-    return '网络连接失败，请检查网络';
+    return l10n.errNetwork;
   }
   if (error is FormatException) {
-    return '数据格式异常';
+    return l10n.errDataFormat;
   }
   // StateError / UnsupportedError messages are written for developers but are
   // still the most useful text available for these programming-level faults.
   if (error is UnsupportedError) {
     final message = error.message;
-    return (message == null || message.isEmpty) ? '操作失败，请重试' : message;
+    return (message == null || message.isEmpty) ? l10n.errGeneric : message;
   }
   if (error is StateError) {
-    return error.message.isEmpty ? '操作失败，请重试' : error.message;
+    return error.message.isEmpty ? l10n.errGeneric : error.message;
   }
-  return '操作失败，请重试';
+  return l10n.errGeneric;
 }

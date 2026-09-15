@@ -40,6 +40,21 @@ String cacheSourceTrackId(Track track) {
 /// Lifecycle of one queued download.
 enum DownloadPhase { queued, downloading, done, failed, skipped }
 
+/// Signals that a manual download cannot proceed because the cache has no room.
+///
+/// [bytes] is the size of the offending track when a single file overflows the
+/// quota, or `null` for the pre-flight case where pinned downloads already fill
+/// the configured limit. `describeError` turns this into a localized message.
+class CacheCapacityException implements Exception {
+  const CacheCapacityException({this.bytes});
+
+  /// Size of the offending track in bytes, or `null` for the quota-full case.
+  final int? bytes;
+
+  @override
+  String toString() => 'CacheCapacityException(bytes: $bytes)';
+}
+
 /// A single progress update emitted by [DownloadManager].
 @immutable
 class DownloadProgress {
@@ -252,7 +267,7 @@ class DownloadManager {
       _emit(
         task,
         DownloadPhase.failed,
-        error: StateError('缓存空间不足：手动下载已占用全部缓存额度'),
+        error: const CacheCapacityException(),
       );
       return;
     }
@@ -303,7 +318,7 @@ class DownloadManager {
       _emit(
         task,
         DownloadPhase.failed,
-        error: StateError('缓存空间不足：单曲 $bytes 字节超出可用额度'),
+        error: CacheCapacityException(bytes: bytes),
       );
       return;
     }

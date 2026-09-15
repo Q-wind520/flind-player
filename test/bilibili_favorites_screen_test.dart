@@ -29,6 +29,8 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 
+import 'support/l10n.dart';
+
 Track _track(String title, {String? artist, Duration? duration}) {
   final bvid = 'BV_$title';
   return Track(
@@ -143,7 +145,7 @@ Widget _app({
         (ref) => controller ?? _FakePlaybackController(),
       ),
     ],
-    child: const MaterialApp(home: BilibiliFavoritesScreen()),
+    child: localizedApp(const BilibiliFavoritesScreen()),
   );
 }
 

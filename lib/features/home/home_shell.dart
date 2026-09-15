@@ -20,6 +20,7 @@ import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Adaptive application shell.
 ///
@@ -52,41 +53,41 @@ class _HomeShellState extends State<HomeShell> {
     SettingsScreen(),
   ];
 
-  static const List<NavigationDestination> _destinations =
+  List<NavigationDestination> _destinations(AppLocalizations l10n) =>
       <NavigationDestination>[
         NavigationDestination(
-          icon: Icon(Icons.search_outlined),
-          selectedIcon: Icon(Icons.search),
-          label: '搜索',
+          icon: const Icon(Icons.search_outlined),
+          selectedIcon: const Icon(Icons.search),
+          label: l10n.navSearch,
         ),
         NavigationDestination(
-          icon: Icon(Icons.library_music_outlined),
-          selectedIcon: Icon(Icons.library_music),
-          label: '曲库',
+          icon: const Icon(Icons.library_music_outlined),
+          selectedIcon: const Icon(Icons.library_music),
+          label: l10n.navLibrary,
         ),
         NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
-          label: '设置',
+          icon: const Icon(Icons.settings_outlined),
+          selectedIcon: const Icon(Icons.settings),
+          label: l10n.navSettings,
         ),
       ];
 
-  static const List<NavigationRailDestination> _railDestinations =
+  List<NavigationRailDestination> _railDestinations(AppLocalizations l10n) =>
       <NavigationRailDestination>[
         NavigationRailDestination(
-          icon: Icon(Icons.search_outlined),
-          selectedIcon: Icon(Icons.search),
-          label: Text('搜索'),
+          icon: const Icon(Icons.search_outlined),
+          selectedIcon: const Icon(Icons.search),
+          label: Text(l10n.navSearch),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.library_music_outlined),
-          selectedIcon: Icon(Icons.library_music),
-          label: Text('曲库'),
+          icon: const Icon(Icons.library_music_outlined),
+          selectedIcon: const Icon(Icons.library_music),
+          label: Text(l10n.navLibrary),
         ),
         NavigationRailDestination(
-          icon: Icon(Icons.settings_outlined),
-          selectedIcon: Icon(Icons.settings),
-          label: Text('设置'),
+          icon: const Icon(Icons.settings_outlined),
+          selectedIcon: const Icon(Icons.settings),
+          label: Text(l10n.navSettings),
         ),
       ];
 
@@ -99,6 +100,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = AppBreakpoints.isCompact(constraints.biggest);
@@ -114,7 +116,7 @@ class _HomeShellState extends State<HomeShell> {
                     labelType: showRailLabels
                         ? NavigationRailLabelType.all
                         : NavigationRailLabelType.selected,
-                    destinations: _railDestinations,
+                    destinations: _railDestinations(l10n),
                   ),
                   Expanded(
                     child: Column(
@@ -144,7 +146,7 @@ class _HomeShellState extends State<HomeShell> {
               NavigationBar(
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: _onDestinationSelected,
-                destinations: _destinations,
+                destinations: _destinations(l10n),
               ),
             ],
           ),

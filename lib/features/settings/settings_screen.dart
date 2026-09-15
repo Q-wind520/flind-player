@@ -21,6 +21,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:flind_player/app/language.dart';
+import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
@@ -28,6 +30,7 @@ import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/shared/error_messages.dart';
@@ -41,28 +44,97 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: Text(l10n.navSettings)),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          _SectionHeader(l10n.general),
+          const _GeneralSection(),
+
           // ── 播放 ──
-          const _SectionHeader('播放'),
+          _SectionHeader(l10n.sectionPlayback),
           const _PlaybackSection(),
 
           // ── 曲库 ──
-          const _SectionHeader('曲库'),
+          _SectionHeader(l10n.sectionLibrary),
           if (supportsLocalLibrary)
             const _LibrarySection()
           else
             const _UnsupportedLibraryNotice(),
 
           // ── 关于 ──
-          const _SectionHeader('关于'),
+          _SectionHeader(l10n.about),
           const _AboutSection(),
         ],
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 通用 section
+// ---------------------------------------------------------------------------
+
+/// UI language selection, applied app-wide and persisted across restarts.
+class _GeneralSection extends ConsumerWidget {
+  const _GeneralSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final language =
+        ref.watch(appLanguageProvider).value ?? AppLanguage.system;
+    return ListTile(
+      leading: const Icon(Icons.language_outlined),
+      title: Text(l10n.language),
+      subtitle: Text(_languageLabel(l10n, language)),
+      onTap: () => _pickLanguage(context, ref, language),
+    );
+  }
+
+  static String _languageLabel(
+    AppLocalizations l10n,
+    AppLanguage language,
+  ) => switch (language) {
+    AppLanguage.system => l10n.languageSystem,
+    AppLanguage.english => l10n.languageEnglish,
+    AppLanguage.simplifiedChinese => l10n.languageSimplifiedChinese,
+  };
+
+  Future<void> _pickLanguage(
+    BuildContext context,
+    WidgetRef ref,
+    AppLanguage current,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final selected = await showDialog<AppLanguage>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.language),
+        children: [
+          for (final language in AppLanguage.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(dialogContext).pop(language),
+              child: Row(
+                children: [
+                  Icon(
+                    language == current
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(_languageLabel(l10n, language)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || selected == current) return;
+    await ref.read(appLanguageProvider.notifier).setLanguage(selected);
   }
 }
 
@@ -76,6 +148,7 @@ class _PlaybackSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final settings =
         ref.watch(cacheSettingsProvider).value ?? CacheSettings.defaults;
     final usage = ref.watch(audioCacheUsageProvider).value ?? 0;
@@ -96,7 +169,7 @@ class _PlaybackSection extends ConsumerWidget {
       children: [
         ListTile(
           leading: const Icon(Icons.folder_outlined),
-          title: const Text('缓存位置'),
+          title: Text(l10n.cacheLocation),
           subtitle: FutureBuilder<String>(
             future: ref.read(audioCacheStoreProvider).cacheDirectoryPath(),
             builder: (context, snapshot) => Text(
@@ -109,9 +182,12 @@ class _PlaybackSection extends ConsumerWidget {
         ),
         ListTile(
           leading: const Icon(Icons.sd_storage_outlined),
-          title: const Text('缓存上限'),
+          title: Text(l10n.cacheLimit),
           subtitle: Text(
-            '已用 ${formatBytes(usage)} / ${formatBytes(settings.limitBytes)}',
+            l10n.cacheUsage(
+              formatBytes(usage),
+              formatBytes(settings.limitBytes),
+            ),
           ),
           onTap: () => _showCustomLimitDialog(context, ref, settings),
         ),
@@ -179,8 +255,9 @@ class _CacheLocationDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('缓存位置'),
+      title: Text(l10n.cacheLocation),
       content: FutureBuilder<String>(
         future: pathFuture,
         builder: (context, snapshot) {
@@ -190,7 +267,7 @@ class _CacheLocationDialog extends ConsumerWidget {
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final path = snapshot.data ?? '未知路径';
+          final path = snapshot.data ?? l10n.unknownPath;
           return SelectableText(
             path,
             style: Theme.of(context).textTheme.bodyMedium,
@@ -205,24 +282,24 @@ class _CacheLocationDialog extends ConsumerWidget {
             await Clipboard.setData(ClipboardData(text: snapshot));
             if (!context.mounted) return;
             ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('已复制路径')));
+                .showSnackBar(SnackBar(content: Text(l10n.pathCopied)));
           },
           icon: const Icon(Icons.copy_outlined),
-          label: const Text('复制'),
+          label: Text(l10n.copy),
         ),
         TextButton.icon(
           onPressed: () async {
             await _confirmClear(context, ref);
           },
           icon: const Icon(Icons.delete_outline),
-          label: const Text('清空缓存'),
+          label: Text(l10n.clearCache),
           style: TextButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.error,
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: Text(l10n.close),
         ),
       ],
     );
@@ -230,15 +307,16 @@ class _CacheLocationDialog extends ConsumerWidget {
 
   /// Asks for confirmation, then deletes every cached file and row.
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('清空缓存？'),
-        content: const Text('将删除全部已缓存的音频，包括手动下载的曲目。此操作无法撤销。'),
+        title: Text(l10n.clearCacheTitle),
+        content: Text(l10n.clearCacheBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -246,7 +324,7 @@ class _CacheLocationDialog extends ConsumerWidget {
               foregroundColor: Theme.of(dialogContext).colorScheme.onError,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('清空'),
+            child: Text(l10n.clear),
           ),
         ],
       ),
@@ -259,7 +337,7 @@ class _CacheLocationDialog extends ConsumerWidget {
     ref.invalidate(audioCacheUsageProvider);
     ref.invalidate(audioCacheEntryCountProvider);
     messenger.showSnackBar(
-      SnackBar(content: Text('已清空缓存，释放 ${formatBytes(freed)}')),
+      SnackBar(content: Text(l10n.cacheCleared(formatBytes(freed)))),
     );
   }
 }
@@ -330,15 +408,16 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final errorText = _controller.text.isEmpty
         ? null
-        : (_validate() ? null : '请输入正数');
+        : (_validate() ? null : l10n.enterPositiveNumber);
 
     return AlertDialog(
       // The field + unit selector exceed a short landscape viewport; scrolling
       // the content keeps every control reachable instead of overflowing.
       scrollable: true,
-      title: const Text('自定义缓存上限'),
+      title: Text(l10n.customCacheLimit),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -346,7 +425,7 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
             controller: _controller,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              labelText: '数值',
+              labelText: l10n.value,
               errorText: errorText,
               border: const OutlineInputBorder(),
             ),
@@ -369,11 +448,11 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: _validate() ? _confirm : null,
-          child: const Text('确定'),
+          child: Text(l10n.confirm),
         ),
       ],
     );
@@ -391,11 +470,12 @@ class _UnsupportedLibraryNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Text(
-        'iOS 暂不支持本地曲库',
+        l10n.iosLibraryUnsupportedTitle,
         style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -415,6 +495,7 @@ class _LibrarySection extends ConsumerStatefulWidget {
 class _LibrarySectionState extends ConsumerState<_LibrarySection> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tracksAsync = ref.watch(libraryTracksProvider);
     final trackCount = tracksAsync.value?.length;
     final cacheCount = ref.watch(audioCacheEntryCountProvider).value;
@@ -434,7 +515,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
         // ── Statistics ──
         ListTile(
           leading: const Icon(Icons.analytics_outlined),
-          title: const Text('曲库统计'),
+          title: Text(l10n.libraryStats),
           subtitle: Text(_trackCountLabel(trackCount, cacheCount)),
         ),
 
@@ -447,10 +528,10 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
           ),
           error: (e, _) => ListTile(
             leading: const Icon(Icons.error_outline),
-            title: Text('加载失败：${describeError(e)}'),
+            title: Text(l10n.loadFailedWith(describeError(l10n, e))),
             trailing: IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: '重试',
+              tooltip: l10n.retry,
               onPressed: () => ref.invalidate(scanRootsProvider),
             ),
           ),
@@ -459,7 +540,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
               return Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Text(
-                  '未配置扫描根目录',
+                  l10n.noScanRoots,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -479,7 +560,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline),
-                      tooltip: '删除',
+                      tooltip: l10n.delete,
                       onPressed: () => _confirmRemoveRoot(context, ref, root),
                     ),
                   ),
@@ -491,7 +572,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
         // ── Add folder ──
         ListTile(
           leading: const Icon(Icons.create_new_folder_outlined),
-          title: const Text('添加文件夹'),
+          title: Text(l10n.addFolder),
           onTap: isSyncing ? null : () => _addFolder(ref),
         ),
 
@@ -504,7 +585,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
                 ? Theme.of(context).colorScheme.onSurfaceVariant
                 : null,
           ),
-          title: const Text('重新扫描'),
+          title: Text(l10n.rescan),
           subtitle: _syncSubtitle(syncState),
           onTap: isSyncing ? null : () => _startSync(ref),
         ),
@@ -513,44 +594,47 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
   }
 
   String _trackCountLabel(int? trackCount, int? cacheCount) {
+    final l10n = AppLocalizations.of(context);
     final parts = <String>[];
     if (trackCount != null) {
-      parts.add('$trackCount 首曲目');
+      parts.add(l10n.trackCount(trackCount));
     }
     if (cacheCount != null && cacheCount > 0) {
-      parts.add('$cacheCount 首已缓存');
+      parts.add(l10n.cachedCount(cacheCount));
     }
-    return parts.isEmpty ? '加载中…' : parts.join('，');
+    return parts.isEmpty ? l10n.loading : parts.join(l10n.listSeparator);
   }
 
   Widget? _syncSubtitle(LibrarySyncState state) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     return switch (state.phase) {
       LibrarySyncPhase.idle => null,
       LibrarySyncPhase.scanning => Text(
-        '扫描中 ${state.processed}/${state.discovered}',
+        l10n.scanning(state.processed, state.discovered),
         style: TextStyle(color: scheme.primary),
       ),
       LibrarySyncPhase.saving => Text(
-        '保存中…',
+        l10n.saving,
         style: TextStyle(color: scheme.primary),
       ),
       LibrarySyncPhase.artwork => Text(
-        '缓存封面 ${state.coversCached}/${state.saved}',
+        l10n.coversCached(state.coversCached, state.saved),
         style: TextStyle(color: scheme.primary),
       ),
       LibrarySyncPhase.done => Text(
-        '已同步 ${state.discovered} 首 · 新增 ${state.saved}',
+        l10n.syncedAdded(state.discovered, state.saved),
         style: TextStyle(color: scheme.tertiary),
       ),
       LibrarySyncPhase.failed => Text(
-        '同步失败',
+        l10n.syncFailedShort,
         style: TextStyle(color: scheme.error),
       ),
     };
   }
 
   Future<void> _addFolder(WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final permission = await ref
         .read(permissionCoordinatorProvider)
@@ -560,6 +644,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
         SnackBar(
           content: Text(
             permissionDeniedMessage(
+              l10n,
               AppPermission.audioLibrary,
               permanentlyDenied:
                   permission == PermissionResult.permanentlyDenied,
@@ -570,12 +655,14 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
       return;
     }
     try {
-      final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
+      final path = await FilePicker.getDirectoryPath(
+        dialogTitle: l10n.selectMusicFolder,
+      );
       if (path == null) return;
       await ref.read(musicLibraryRepositoryProvider).addScanRoot(path);
       ref.invalidate(scanRootsProvider);
       _startSync(ref);
-      messenger.showSnackBar(SnackBar(content: Text('已添加文件夹：$path')));
+      messenger.showSnackBar(SnackBar(content: Text(l10n.folderAdded(path))));
     } catch (error) {
       if (!mounted) return;
       showErrorSnackBar(context, error);
@@ -591,15 +678,16 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
     WidgetRef ref,
     String path,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('删除扫描根目录？'),
-        content: Text('将移除「$path」，后续扫描不再包含此目录中的文件。'),
+        title: Text(l10n.deleteScanRootTitle),
+        content: Text(l10n.deleteScanRootBody(path)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -607,7 +695,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
               foregroundColor: Theme.of(dialogContext).colorScheme.onError,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('删除'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -618,7 +706,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
     await ref.read(musicLibraryRepositoryProvider).removeScanRoot(path);
     ref.invalidate(scanRootsProvider);
     unawaited(ref.read(librarySyncServiceProvider).sync());
-    messenger.showSnackBar(SnackBar(content: Text('已移除扫描根目录：$path')));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.scanRootRemoved(path))));
   }
 }
 
@@ -631,19 +719,20 @@ class _ScanRootHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
       child: Row(
         children: [
           Text(
-            '扫描根目录',
+            l10n.scanRoots,
             style: Theme.of(context).textTheme.titleSmall
                 ?.copyWith(color: Theme.of(context).colorScheme.primary),
           ),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.create_new_folder_outlined),
-            tooltip: '添加文件夹',
+            tooltip: l10n.addFolder,
             onPressed: isSyncing ? null : onAdd,
           ),
         ],
@@ -664,38 +753,39 @@ class _AboutSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final infoAsync = ref.watch(packageInfoProvider);
     final scheme = Theme.of(context).colorScheme;
 
     return Column(
       children: [
         infoAsync.when(
-          loading: () => const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('加载中…'),
+          loading: () => ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(l10n.loading),
           ),
-          error: (_, _) => const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Flind Player'),
+          error: (_, _) => ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(l10n.appName),
           ),
           data: (info) => ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Flind Player'),
+            title: Text(l10n.appName),
             subtitle: Text('v${info.version} (${info.buildNumber})'),
           ),
         ),
         ListTile(
           leading: const Icon(Icons.description_outlined),
-          title: const Text('开源许可'),
+          title: Text(l10n.openSourceLicenses),
           subtitle: const Text('GNU General Public License v3.0'),
           onTap: () => showLicensePage(
             context: context,
-            applicationName: 'Flind Player',
+            applicationName: l10n.appName,
           ),
         ),
         ListTile(
           leading: const Icon(Icons.code_outlined),
-          title: const Text('项目主页'),
+          title: Text(l10n.projectHomepage),
           subtitle: Text(
             _projectUrl,
             maxLines: 1,
@@ -705,8 +795,7 @@ class _AboutSection extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Text(
-            'Flind Player 是一款基于 GPL-3.0 许可证的自由软件。\n'
-            '本程序没有任何担保，详见许可证全文。',
+            l10n.aboutLicense,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),

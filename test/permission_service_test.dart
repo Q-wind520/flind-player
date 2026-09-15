@@ -17,6 +17,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/platform/permissions/permission_service.dart';
 
+import 'support/l10n.dart';
+
 /// In-memory [PermissionBackend] that never touches a platform channel.
 class _FakePermissionBackend implements PermissionBackend {
   _FakePermissionBackend({
@@ -183,9 +185,12 @@ void main() {
   });
 
   group('permissionDeniedMessage', () {
+    final l10n = testL10n();
+
     test('soft denial asks for the permission', () {
       expect(
         permissionDeniedMessage(
+          l10n,
           AppPermission.audioLibrary,
           permanentlyDenied: false,
         ),
@@ -196,6 +201,7 @@ void main() {
     test('permanent denial points at system settings', () {
       expect(
         permissionDeniedMessage(
+          l10n,
           AppPermission.notifications,
           permanentlyDenied: true,
         ),

@@ -31,9 +31,16 @@ import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/core/models/app_language.dart';
 
 /// In-memory [SettingsRepository] whose value the test can mutate.
 class _FakeSettingsRepository implements SettingsRepository {
+  @override
+  Future<AppLanguage> appLanguage() async => AppLanguage.system;
+
+  @override
+  Future<void> setAppLanguage(AppLanguage language) async {}
+
   CacheSettings current = CacheSettings.defaults;
 
   @override
@@ -321,7 +328,7 @@ void main() {
 
     expect(downloader.calls, 0);
     expect(events.last.phase, DownloadPhase.failed);
-    expect(events.last.error.toString(), contains('缓存空间不足'));
+    expect(events.last.error, isA<CacheCapacityException>());
     expect(await store.lookup('bilibili', 'pinnedA'), isNotNull);
     expect(await store.lookup('bilibili', 'pinnedB'), isNotNull);
     expect(await manager.isCached(biliTrack), isFalse);

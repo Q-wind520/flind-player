@@ -34,6 +34,8 @@ import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
+import 'support/l10n.dart';
+
 Track _track(
   String title, {
   String? artist,
@@ -140,7 +142,7 @@ Widget _libraryApp({
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
-    child: const MaterialApp(home: LibraryScreen()),
+    child: localizedApp(const LibraryScreen()),
   );
 }
 
@@ -153,7 +155,7 @@ Widget _playerApp({PlaybackState playbackState = PlaybackState.idle}) {
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
     ],
-    child: const MaterialApp(home: PlayerScreen()),
+    child: localizedApp(const PlayerScreen()),
   );
 }
 
@@ -375,7 +377,7 @@ void main() {
             favoritesRepositoryProvider.overrideWithValue(favRepo),
             favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
           ],
-          child: const MaterialApp(home: PlayerScreen()),
+          child: localizedApp(const PlayerScreen()),
         ),
       );
       await tester.pumpAndSettle();

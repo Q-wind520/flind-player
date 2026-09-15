@@ -20,14 +20,16 @@ import 'dart:ui' show PlatformDispatcher, Size;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart'
-    show WidgetsBinding, WidgetsBindingObserver;
+    show Locale, WidgetsBinding, WidgetsBindingObserver;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Keys identifying the tray context-menu entries.
 const String trayMenuKeyWindowToggle = 'window.toggle';
@@ -47,7 +49,8 @@ enum TrayMenuAction {
 }
 
 /// The label for the play/pause entry, which follows playback state.
-String trayPlayPauseLabel(bool isPlaying) => isPlaying ? '暂停' : '播放';
+String trayPlayPauseLabel(AppLocalizations l10n, bool isPlaying) =>
+    isPlaying ? l10n.trayPause : l10n.trayPlay;
 
 /// Resolves a tray menu [key] to its [TrayMenuAction].
 ///
@@ -114,14 +117,6 @@ Future<void> handleTrayMenuAction(
 class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
   TrayService({required this.playback});
 
-  static const WindowOptions _windowOptions = WindowOptions(
-    title: 'Flind Player',
-    // 360x480 is the smallest viewport every surface is verified to support
-    // without layout overflow (see test/responsive_layout_test.dart).
-    minimumSize: Size(360, 480),
-    center: true,
-  );
-
   final PlaybackController playback;
   StreamSubscription<PlaybackState>? _stateSubscription;
   bool _started = false;
@@ -140,9 +135,17 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
     // main() already calls this before runApp (required by the Linux plugin);
     // calling it again is idempotent and keeps TrayService safe to start from
     // other entry points.
+    final l10n = l10nForLocale(PlatformDispatcher.instance.locale);
+    final windowOptions = WindowOptions(
+      title: l10n.appName,
+      // 360x480 is the smallest viewport every surface is verified to support
+      // without layout overflow (see test/responsive_layout_test.dart).
+      minimumSize: const Size(360, 480),
+      center: true,
+    );
     await _guard('ensureInitialized', windowManager.ensureInitialized);
     await _guard('waitUntilReadyToShow', () {
-      return windowManager.waitUntilReadyToShow(_windowOptions, () async {
+      return windowManager.waitUntilReadyToShow(windowOptions, () async {
         await _guard(
           'setPreventClose',
           () => windowManager.setPreventClose(true),
@@ -162,7 +165,7 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
     await _guard('setIcon', _applyTrayIcon);
     // tray_manager's Linux plugin does not implement setToolTip.
     if (Platform.isWindows || Platform.isMacOS) {
-      await _guard('setToolTip', () => trayManager.setToolTip('Flind Player'));
+      await _guard('setToolTip', () => trayManager.setToolTip(l10n.appName));
     }
 
     await _refreshMenu();
@@ -210,6 +213,13 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
     unawaited(_guard('setIcon (brightness)', _applyTrayIcon));
   }
 
+  /// Rebuilds the tray menu in the new language when the system locale changes.
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    _menuPlayPauseLabel = null;
+    unawaited(_guard('refresh menu (locale)', _refreshMenu));
+  }
+
   Future<void> _applyTrayIcon() async {
     await trayManager.setIcon(await _resolveTrayIcon());
   }
@@ -240,7 +250,8 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
   }
 
   Future<void> _refreshMenu() async {
-    final label = trayPlayPauseLabel(playback.currentState.isPlaying);
+    final l10n = l10nForLocale(PlatformDispatcher.instance.locale);
+    final label = trayPlayPauseLabel(l10n, playback.currentState.isPlaying);
     // State ticks only advance position; only rebuild when the label flips.
     if (label == _menuPlayPauseLabel) {
       return;
@@ -250,7 +261,7 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
       items: [
         MenuItem(
           key: trayMenuKeyWindowToggle,
-          label: '显示 / 隐藏窗口',
+          label: l10n.trayToggleWindow,
           onClick: (_) => _onMenuClick(trayMenuKeyWindowToggle),
         ),
         MenuItem(
@@ -260,18 +271,18 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
         ),
         MenuItem(
           key: trayMenuKeyPrevious,
-          label: '上一首',
+          label: l10n.trayPrevious,
           onClick: (_) => _onMenuClick(trayMenuKeyPrevious),
         ),
         MenuItem(
           key: trayMenuKeyNext,
-          label: '下一首',
+          label: l10n.trayNext,
           onClick: (_) => _onMenuClick(trayMenuKeyNext),
         ),
         MenuItem.separator(),
         MenuItem(
           key: trayMenuKeyQuit,
-          label: '退出',
+          label: l10n.trayQuit,
           onClick: (_) => _onMenuClick(trayMenuKeyQuit),
         ),
       ],

@@ -26,6 +26,7 @@ import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/responsive_center.dart';
@@ -39,13 +40,14 @@ class PlayerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.keyboard_arrow_down),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: const Text('正在播放'),
+        title: Text(l10n.nowPlaying),
       ),
       body: const PlayerView(),
     );
@@ -67,6 +69,7 @@ class PlayerView extends ConsumerWidget {
       return const _NothingPlaying();
     }
 
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -97,7 +100,7 @@ class PlayerView extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    track.artist ?? '未知艺术家',
+                    track.artist ?? l10n.unknownArtist,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -295,6 +298,7 @@ class _FavoriteButton extends ConsumerWidget {
     final isFavourite =
         ref.watch(_playerFavoriteProvider(track.uri)).value ?? false;
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return IconButton(
       onPressed: () async {
@@ -305,7 +309,7 @@ class _FavoriteButton extends ConsumerWidget {
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(isNowFavourite ? '已收藏' : '已取消收藏'),
+                content: Text(isNowFavourite ? l10n.favorited : l10n.unfavorited),
                 duration: const Duration(seconds: 1),
               ),
             );
@@ -386,6 +390,7 @@ class _NothingPlaying extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -398,10 +403,10 @@ class _NothingPlaying extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('未在播放', style: theme.textTheme.titleMedium),
+            Text(l10n.notPlaying, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '在音乐库中选择一首歌开始播放',
+              l10n.notPlayingHint,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

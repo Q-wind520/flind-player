@@ -15,11 +15,12 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/error_messages.dart';
 
 /// Shows [error]'s user-facing message in a [SnackBar].
 ///
-/// When [onRetry] is supplied the snack bar carries a 重试 action. If no
+/// When [onRetry] is supplied the snack bar carries a retry action. If no
 /// [ScaffoldMessenger] is in scope this is a no-op, so callers never have to
 /// guard against a missing messenger.
 void showErrorSnackBar(
@@ -29,12 +30,13 @@ void showErrorSnackBar(
 }) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   if (messenger == null) return;
+  final l10n = AppLocalizations.of(context);
   messenger.showSnackBar(
     SnackBar(
-      content: Text(describeError(error)),
+      content: Text(describeError(l10n, error)),
       action: onRetry == null
           ? null
-          : SnackBarAction(label: '重试', onPressed: onRetry),
+          : SnackBarAction(label: l10n.retry, onPressed: onRetry),
     ),
   );
 }

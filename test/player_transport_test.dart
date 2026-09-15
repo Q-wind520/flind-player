@@ -30,6 +30,8 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
+import 'support/l10n.dart';
+
 /// A fake [PlaybackController] that records mode changes and emits the
 /// resulting [PlaybackState], driving the transport row through a full cycle.
 class _FakePlaybackController implements PlaybackController {
@@ -147,7 +149,7 @@ Widget _app(_FakePlaybackController controller) {
       playbackControllerProvider.overrideWith((ref) => controller),
       favoritesRepositoryProvider.overrideWithValue(_FakeFavoritesRepository()),
     ],
-    child: const MaterialApp(home: PlayerScreen()),
+    child: localizedApp(const PlayerScreen()),
   );
 }
 

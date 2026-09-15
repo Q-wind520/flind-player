@@ -49,6 +49,9 @@ import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
+import 'package:flind_player/core/models/app_language.dart';
+
+import 'support/l10n.dart';
 
 // ---------------------------------------------------------------------------
 // Size matrix
@@ -129,6 +132,12 @@ PlaybackState _playingState([Track? track]) => PlaybackState(
 // ---------------------------------------------------------------------------
 
 class _FakeSettingsRepository implements SettingsRepository {
+  @override
+  Future<AppLanguage> appLanguage() async => AppLanguage.system;
+
+  @override
+  Future<void> setAppLanguage(AppLanguage language) async {}
+
   _FakeSettingsRepository(this.current);
 
   CacheSettings current;
@@ -382,7 +391,7 @@ Widget _app({
         ),
       ),
     ],
-    child: MaterialApp(home: home),
+    child: localizedApp(home),
   );
 }
 

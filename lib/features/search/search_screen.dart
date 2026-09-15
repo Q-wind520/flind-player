@@ -22,6 +22,7 @@ import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/search/search_providers.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
@@ -81,9 +82,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// there automatically.
   Future<void> _saveToLibrary(Track track) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
     try {
       await ref.read(musicLibraryRepositoryProvider).upsertTrack(track);
-      messenger.showSnackBar(SnackBar(content: Text('已存入曲库：${track.title}')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.savedToLibrary(track.title))),
+      );
     } catch (error) {
       if (!mounted) return;
       showErrorSnackBar(context, error);
@@ -92,10 +96,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PlaybackPermissionScope(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('搜索'),
+          title: Text(l10n.navSearch),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(64),
             child: Padding(
@@ -108,7 +113,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     textInputAction: TextInputAction.search,
                     onSubmitted: _submit,
                     decoration: InputDecoration(
-                      hintText: '搜索歌曲、UP主',
+                      hintText: l10n.searchHint,
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: value.text.isEmpty
                           ? null
@@ -191,6 +196,7 @@ class _SearchResultTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       onTap: onTap,
@@ -206,7 +212,7 @@ class _SearchResultTile extends StatelessWidget {
       ),
       title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        track.artist ?? '未知UP主',
+        track.artist ?? l10n.unknownUp,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -239,6 +245,7 @@ class _SearchHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -251,10 +258,10 @@ class _SearchHint extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('搜索 Bilibili 上的音乐', style: theme.textTheme.titleMedium),
+            Text(l10n.searchBiliTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '输入关键词后回车，即可搜索并播放 Bilibili 音频',
+              l10n.searchBiliHint,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -274,6 +281,7 @@ class _NoResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -286,10 +294,10 @@ class _NoResults extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('没有找到结果', style: theme.textTheme.titleMedium),
+            Text(l10n.noResults, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              '换个关键词试试',
+              l10n.tryAnotherKeyword,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -312,6 +320,7 @@ class _SearchError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return ResponsiveCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -321,13 +330,13 @@ class _SearchError extends StatelessWidget {
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(
-              '搜索失败',
+              l10n.searchFailed,
               style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              describeError(error),
+              describeError(l10n, error),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -337,7 +346,7 @@ class _SearchError extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
+              label: Text(l10n.retry),
             ),
           ],
         ),

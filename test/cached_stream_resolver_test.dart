@@ -30,6 +30,7 @@ import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/cached_stream_resolver.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/core/models/app_language.dart';
 
 /// Polls until [condition] is true, failing after [timeout].
 Future<void> _waitFor(
@@ -47,6 +48,12 @@ Future<void> _waitFor(
 
 /// In-memory [SettingsRepository] whose value the test can mutate.
 class _FakeSettingsRepository implements SettingsRepository {
+  @override
+  Future<AppLanguage> appLanguage() async => AppLanguage.system;
+
+  @override
+  Future<void> setAppLanguage(AppLanguage language) async {}
+
   CacheSettings current = CacheSettings.defaults;
 
   @override

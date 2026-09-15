@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_screen.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
 /// A compact bar docked above the navigation that shows the currently playing
@@ -41,6 +42,7 @@ class MiniPlayerBar extends ConsumerWidget {
     }
 
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     final durationMs = state.duration?.inMilliseconds ?? 0;
     final positionMs = state.position.inMilliseconds;
     final progress = durationMs > 0
@@ -84,7 +86,7 @@ class MiniPlayerBar extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         Text(
-                          track.artist ?? '未知艺术家',
+                          track.artist ?? l10n.unknownArtist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
