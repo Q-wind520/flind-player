@@ -24,6 +24,8 @@ import 'package:window_manager/window_manager.dart';
 
 import 'package:flind_player/app/app.dart';
 import 'package:flind_player/app/di/application_overrides.dart';
+import 'package:flind_player/app/l10n.dart';
+import 'package:flind_player/app/language.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -59,10 +61,12 @@ Future<void> main() async {
       builder: () => FlindAudioHandler(
         playback: container.read(playbackControllerProvider),
       ),
-      config: const AudioServiceConfig(
+      config: AudioServiceConfig(
         androidNotificationChannelId:
             'top.qwind.app.flind_player.channel.audio',
-        androidNotificationChannelName: 'Flind Player',
+        androidNotificationChannelName: l10nForLocale(
+          WidgetsBinding.instance.platformDispatcher.locale,
+        ).appName,
         androidNotificationOngoing: false,
         // Music players must keep the foreground service alive across pause, or
         // resuming can hit ForegroundServiceStartNotAllowedException on Android 12+.
@@ -116,6 +120,10 @@ Future<void> main() async {
       },
     ),
   );
+
+  // Resolve the persisted UI language before the first frame so a non-system
+  // choice never flashes the system language on startup.
+  await container.read(appLanguageProvider.future);
 
   runApp(
     UncontrolledProviderScope(container: container, child: const FlindApp()),

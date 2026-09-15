@@ -18,8 +18,11 @@ dependencies:
   file_picker: ^12.2.0
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_riverpod: ^3.4.3
   image: ^4.9.2
+  intl: any
   just_audio: ^0.10.6
   just_audio_media_kit: ^2.1.0
   media_kit_libs_linux: ^1.2.1
@@ -45,6 +48,7 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.3
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     # App icon assets used by flutter_launcher_icons and the Linux CMake install.
@@ -62,7 +66,7 @@ flutter_launcher_icons:
   android:
     generate: true
     image_path: "assets/icon/app_icon.png"
-    adaptive_icon_background: "#FE9288"
+    adaptive_icon_background: "#1BA784"
     adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
   ios:
@@ -72,8 +76,8 @@ flutter_launcher_icons:
 
   web:
     generate: true
-    background_color: "#FE9288"
-    theme_color: "#FE9288"
+    background_color: "#1BA784"
+    theme_color: "#1BA784"
 
   windows:
     generate: true

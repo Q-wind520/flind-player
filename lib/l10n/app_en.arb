@@ -1,0 +1,305 @@
+{
+  "@@locale": "en",
+  "appName": "Flind Player",
+  "retry": "Retry",
+  "cancel": "Cancel",
+  "confirm": "OK",
+  "close": "Close",
+  "delete": "Delete",
+  "remove": "Remove",
+  "copy": "Copy",
+  "listSeparator": ", ",
+  "loading": "Loading…",
+  "saving": "Saving…",
+  "load": "Load",
+  "loadMore": "Load more",
+  "allLoaded": "All loaded",
+  "loadFailed": "Load failed",
+  "tryAnotherKeyword": "Try a different keyword",
+  "unknownArtist": "Unknown artist",
+  "unknownError": "Unknown error",
+  "navSearch": "Search",
+  "navLibrary": "Library",
+  "navSettings": "Settings",
+  "nowPlaying": "Now playing",
+  "about": "About",
+  "general": "General",
+  "language": "Language",
+  "languageSystem": "System default",
+  "languageEnglish": "English",
+  "languageSimplifiedChinese": "简体中文",
+  "tabAll": "All",
+  "tabFavorites": "Favorites",
+  "sortByTitle": "By title",
+  "sortByArtist": "By artist",
+  "sortByAlbum": "By album",
+  "sortRecentlyAdded": "Recently added",
+  "searchLibrary": "Search library",
+  "searchFavorites": "Search favorites",
+  "noMatchingTracks": "No matching tracks",
+  "noFavorites": "No favorites yet",
+  "noFavoritesHint": "Tap a track's menu in your library or search results to add favorites",
+  "noMatchingFavorites": "No matching favorites",
+  "loadLibraryFailed": "Failed to load library",
+  "loadFavoritesFailed": "Failed to load favorites",
+  "searchFailed": "Search failed",
+  "selectMusicFolder": "Select music folder",
+  "folderAdded": "Folder added: {path}",
+  "@folderAdded": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "noImportableFiles": "No importable audio files were selected or detected",
+  "importedTracks": "{count, plural, =0{No tracks imported} one{Imported 1 track} other{Imported {count} tracks}}",
+  "@importedTracks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "musicLibrary": "Music library",
+  "addFolder": "Add folder",
+  "rescan": "Rescan",
+  "importFiles": "Import files",
+  "browseBiliFavorites": "Browse Bilibili favorites",
+  "emptyLibraryTitle": "Your library is empty",
+  "emptyLibraryHint": "Add a music folder to start scanning, or import local music files",
+  "importLocalMusic": "Import local music",
+  "sourceLocal": "Local",
+  "sourceBilibili": "Bilibili",
+  "iosLibraryUnsupportedTitle": "Local library is unavailable on iOS",
+  "iosLibraryUnsupportedHint": "The iOS sandbox provides no user-selectable filesystem directories; listen to online music via Bilibili favorites",
+  "scanning": "Scanning {processed}/{discovered}",
+  "@scanning": {
+    "placeholders": {
+      "processed": {
+        "type": "int"
+      },
+      "discovered": {
+        "type": "int"
+      }
+    }
+  },
+  "coversCached": "Caching artwork {cached}/{saved}",
+  "@coversCached": {
+    "placeholders": {
+      "cached": {
+        "type": "int"
+      },
+      "saved": {
+        "type": "int"
+      }
+    }
+  },
+  "syncedAdded": "Synced {discovered} · Added {saved}",
+  "@syncedAdded": {
+    "placeholders": {
+      "discovered": {
+        "type": "int"
+      },
+      "saved": {
+        "type": "int"
+      }
+    }
+  },
+  "syncedAddedRemoved": "Synced {discovered} · Added {saved} · Removed {missing}",
+  "@syncedAddedRemoved": {
+    "placeholders": {
+      "discovered": {
+        "type": "int"
+      },
+      "saved": {
+        "type": "int"
+      },
+      "missing": {
+        "type": "int"
+      }
+    }
+  },
+  "syncFailedWith": "Sync failed: {detail}",
+  "@syncFailedWith": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "syncFailedShort": "Sync failed",
+  "removeCacheTitle": "Remove cache?",
+  "removeCacheBody": "This removes \"{title}\" from the local cache.",
+  "@removeCacheBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "saveToLibrary": "Save to library",
+  "favorite": "Favorite",
+  "unfavorite": "Unfavorite",
+  "favorited": "Added to favorites",
+  "unfavorited": "Removed from favorites",
+  "cacheToLocal": "Cache locally",
+  "cached": "Cached",
+  "cachedUnpinned": "Cached (not pinned)",
+  "notPlaying": "Not playing",
+  "notPlayingHint": "Pick a song in your library to start playing",
+  "searchHint": "Search songs, creators",
+  "searchBiliTitle": "Search music on Bilibili",
+  "searchBiliHint": "Type a keyword and press Enter to search and play Bilibili audio",
+  "noResults": "No results",
+  "upUid": "Creator UID",
+  "browsePublicFavorites": "Browse public favorites",
+  "browsePublicFavoritesHint": "Enter a Bilibili user's UID to view their public favorites",
+  "noPublicFavorites": "No public favorites",
+  "noPublicFavoritesHint": "This user has no public favorites, or the UID does not exist",
+  "folderItemCount": "{count, plural, =0{No items} one{1 item} other{{count} items}}",
+  "@folderItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noPlayableVideos": "No playable videos",
+  "noPlayableVideosHint": "This favorite folder has no playable videos (audio and collections are not supported yet)",
+  "unknownUp": "Unknown creator",
+  "savedToLibrary": "Saved to library: {title}",
+  "@savedToLibrary": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "sectionPlayback": "Playback",
+  "sectionLibrary": "Library",
+  "cacheLimit": "Cache limit",
+  "cacheUsage": "Used {used} / {limit}",
+  "@cacheUsage": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "cacheLocation": "Cache location",
+  "unknownPath": "Unknown path",
+  "pathCopied": "Path copied",
+  "clearCache": "Clear cache",
+  "clearCacheTitle": "Clear cache?",
+  "clearCacheBody": "This deletes all cached audio, including manually downloaded tracks. This cannot be undone.",
+  "clear": "Clear",
+  "cacheCleared": "Cache cleared, freed {freed}",
+  "@cacheCleared": {
+    "placeholders": {
+      "freed": {
+        "type": "String"
+      }
+    }
+  },
+  "enterPositiveNumber": "Enter a positive number",
+  "customCacheLimit": "Custom cache limit",
+  "value": "Value",
+  "libraryStats": "Library stats",
+  "loadFailedWith": "Failed to load: {detail}",
+  "@loadFailedWith": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "noScanRoots": "No scan roots configured",
+  "trackCount": "{count, plural, one{1 track} other{{count} tracks}}",
+  "@trackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cachedCount": "{count, plural, one{1 cached} other{{count} cached}}",
+  "@cachedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteScanRootTitle": "Delete scan root?",
+  "deleteScanRootBody": "This removes \"{path}\"; future scans will no longer include files from this directory.",
+  "@deleteScanRootBody": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "scanRootRemoved": "Scan root removed: {path}",
+  "@scanRootRemoved": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "scanRoots": "Scan roots",
+  "openSourceLicenses": "Open-source licenses",
+  "projectHomepage": "Project homepage",
+  "aboutLicense": "Flind Player is free software licensed under GPL-3.0.\nThis program comes with no warranty; see the full license text.",
+  "permissionAudioLibrary": "Access local music",
+  "permissionNotifications": "Send playback notifications",
+  "permissionDeniedSettings": "{label} permission was denied. Enable it in system settings.",
+  "@permissionDeniedSettings": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "permissionRequired": "{label} permission is required to continue.",
+  "@permissionRequired": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "trayToggleWindow": "Show / Hide window",
+  "trayPlay": "Play",
+  "trayPause": "Pause",
+  "trayPrevious": "Previous",
+  "trayNext": "Next",
+  "trayQuit": "Quit",
+  "errRateLimited": "Too many requests, please try again later",
+  "errRiskControl": "Risk control triggered, please try again later",
+  "errLoginRequired": "Login required",
+  "errBiliApi": "Bilibili API error (code: {code})",
+  "@errBiliApi": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "errNetwork": "Network connection failed, please check your network",
+  "errDataFormat": "Invalid data format",
+  "errGeneric": "Operation failed, please try again",
+  "errCacheFullManual": "Not enough cache space: manual downloads already use the full quota",
+  "errCacheFullTrack": "Not enough cache space: a single track needs {bytes} bytes, exceeding the available quota",
+  "@errCacheFullTrack": {
+    "placeholders": {
+      "bytes": {
+        "type": "int"
+      }
+    }
+  }
+}

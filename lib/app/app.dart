@@ -14,18 +14,28 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/l10n.dart';
+import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/features/home/home_shell.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Root application widget.
-class FlindApp extends StatelessWidget {
+class FlindApp extends ConsumerWidget {
   const FlindApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final language =
+        ref.watch(appLanguageProvider).value ?? AppLanguage.system;
     return MaterialApp(
-      title: 'Flind Player',
+      locale: localeForAppLanguage(language),
+      onGenerateTitle: (context) => AppLocalizations.of(context).appName,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: appSupportedLocales,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
