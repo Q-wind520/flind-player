@@ -161,6 +161,42 @@ jobs:
           cp -R build/ios/iphoneos/Runner.app Payload/
           zip -qry "FlindPlayer-${{ github.ref_name }}-ios-unsigned.ipa" Payload
 
+  # Android release build: catches Gradle/Maven resolution failures at CI time
+  # instead of only during a tagged release.
+  build-android:
+    name: Build Android (release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+
+      - name: Cache pub packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build split APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build App Bundle
+        run: flutter build appbundle --release
+
   # Optional but useful: prove the desktop build still compiles and ships a
   # runnable bundle. Linux builds need system libmpv (see docs/local-library.md
   # §5: `libsecret` for credentials, `libmpv-dev` + `mpv` for playback,
