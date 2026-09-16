@@ -200,6 +200,18 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
   }
 
   @override
+  void onTrayIconRightMouseDown() {
+    // Only the Windows backend forwards the right-click as an event and
+    // expects the app to pop the menu itself; macOS and Linux backends show
+    // the context menu natively.
+    if (Platform.isWindows) {
+      unawaited(
+        _guard('popUpContextMenu', trayManager.popUpContextMenu),
+      );
+    }
+  }
+
+  @override
   void onWindowClose() {
     if (_quitting) {
       return;
@@ -233,9 +245,19 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
       ? 'assets/tray/tray_icon_white.png' // dark panel -> white glyph
       : 'assets/tray/tray_icon_black.png'; // light panel -> dark glyph
 
-  /// Copies the matching bundled icon into app support once and returns the
-  /// filesystem path the tray plugin expects on Linux/Windows.
+  /// Resolves the bundled icon to the value [TrayManager.setIcon] expects on
+  /// each platform.
+  ///
+  /// On Windows the backend loads the icon with `LoadImage`, which only
+  /// understands `.ico` — a PNG path silently yields a NULL handle and a blank
+  /// tray icon. The Dart-side `setIcon` resolves a relative path against
+  /// `<exe>/data/flutter_assets/`, so the bundled multi-resolution `.ico` is
+  /// referenced directly. On macOS/Linux the monochrome PNG matching the panel
+  /// brightness is copied into app support and its filesystem path returned.
   Future<String> _resolveTrayIcon() async {
+    if (Platform.isWindows) {
+      return 'assets/tray/tray_icon.ico';
+    }
     final asset = _trayIconAsset(
       PlatformDispatcher.instance.platformBrightness,
     );
