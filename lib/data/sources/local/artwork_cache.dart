@@ -133,7 +133,7 @@ String? _cacheSync(String audioPath, String baseDirPath) {
   final jpegFile = File(jpegPath);
   if (jpegFile.existsSync()) return jpegPath;
 
-  final encoded = _encodeJpeg(bytes);
+  final encoded = encodeCoverJpeg(bytes);
   if (encoded != null && encoded.isNotEmpty) {
     jpegFile.writeAsBytesSync(encoded, flush: true);
     return jpegPath;
@@ -167,10 +167,13 @@ Picture _pickCover(List<Picture> pictures) {
   return pictures.first;
 }
 
-/// Downscales [bytes] to [ArtworkCache.maxEdge] and encodes JPEG.
+/// Decode-validates [bytes], downscales to [ArtworkCache.maxEdge] and encodes
+/// JPEG at [ArtworkCache.jpegQuality]; returns `null` when the bytes are not a
+/// decodable image.
 ///
-/// Returns `null` when the format cannot be decoded by `package:image`.
-Uint8List? _encodeJpeg(Uint8List bytes) {
+/// Top-level so callers may run it inside a short-lived isolate (see
+/// [_cacheInIsolate]).
+Uint8List? encodeCoverJpeg(Uint8List bytes) {
   try {
     final decoded = img.decodeImage(bytes);
     if (decoded == null) return null;

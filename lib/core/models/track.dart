@@ -54,6 +54,15 @@ class Track {
   /// Path to the locally cached cover file, if any.
   final String? coverPath;
 
+  /// Remote cover URL for display (e.g. a Bilibili `pic` link), if any.
+  ///
+  /// Volatile display metadata: deliberately **excluded** from [==] and
+  /// [hashCode], exactly like [coverPath]. Playback persistence detects queue
+  /// changes with `listEquals` over `List<Track>`, so a track whose cover URL
+  /// merely became known must not mark the queue as changed and trigger a
+  /// rewrite of the persisted snapshot.
+  final String? coverUrl;
+
   const Track({
     this.id,
     required this.source,
@@ -71,6 +80,7 @@ class Track {
     this.sampleRate,
     this.genre,
     this.coverPath,
+    this.coverUrl,
   });
 
   /// Returns a copy with the given fields replaced.
@@ -93,6 +103,7 @@ class Track {
     int? sampleRate,
     String? genre,
     String? coverPath,
+    String? coverUrl,
   }) {
     return Track(
       id: id ?? this.id,
@@ -111,9 +122,13 @@ class Track {
       sampleRate: sampleRate ?? this.sampleRate,
       genre: genre ?? this.genre,
       coverPath: coverPath ?? this.coverPath,
+      coverUrl: coverUrl ?? this.coverUrl,
     );
   }
 
+  // Display-only metadata (coverPath, coverUrl) is intentionally absent: the
+  // playback persistence service compares queues with `listEquals`, and a
+  // newly resolved cover must never look like a queue change.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

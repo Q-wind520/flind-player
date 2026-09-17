@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
@@ -106,4 +107,39 @@ void main() {
       expect(covers.existsSync(), isTrue);
     },
   );
+
+  group('encodeCoverJpeg', () {
+    test('returns null for garbage bytes', () {
+      final garbage = Uint8List.fromList(List<int>.generate(256, (i) => i));
+
+      expect(encodeCoverJpeg(garbage), isNull);
+    });
+
+    test('returns null for empty bytes without throwing', () {
+      expect(encodeCoverJpeg(Uint8List(0)), isNull);
+    });
+
+    test('encodes a decodable PNG as a JPEG (SOI magic)', () {
+      final image = img.Image(width: 8, height: 8);
+      img.fill(image, color: img.ColorRgb8(20, 120, 200));
+      final png = Uint8List.fromList(img.encodePng(image));
+
+      final encoded = encodeCoverJpeg(png);
+
+      expect(encoded, isNotNull);
+      expect(encoded!.sublist(0, 3), [0xFF, 0xD8, 0xFF]);
+    });
+
+    test('downscales the longest edge to ArtworkCache.maxEdge', () {
+      final image = img.Image(width: 1024, height: 600);
+      img.fill(image, color: img.ColorRgb8(20, 120, 200));
+      final png = Uint8List.fromList(img.encodePng(image));
+
+      final decoded = img.decodeJpg(encodeCoverJpeg(png)!);
+
+      expect(decoded, isNotNull);
+      expect(decoded!.width, ArtworkCache.maxEdge);
+      expect(math.max(decoded.width, decoded.height), ArtworkCache.maxEdge);
+    });
+  });
 }

@@ -22,12 +22,14 @@ class SearchItemDto {
   final String title;
   final String author;
   final Duration? duration;
+  final String? coverUrl;
 
   const SearchItemDto({
     required this.bvid,
     required this.title,
     required this.author,
     this.duration,
+    this.coverUrl,
   });
 
   factory SearchItemDto.fromJson(Map<String, dynamic> json) => SearchItemDto(
@@ -35,6 +37,7 @@ class SearchItemDto {
     title: json['title'] as String? ?? '',
     author: json['author'] as String? ?? '',
     duration: _parseDuration(json['duration']),
+    coverUrl: _parseCoverUrl(json['pic']),
   );
 }
 
@@ -67,6 +70,7 @@ class VideoInfoDto {
   final String ownerName;
   final int? durationSeconds;
   final List<VideoPageDto> pages;
+  final String? coverUrl;
 
   const VideoInfoDto({
     required this.bvid,
@@ -74,6 +78,7 @@ class VideoInfoDto {
     required this.ownerName,
     this.durationSeconds,
     required this.pages,
+    this.coverUrl,
   });
 
   factory VideoInfoDto.fromJson(Map<String, dynamic> json) {
@@ -92,6 +97,7 @@ class VideoInfoDto {
       ownerName: owner is Map ? owner['name'] as String? ?? '' : '',
       durationSeconds: (json['duration'] as num?)?.toInt(),
       pages: pages,
+      coverUrl: _parseCoverUrl(json['pic']),
     );
   }
 }
@@ -248,6 +254,16 @@ String _idToString(Object? raw) {
   if (raw is num) return raw.toInt().toString();
   if (raw is String) return raw;
   return '';
+}
+
+/// Parses the raw `pic` cover URL on the search/view payloads.
+///
+/// Absent, `null`, `''` and non-string values all yield `null`. The value is
+/// kept verbatim: `//`-prefixed and `http://` URLs are intentionally left
+/// untouched for `normalizeCoverUrl` to normalise later.
+String? _parseCoverUrl(Object? raw) {
+  if (raw is! String || raw.isEmpty) return null;
+  return raw;
 }
 
 /// Parses the search `duration` field, which is `mm:ss` (or `hh:mm:ss`) text.

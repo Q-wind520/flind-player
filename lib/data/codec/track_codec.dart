@@ -46,6 +46,7 @@ Map<String, dynamic> encodeTrack(Track track) {
     'sampleRate': track.sampleRate,
     'genre': track.genre,
     'coverPath': track.coverPath,
+    'coverUrl': track.coverUrl,
   };
 }
 
@@ -144,6 +145,16 @@ String? _asStringOrNull(Object? value, String field) {
   if (value == null) return null;
   if (value is String) return value;
   throw FormatException('Track.$field must be a string or null, got: $value');
+}
+
+/// Reads the volatile `coverUrl` display field.
+///
+/// A queue snapshot written by 0.1.x has no such key, and a corrupted or
+/// future value must not fail the whole queue load: anything that is not a
+/// non-empty string - absent, null, empty or a wrong type - decodes to `null`.
+String? _asCoverUrlOrNull(Object? value) {
+  if (value is String && value.isNotEmpty) return value;
+  return null;
 }
 
 int? _asIntOrNull(Object? value) {
