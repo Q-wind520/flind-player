@@ -285,7 +285,7 @@ return _trackList(...);
 
 | 项 | 状态 |
 | --- | --- |
-| 封面呈现本身 | **未验证**。`Image.file` 在 widget 测试假异步区内无法解析（实测 `resolve` 失败、`precacheImage` 挂死），截图里封面是空白方块——**采集限制，不是产品缺陷**。 |
+| 封面呈现本身 | ✅ **已验证**（`integration_test/cover_rendering_smoke_test.dart`，Windows 桌面真机通过 4/4）。`Image.file` 在 widget 测试假异步区内无法解析（实测 `resolve` 失败、`precacheImage` 挂死），截图里封面是空白方块——**采集限制，不是产品缺陷**。集成测试在真实引擎上验证：`ArtworkCache` 提取的 JPEG 可解码（像素非透明）、曲库列表行 / 迷你播放器 / 全屏播放器均渲染解码后的封面而非 `music_note` 占位符。 |
 | 设计系统完整性审查（Pass A） | ✅ 已完成，结论已并入本报告；关键指控我已逐条复核源码 |
 | 视觉保真 / 中文排版审查（Pass B） | ⏳ 首次会话异常中止，已重跑，结果待回 |
 | 动画 / 悬停 / 按下态 | 未采集（golden 渲染限制） |
