@@ -1,11 +1,14 @@
 name: Release
 
-# A single tag push (`git tag v0.1.0 && git push origin v0.1.0`) builds the
-# desktop and Android artifacts and publishes a GitHub Release.
+# A single formal tag push (`git tag v0.1.3 && git push origin v0.1.3`) builds
+# the desktop and Android artifacts and publishes a GitHub Release directly,
+# with no separate CI run. Pre-release tags (`v*-pre*`) are excluded here — they
+# are validated by the CI workflow instead.
 on:
   push:
     tags:
       - 'v*'
+      - '!v*-pre*'
 
 permissions:
   contents: write
@@ -296,7 +299,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          # Hyphenated tags (-pre / -beta) publish as GitHub pre-releases.
+          # `-pre` tags never reach this workflow (see the trigger above), so a
+          # formal tag always publishes a full release; any other hyphenated tag
+          # that does arrive is still marked as a pre-release.
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             artifacts/linux-release/*.tar.gz
