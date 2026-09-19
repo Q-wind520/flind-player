@@ -32,6 +32,7 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
@@ -218,6 +219,13 @@ class _FakeMusicLibraryRepository implements MusicLibraryRepository {
   Future<Track?> findByUri(String uri) async => null;
 
   @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
+
+  @override
   Future<Set<String>> trackUrisForSource(String source) async => const {};
 
   @override
@@ -300,12 +308,24 @@ class _FakeFilePickerPlatform extends FilePickerPlatform {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Records the cross-cache maintenance actions the settings screen triggers.
+class _MaintenanceLog {
+  int enforceCalls = 0;
+  int clearCalls = 0;
+
+  CacheMaintenance build() => CacheMaintenance(
+    onEnforceLimits: () async => enforceCalls++,
+    onClearAll: () async => clearCalls++,
+  );
+}
+
 /// Pumps [SettingsScreen] with every provider overridden so no database,
 /// download manager, platform channel, or network is ever constructed.
 Widget _app({
   required _FakeSettingsRepository settings,
   required _FakeCacheStore store,
   int usageBytes = 0,
+  _MaintenanceLog? maintenance,
   int trackCount = 0,
   List<String> scanRoots = const [],
   List<Track> tracks = const [],
@@ -319,6 +339,18 @@ Widget _app({
         PermissionService(backend: _GrantingPermissionBackend()),
       ),
       audioCacheStoreProvider.overrideWith((ref) => store),
+      // Audio and covers share one quota; the screen reads the combined figure
+      // and routes maintenance through the cache-maintenance seam.
+      combinedCacheUsageProvider.overrideWith((ref) async => usageBytes),
+      coverCacheUsageProvider.overrideWith((ref) async => 0),
+      cacheMaintenanceProvider.overrideWith(
+        (ref) =>
+            maintenance?.build() ??
+            CacheMaintenance(
+              onEnforceLimits: () async {},
+              onClearAll: () async {},
+            ),
+      ),
       audioCacheUsageProvider.overrideWith((ref) async => usageBytes),
       audioCacheEntryCountProvider.overrideWith((ref) async => trackCount),
       downloadProgressProvider.overrideWith(
@@ -448,7 +480,7 @@ void main() {
     expect(find.text(Directory.systemTemp.path), findsOneWidget);
     // 缓存上限 row: usage / cap.
     expect(find.text('缓存上限'), findsOneWidget);
-    expect(find.text('已用 300 MB / 1 GB'), findsOneWidget);
+    expect(find.text('已用 300 MB / 1024 MB'), findsOneWidget);
     // The whole row opens the dialog now; the pencil is gone.
     expect(find.byIcon(Icons.edit_outlined), findsNothing);
     // Old controls must not appear.
@@ -495,51 +527,54 @@ void main() {
 
     expect(find.text('自定义缓存上限'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
+    // The cap is edited in MB only now; the unit selector is gone.
     expect(find.text('MB'), findsOneWidget);
-    expect(find.text('GB'), findsOneWidget);
+    expect(find.text('GB'), findsNothing);
     expect(find.text('取消'), findsOneWidget);
     expect(find.text('确定'), findsOneWidget);
   });
 
   testWidgets(
-    'entering 2 GB and confirming persists limitBytes and enforces the limit',
+    'entering 2048 MB and confirming persists limitBytes and enforces the limit',
     (tester) async {
       final settings = _FakeSettingsRepository(CacheSettings.defaults);
       final store = _FakeCacheStore();
+      final maintenance = _MaintenanceLog();
       addTearDown(settings.dispose);
 
-      await tester.pumpWidget(_app(settings: settings, store: store));
+      await tester.pumpWidget(
+        _app(settings: settings, store: store, maintenance: maintenance),
+      );
       await tester.pumpAndSettle();
 
       // The row tap opens the custom-limit dialog.
       await tester.tap(find.text('缓存上限'));
       await tester.pumpAndSettle();
 
-      // Clear the field and enter '2'.
+      // Enter a new cap in megabytes.
       final field = find.byType(TextField);
-      await tester.enterText(field, '2');
-
-      // Select GB.
-      await tester.tap(find.text('GB'));
-      await tester.pumpAndSettle();
+      await tester.enterText(field, '2048');
 
       // Confirm.
       await tester.tap(find.text('确定'));
       await tester.pumpAndSettle();
 
       expect(settings.current.limitBytes, 2 * 1024 * 1024 * 1024);
-      expect(store.enforceLimitCalls, 1);
+      expect(maintenance.enforceCalls, 1);
     },
   );
 
-  testWidgets('lowering the cap calls enforceLimit() on the store', (
+  testWidgets('lowering the cap enforces the limit on both caches', (
     tester,
   ) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
+    final maintenance = _MaintenanceLog();
     addTearDown(settings.dispose);
 
-    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpWidget(
+      _app(settings: settings, store: store, maintenance: maintenance),
+    );
     await tester.pumpAndSettle();
 
     // Open the custom-limit dialog from the 缓存上限 row.
@@ -549,25 +584,29 @@ void main() {
     // Enter a smaller limit (256 MB).
     final field = find.byType(TextField);
     await tester.enterText(field, '256');
-    await tester.tap(find.text('MB'));
-    await tester.pumpAndSettle();
 
     // Confirm.
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
 
-    expect(store.enforceLimitCalls, 1);
+    expect(maintenance.enforceCalls, 1);
   });
 
   testWidgets(
-    'clearing from the path dialog calls clear() after confirmation',
+    'clearing from the path dialog clears both caches after confirmation',
     (tester) async {
       final settings = _FakeSettingsRepository(CacheSettings.defaults);
       final store = _FakeCacheStore();
+      final maintenance = _MaintenanceLog();
       addTearDown(settings.dispose);
 
       await tester.pumpWidget(
-        _app(settings: settings, store: store, usageBytes: 300 * 1024 * 1024),
+        _app(
+          settings: settings,
+          store: store,
+          maintenance: maintenance,
+          usageBytes: 300 * 1024 * 1024,
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -582,12 +621,12 @@ void main() {
 
       // Confirmation dialog.
       expect(find.text('清空缓存？'), findsOneWidget);
-      expect(store.clearCalls, 0);
+      expect(maintenance.clearCalls, 0);
 
       // Cancel first.
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
-      expect(store.clearCalls, 0);
+      expect(maintenance.clearCalls, 0);
       expect(find.text('清空缓存？'), findsNothing);
 
       // Tap 清空缓存 again, then confirm.
@@ -596,7 +635,7 @@ void main() {
       await tester.tap(find.text('清空'));
       await tester.pumpAndSettle();
 
-      expect(store.clearCalls, 1);
+      expect(maintenance.clearCalls, 1);
       expect(find.textContaining('已清空缓存'), findsOneWidget);
     },
   );

@@ -66,6 +66,48 @@ void main() {
 
       expect(searchItemToTrack(item).artist, isNull);
     });
+
+    test('normalizes a protocol-relative pic into an https coverUrl', () {
+      const item = SearchItemDto(
+        bvid: 'BV1',
+        title: 'T',
+        author: 'A',
+        coverUrl: '//i0.hdslb.com/bfs/a.jpg',
+      );
+
+      expect(
+        searchItemToTrack(item).coverUrl,
+        'https://i0.hdslb.com/bfs/a.jpg',
+      );
+    });
+
+    test('leaves coverUrl null when the search item has no pic', () {
+      const item = SearchItemDto(bvid: 'BV1', title: 'T', author: 'A');
+
+      expect(searchItemToTrack(item).coverUrl, isNull);
+    });
+  });
+
+  group('favoriteResourceToTrack', () {
+    test('normalizes the cover into an https coverUrl', () {
+      const resource = FavResourceDto(
+        type: 2,
+        bvid: 'BV1',
+        title: 'T',
+        coverUrl: '//i0.hdslb.com/bfs/fav.jpg',
+      );
+
+      expect(
+        favoriteResourceToTrack(resource).coverUrl,
+        'https://i0.hdslb.com/bfs/fav.jpg',
+      );
+    });
+
+    test('leaves coverUrl null when the resource has no cover', () {
+      const resource = FavResourceDto(type: 2, bvid: 'BV1', title: 'T');
+
+      expect(favoriteResourceToTrack(resource).coverUrl, isNull);
+    });
   });
 
   group('videoPageToTrack', () {
@@ -131,6 +173,35 @@ void main() {
         videoPageToTrack(single, single.pages.first).duration,
         const Duration(seconds: 240),
       );
+    });
+
+    test('normalizes the video cover onto the page track', () {
+      const video = VideoInfoDto(
+        bvid: 'BV1uv411q7Mv',
+        title: 'Full Album',
+        ownerName: 'Some Artist',
+        coverUrl: '//i0.hdslb.com/bfs/video.jpg',
+        pages: <VideoPageDto>[
+          VideoPageDto(cid: 111, page: 1, part: 'Intro', durationSeconds: 90),
+        ],
+      );
+
+      final track = videoPageToTrack(video, video.pages.single);
+
+      expect(track.coverUrl, 'https://i0.hdslb.com/bfs/video.jpg');
+    });
+
+    test('leaves coverUrl null when the video has no pic', () {
+      const single = VideoInfoDto(
+        bvid: 'BV1x',
+        title: 'A Song',
+        ownerName: 'Artist',
+        pages: <VideoPageDto>[
+          VideoPageDto(cid: 1, page: 1, part: '', durationSeconds: 0),
+        ],
+      );
+
+      expect(videoPageToTrack(single, single.pages.single).coverUrl, isNull);
     });
   });
 

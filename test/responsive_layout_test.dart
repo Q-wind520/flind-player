@@ -242,6 +242,13 @@ class _FakeFavoritesRepository implements FavoritesRepository {
   Future<void> removeFavorite(String uri) async {}
 
   @override
+  Future<void> updateFavoriteCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
+
+  @override
   Future<bool> toggleFavorite(Track track) async => false;
 }
 
@@ -252,6 +259,13 @@ class _FakePlaybackController implements PlaybackController {
     PlaybackQueue queue, {
     int index = 0,
     bool autoPlay = true,
+  }) async {}
+
+  @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
   }) async {}
 
   @override

@@ -73,6 +73,13 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
   }
 
   @override
+  Future<void> updateFavoriteCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
+
+  @override
   Future<bool> toggleFavorite(Track track) async {
     if (_favourites.containsKey(track.uri)) {
       _favourites.remove(track.uri);
@@ -415,6 +422,13 @@ class _FakePlaybackController implements PlaybackController {
   }) async {
     onPlayQueue(queue, index);
   }
+
+  @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
 
   @override
   Future<void> play() async {}

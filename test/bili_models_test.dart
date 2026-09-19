@@ -162,4 +162,33 @@ void main() {
       expect(dto.coverUrl, '//i0.hdslb.com/a.jpg');
     });
   });
+
+  group('normalizeCoverUrl', () {
+    test('upgrades a protocol-relative URL to https', () {
+      expect(
+        normalizeCoverUrl('//i0.hdslb.com/bfs/a.jpg'),
+        'https://i0.hdslb.com/bfs/a.jpg',
+      );
+    });
+
+    test('upgrades an http URL to https', () {
+      expect(
+        normalizeCoverUrl('http://i0.hdslb.com/bfs/a.jpg'),
+        'https://i0.hdslb.com/bfs/a.jpg',
+      );
+    });
+
+    test('strips an existing CDN size suffix', () {
+      expect(
+        normalizeCoverUrl('https://i0.hdslb.com/bfs/a.jpg@672w_378h_1c.webp'),
+        'https://i0.hdslb.com/bfs/a.jpg',
+      );
+    });
+
+    test('returns null for absent or blank values', () {
+      expect(normalizeCoverUrl(null), isNull);
+      expect(normalizeCoverUrl(''), isNull);
+      expect(normalizeCoverUrl('   '), isNull);
+    });
+  });
 }

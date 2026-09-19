@@ -251,6 +251,25 @@ void main() {
     test('round-trips an empty list', () {
       expect(decodeTracks(encodeTracks(const [])), isEmpty);
     });
+
+    test('round-trips coverUrl through a list snapshot', () {
+      const url = 'https://i0.hdslb.com/bfs/archive/list.jpg';
+      final tracks = <Track>[
+        const Track(
+          source: 'bilibili',
+          sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 2),
+          uri: 'bilibili:BV1:2',
+          title: 'With Cover',
+          coverUrl: url,
+        ),
+      ];
+
+      final decoded = decodeTracks(encodeTracks(tracks));
+
+      // `==` deliberately ignores coverUrl, so the field must be read
+      // explicitly: a codec regression that drops the key fails here.
+      expect(decoded.single.coverUrl, url);
+    });
   });
 
   group('Track.coverUrl display-metadata contract', () {

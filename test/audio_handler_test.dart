@@ -106,6 +106,13 @@ class _FakePlaybackController implements PlaybackController {
   }) async {}
 
   @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
+
+  @override
   Future<void> dispose() async {
     await _states.close();
   }

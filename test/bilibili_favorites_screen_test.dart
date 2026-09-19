@@ -98,6 +98,13 @@ class _FakePlaybackController implements PlaybackController {
     lastIndex = index;
   }
 
+  @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
+
   // Unused members.
   @override
   Stream<PlaybackState> get state => const Stream.empty();

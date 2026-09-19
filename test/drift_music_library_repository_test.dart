@@ -994,5 +994,60 @@ void main() {
           .getSingle();
       expect(updated.data['content_hash'], 'abc');
     });
+
+    test('v6 -> v7 adds the cover columns and the cover cache table', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v7');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current-schema file, then roll it back to v6 by dropping the
+      // two cover_url columns and the cover_cache table v7 introduces.
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement(
+        'INSERT INTO tracks '
+        '(source, source_track_id, uri, title, cover_path, created_at, '
+        'updated_at) '
+        "VALUES ('bilibili', 'BV1:1', 'bilibili:BV1:1', 'Song', NULL, 1, 1)",
+      );
+      await before.customStatement(
+        'INSERT INTO favorites '
+        '(uri, source, source_track_id, title, favorited_at) '
+        "VALUES ('bilibili:BV1:1', 'bilibili', 'BV1:1', 'Song', 1)",
+      );
+      await before.customStatement('DROP TABLE cover_cache');
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN cover_url');
+      await before.customStatement(
+        'ALTER TABLE favorites DROP COLUMN cover_url',
+      );
+      await before.customStatement('PRAGMA user_version = 6');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      // Existing rows survive with a null cover URL.
+      final track = await after
+          .customSelect('SELECT cover_url FROM tracks')
+          .getSingle();
+      expect(track.data['cover_url'], isNull);
+      final favorite = await after
+          .customSelect('SELECT cover_url FROM favorites')
+          .getSingle();
+      expect(favorite.data['cover_url'], isNull);
+
+      // The recreated table is writable after the upgrade.
+      await after.customStatement(
+        'INSERT INTO cover_cache '
+        '(url_hash, file_path, content_hash, bytes, cached_at, '
+        'last_accessed_at) '
+        "VALUES ('h', '/tmp/c.jpg', 'c', 1, 1, 1)",
+      );
+      final cover = await after
+          .customSelect('SELECT url_hash FROM cover_cache')
+          .getSingle();
+      expect(cover.data['url_hash'], 'h');
+    });
   });
 }
