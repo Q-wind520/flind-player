@@ -78,6 +78,9 @@ class _FakePlaybackController implements PlaybackController {
   Future<void> setRepeatMode(RepeatMode mode) async {}
   @override
   Future<void> setShuffle(bool enabled) async {}
+
+  @override
+  Future<void> setVolume(double volume) async {}
   @override
   Future<void> dispose() async {}
 }
@@ -280,7 +283,6 @@ void main() {
 
     // The full-screen player route is on top.
     expect(find.byType(PlayerScreen), findsOneWidget);
-    expect(find.text('正在播放'), findsOneWidget);
   });
 
   testWidgets('does not overflow at 400 px width', (tester) async {

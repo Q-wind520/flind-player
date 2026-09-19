@@ -302,6 +302,9 @@ class _FakePlaybackController implements PlaybackController {
   Future<void> setShuffle(bool enabled) async {}
 
   @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
   Future<void> dispose() async {}
 }
 

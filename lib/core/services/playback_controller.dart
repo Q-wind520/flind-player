@@ -69,5 +69,11 @@ abstract interface class PlaybackController {
 
   Future<void> setShuffle(bool enabled);
 
+  /// Sets the output volume as a linear gain.
+  ///
+  /// Implementations clamp [volume] to the supported `0.01`–`1.4` range and
+  /// update [PlaybackState.volume] so the UI reflects the applied value.
+  Future<void> setVolume(double volume);
+
   Future<void> dispose();
 }

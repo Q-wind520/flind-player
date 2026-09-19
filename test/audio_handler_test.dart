@@ -41,6 +41,7 @@ class _FakePlaybackController implements PlaybackController {
   Duration? lastSeek;
   RepeatMode? lastRepeatMode;
   bool? lastShuffle;
+  double? lastVolume;
 
   @override
   Stream<domain.PlaybackState> get state => _states.stream;
@@ -96,6 +97,11 @@ class _FakePlaybackController implements PlaybackController {
   @override
   Future<void> setShuffle(bool enabled) async {
     lastShuffle = enabled;
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    lastVolume = volume;
   }
 
   @override

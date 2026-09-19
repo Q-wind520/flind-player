@@ -65,6 +65,12 @@ class _FakePlaybackController implements PlaybackController {
     _emit(_currentState.copyWith(shuffleEnabled: enabled));
   }
 
+  @override
+  Future<void> setVolume(double volume) async {
+    calls.add(('volume', volume));
+    _emit(_currentState.copyWith(volume: volume));
+  }
+
   void _emit(PlaybackState next) {
     _currentState = next;
     _stateController.add(next);

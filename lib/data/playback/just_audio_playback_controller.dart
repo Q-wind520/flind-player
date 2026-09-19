@@ -39,6 +39,12 @@ class JustAudioPlaybackController implements PlaybackController {
   /// Minimum interval between position updates folded into [PlaybackState].
   static const Duration _positionThrottleInterval = Duration(milliseconds: 200);
 
+  /// Quietest volume the UI can select (1%).
+  static const double minVolume = 0.01;
+
+  /// Loudest volume the UI can select (140%).
+  static const double maxVolume = 1.4;
+
   final StreamResolver _resolver;
   final AudioPlayer _player;
 
@@ -51,6 +57,7 @@ class JustAudioPlaybackController implements PlaybackController {
   PlaybackQueue _queue = PlaybackQueue.empty;
   RepeatMode _repeatMode = RepeatMode.off;
   bool _shuffle = false;
+  double _volume = 1.0;
 
   bool _isPlaying = false;
   bool _isBuffering = false;
@@ -224,6 +231,26 @@ class JustAudioPlaybackController implements PlaybackController {
     // shuffled()/unshuffled() keep the current track; playback is untouched.
     _queue = enabled ? _queue.shuffled(Random()) : _queue.unshuffled();
     _emit();
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    if (_disposed) {
+      return;
+    }
+    final clamped = volume.clamp(minVolume, maxVolume);
+    if ((clamped - _volume).abs() < 0.0001) {
+      return;
+    }
+    _volume = clamped;
+    _emit();
+    try {
+      await _player.setVolume(_volume);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'JustAudioPlaybackController: setVolume failed: $error\n$stackTrace',
+      );
+    }
   }
 
   @override
@@ -428,6 +455,9 @@ class JustAudioPlaybackController implements PlaybackController {
           headers: info.headers.isEmpty ? null : info.headers,
         ),
       );
+      // Some platforms reset the gain when a new source is loaded; re-apply
+      // the user's chosen volume so switching tracks never changes loudness.
+      await _player.setVolume(_volume);
       if (autoPlay) {
         await _player.play();
       }
@@ -464,6 +494,7 @@ class JustAudioPlaybackController implements PlaybackController {
       shuffleEnabled: _shuffle,
       hasNext: _queue.nextIndex(repeatMode: _repeatMode) != null,
       hasPrevious: _queue.previousIndex(repeatMode: _repeatMode) != null,
+      volume: _volume,
     );
   }
 }

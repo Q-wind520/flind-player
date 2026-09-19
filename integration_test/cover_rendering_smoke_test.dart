@@ -400,6 +400,9 @@ class _FakePlaybackController implements PlaybackController {
   Future<void> setRepeatMode(RepeatMode mode) async {}
   @override
   Future<void> setShuffle(bool enabled) async {}
+
+  @override
+  Future<void> setVolume(double volume) async {}
   @override
   Future<void> togglePlayPause() async {}
   @override

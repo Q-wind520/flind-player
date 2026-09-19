@@ -32,6 +32,12 @@ class PlaybackState {
   final bool hasNext;
   final bool hasPrevious;
 
+  /// Output volume as a linear gain, where `1.0` is unity.
+  ///
+  /// The player UI exposes a `1%`–`140%` range, so this value may exceed `1.0`
+  /// for amplified playback; engines that cannot amplify clamp it themselves.
+  final double volume;
+
   const PlaybackState({
     required this.isPlaying,
     required this.isBuffering,
@@ -43,6 +49,7 @@ class PlaybackState {
     this.shuffleEnabled = false,
     this.hasNext = false,
     this.hasPrevious = false,
+    this.volume = 1.0,
   });
 
   /// Nothing loaded, nothing playing.
@@ -67,6 +74,7 @@ class PlaybackState {
     bool? shuffleEnabled,
     bool? hasNext,
     bool? hasPrevious,
+    double? volume,
   }) {
     return PlaybackState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -79,6 +87,7 @@ class PlaybackState {
       shuffleEnabled: shuffleEnabled ?? this.shuffleEnabled,
       hasNext: hasNext ?? this.hasNext,
       hasPrevious: hasPrevious ?? this.hasPrevious,
+      volume: volume ?? this.volume,
     );
   }
 
@@ -101,7 +110,8 @@ class PlaybackState {
           other.repeatMode == repeatMode &&
           other.shuffleEnabled == shuffleEnabled &&
           other.hasNext == hasNext &&
-          other.hasPrevious == hasPrevious;
+          other.hasPrevious == hasPrevious &&
+          other.volume == volume;
 
   @override
   int get hashCode => Object.hash(
@@ -117,6 +127,7 @@ class PlaybackState {
     shuffleEnabled,
     hasNext,
     hasPrevious,
+    volume,
   );
 
   @override
