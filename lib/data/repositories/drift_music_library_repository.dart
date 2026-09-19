@@ -212,6 +212,23 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }
 
   @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {
+    // Only the cover columns change; a missing row is a deliberate no-op so
+    // resolving a cover cannot resurrect or create a library entry.
+    await (_db.update(_db.tracks)..where((t) => t.uri.equals(uri))).write(
+      TracksCompanion(
+        coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
+        coverUrl: coverUrl == null ? const Value.absent() : Value(coverUrl),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  @override
   Future<Set<String>> trackUrisForSource(String source) async {
     final query = _db.selectOnly(_db.tracks)
       ..addColumns([_db.tracks.uri])
@@ -375,6 +392,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
       sampleRate: row.sampleRate,
       genre: row.genre,
       coverPath: row.coverPath,
+      coverUrl: row.coverUrl,
     );
   }
 
@@ -400,6 +418,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
       sampleRate: Value(track.sampleRate),
       genre: Value(track.genre),
       coverPath: Value(track.coverPath),
+      coverUrl: Value(track.coverUrl),
       // `Value.absent()` leaves the fingerprint columns untouched, so a later
       // metadata-only upsert (e.g. the artwork pass) cannot erase them.
       sizeBytes: file == null ? const Value.absent() : Value(file.sizeBytes),

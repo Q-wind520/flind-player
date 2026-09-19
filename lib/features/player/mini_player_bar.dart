@@ -130,7 +130,10 @@ class _MiniCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final coverPath = track.coverPath;
-    final hasCover = coverPath != null && coverPath.isNotEmpty;
+    final coverUrl = track.coverUrl;
+    final hasCover =
+        (coverPath != null && coverPath.isNotEmpty) ||
+        (coverUrl != null && coverUrl.isNotEmpty);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -141,6 +144,7 @@ class _MiniCover extends StatelessWidget {
         child: hasCover
             ? CoverImage(
                 path: coverPath,
+                url: coverUrl,
                 size: _size,
                 errorBuilder: (context, error, stackTrace) =>
                     _placeholder(scheme),

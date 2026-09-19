@@ -44,6 +44,12 @@ class Tracks extends Table {
   IntColumn get sampleRate => integer().nullable()();
   TextColumn get genre => text().nullable()();
   TextColumn get coverPath => text().nullable()();
+
+  /// Remote cover URL (e.g. a Bilibili `pic` link), or `null` (schema v7).
+  ///
+  /// Persisted so a cover can be re-resolved from the cache index — or fetched
+  /// again after LRU eviction — without another `view` API round-trip.
+  TextColumn get coverUrl => text().nullable()();
   IntColumn get lastSeenAt => integer().nullable()();
 
   /// Size of the source file in bytes at the last scan (schema v5).
@@ -204,8 +210,45 @@ class Favorites extends Table {
   IntColumn get durationMs => integer().nullable()();
   TextColumn get coverPath => text().nullable()();
 
+  /// Remote cover URL, mirroring [Tracks.coverUrl] (schema v7).
+  TextColumn get coverUrl => text().nullable()();
+
   /// Unix timestamp when the track was favourited; the ordering key.
   IntColumn get favoritedAt => integer()();
+}
+
+/// Remote cover cache index (schema v7).
+///
+/// One row per cached remote cover. `url_hash` is `sha1(normalized url)` and is
+/// the lookup key; the file on disk is named after `content_hash`, so identical
+/// images fetched under different URLs share a single physical file. Cover
+/// bytes share the offline cache quota with [AudioCache]; audio is never
+/// evicted on a cover's behalf.
+@DataClassName('CoverCacheRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_cover_cache_lru '
+  'ON cover_cache (last_accessed_at)',
+)
+class CoverCache extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// `sha1(normalized cover URL)`; the lookup key.
+  TextColumn get urlHash => text().unique()();
+
+  /// Absolute path of the cached file.
+  TextColumn get filePath => text()();
+
+  /// `sha1` hex digest of the stored bytes; also the on-disk file name.
+  TextColumn get contentHash => text()();
+
+  /// Size of the cached file, in bytes.
+  IntColumn get bytes => integer()();
+
+  /// Unix timestamp when the file entered the cache.
+  IntColumn get cachedAt => integer()();
+
+  /// Unix timestamp of the last read; the LRU ordering key.
+  IntColumn get lastAccessedAt => integer()();
 }
 
 /// Raw SQL for the FTS5 index over `tracks`.

@@ -26,6 +26,7 @@ import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
@@ -151,7 +152,8 @@ class _PlaybackSection extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final settings =
         ref.watch(cacheSettingsProvider).value ?? CacheSettings.defaults;
-    final usage = ref.watch(audioCacheUsageProvider).value ?? 0;
+    // Audio and remote covers share one cap, so both are shown as one figure.
+    final usage = ref.watch(combinedCacheUsageProvider).value ?? 0;
 
     // Keep usage fresh when downloads finish, skip, or fail.
     ref.listen(downloadProgressProvider, (prev, next) {
@@ -159,6 +161,8 @@ class _PlaybackSection extends ConsumerWidget {
       if (phase == DownloadPhase.done ||
           phase == DownloadPhase.skipped ||
           phase == DownloadPhase.failed) {
+        ref.invalidate(combinedCacheUsageProvider);
+        ref.invalidate(coverCacheUsageProvider);
         ref.invalidate(audioCacheUsageProvider);
         ref.invalidate(audioCacheEntryCountProvider);
       }
@@ -185,8 +189,8 @@ class _PlaybackSection extends ConsumerWidget {
           title: Text(l10n.cacheLimit),
           subtitle: Text(
             l10n.cacheUsage(
-              formatBytes(usage),
-              formatBytes(settings.limitBytes),
+              formatMegabytes(usage),
+              formatMegabytes(settings.limitBytes),
             ),
           ),
           onTap: () => _showCustomLimitDialog(context, ref, settings),
@@ -210,31 +214,26 @@ class _PlaybackSection extends ConsumerWidget {
     );
   }
 
-  /// Shows a dialog for entering a custom cache size limit.
+  /// Shows a dialog for entering a custom cache size limit, in megabytes.
   Future<void> _showCustomLimitDialog(
     BuildContext context,
     WidgetRef ref,
     CacheSettings settings,
   ) async {
-    final limitBytes = settings.limitBytes;
-    final gb = 1024 * 1024 * 1024;
-    final mb = 1024 * 1024;
-
-    // Choose the cleanest unit: whole GB → GB, else MB.
-    final bool useGb = limitBytes % gb == 0;
-    final double initialNumber = useGb ? limitBytes / gb : limitBytes / mb;
-    final String initialUnit = useGb ? 'GB' : 'MB';
+    const int megabyte = 1024 * 1024;
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => _CustomLimitDialog(
-        initialNumber: initialNumber,
-        initialUnit: initialUnit,
+        initialMegabytes: settings.limitBytes / megabyte,
         onConfirm: (bytes) async {
           await ref
               .read(settingsRepositoryProvider)
               .updateCacheSettings(settings.copyWith(limitBytes: bytes));
-          await ref.read(audioCacheStoreProvider).enforceLimit();
+          // Both stores share the cap, so both must shed whatever no longer fits.
+          await ref.read(cacheMaintenanceProvider).onEnforceLimits();
+          ref.invalidate(combinedCacheUsageProvider);
+          ref.invalidate(coverCacheUsageProvider);
           ref.invalidate(audioCacheUsageProvider);
           ref.invalidate(audioCacheEntryCountProvider);
         },
@@ -332,12 +331,14 @@ class _CacheLocationDialog extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
-    final freed = ref.read(audioCacheUsageProvider).value ?? 0;
-    await ref.read(audioCacheStoreProvider).clear();
+    final freed = ref.read(combinedCacheUsageProvider).value ?? 0;
+    await ref.read(cacheMaintenanceProvider).onClearAll();
+    ref.invalidate(combinedCacheUsageProvider);
+    ref.invalidate(coverCacheUsageProvider);
     ref.invalidate(audioCacheUsageProvider);
     ref.invalidate(audioCacheEntryCountProvider);
     messenger.showSnackBar(
-      SnackBar(content: Text(l10n.cacheCleared(formatBytes(freed)))),
+      SnackBar(content: Text(l10n.cacheCleared(formatMegabytes(freed)))),
     );
   }
 }
@@ -346,17 +347,17 @@ class _CacheLocationDialog extends ConsumerWidget {
 // Custom-limit dialog
 // ---------------------------------------------------------------------------
 
-/// Dialog for entering a custom cache size limit with a numeric field and a
-/// unit selector.
+/// Dialog for entering a custom cache size limit in megabytes.
+///
+/// The cache cap is expressed in a single unit (MB) now that audio and covers
+/// share it; the former MB/GB selector only added a conversion step.
 class _CustomLimitDialog extends StatefulWidget {
   const _CustomLimitDialog({
-    required this.initialNumber,
-    required this.initialUnit,
+    required this.initialMegabytes,
     required this.onConfirm,
   });
 
-  final double initialNumber;
-  final String initialUnit;
+  final double initialMegabytes;
   final Future<void> Function(int bytes) onConfirm;
 
   @override
@@ -364,16 +365,17 @@ class _CustomLimitDialog extends StatefulWidget {
 }
 
 class _CustomLimitDialogState extends State<_CustomLimitDialog> {
+  /// Bytes in one mebibyte.
+  static const int _megabyte = 1024 * 1024;
+
   late final TextEditingController _controller;
-  late String _unit;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: _formatNumber(widget.initialNumber),
+      text: _formatNumber(widget.initialMegabytes),
     );
-    _unit = widget.initialUnit;
   }
 
   /// Formats [value] without a trailing `.0`: `1.0` renders as `1`, while
@@ -390,8 +392,6 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
     super.dispose();
   }
 
-  int get _unitMultiplier => _unit == 'GB' ? 1024 * 1024 * 1024 : 1024 * 1024;
-
   bool _validate() {
     final number = double.tryParse(_controller.text);
     if (number == null || number <= 0) return false;
@@ -401,8 +401,7 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
   Future<void> _confirm() async {
     if (!_validate()) return;
     final number = double.parse(_controller.text);
-    final bytes = (number * _unitMultiplier).toInt();
-    await widget.onConfirm(bytes);
+    await widget.onConfirm((number * _megabyte).toInt());
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -414,36 +413,18 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
         : (_validate() ? null : l10n.enterPositiveNumber);
 
     return AlertDialog(
-      // The field + unit selector exceed a short landscape viewport; scrolling
-      // the content keeps every control reachable instead of overflowing.
-      scrollable: true,
       title: Text(l10n.customCacheLimit),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: l10n.value,
-              errorText: errorText,
-              border: const OutlineInputBorder(),
-            ),
-            autofocus: true,
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'MB', label: Text('MB')),
-              ButtonSegment(value: 'GB', label: Text('GB')),
-            ],
-            selected: {_unit},
-            onSelectionChanged: (selection) {
-              setState(() => _unit = selection.first);
-            },
-          ),
-        ],
+      content: TextField(
+        controller: _controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: l10n.value,
+          suffixText: 'MB',
+          errorText: errorText,
+          border: const OutlineInputBorder(),
+        ),
+        autofocus: true,
+        onChanged: (_) => setState(() {}),
       ),
       actions: [
         TextButton(

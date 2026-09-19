@@ -57,6 +57,18 @@ abstract interface class MusicLibraryRepository {
   /// Finds a track by its canonical [uri], if present.
   Future<Track?> findByUri(String uri);
 
+  /// Updates the cached cover pointer of an existing track, identified by its
+  /// canonical [uri].
+  ///
+  /// A no-op when no row carries [uri]: cover resolution must never create a
+  /// library entry for a track the user did not save. Only the cover columns
+  /// are touched, so `updatedAt` is refreshed but nothing else changes.
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  });
+
   /// Every known `uri` for [source], including soft-deleted rows.
   ///
   /// This is the diff input for a scan: it must keep reporting rows that were

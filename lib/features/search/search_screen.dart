@@ -24,6 +24,7 @@ import 'package:flind_player/features/library/widgets/track_actions_button.dart'
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
+import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -201,15 +202,7 @@ class _SearchResultTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       selected: isCurrent,
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(Icons.music_note, color: scheme.onSurfaceVariant),
-      ),
+      leading: _SearchResultCover(track: track),
       title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         track.artist ?? l10n.unknownUp,
@@ -233,6 +226,43 @@ class _SearchResultTile extends StatelessWidget {
             onSaveToLibrary: onSave,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Small square cover for a search result, falling back to a music note.
+class _SearchResultCover extends StatelessWidget {
+  const _SearchResultCover({required this.track});
+
+  final Track track;
+
+  static const double _size = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final coverPath = track.coverPath;
+    final coverUrl = track.coverUrl;
+    final hasCover =
+        (coverPath != null && coverPath.isNotEmpty) ||
+        (coverUrl != null && coverUrl.isNotEmpty);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: _size,
+        height: _size,
+        color: scheme.surfaceContainerHighest,
+        child: hasCover
+            ? CoverImage(
+                path: coverPath,
+                url: coverUrl,
+                size: _size,
+                errorBuilder: (context, error, stackTrace) =>
+                    Icon(Icons.music_note, color: scheme.onSurfaceVariant),
+              )
+            : Icon(Icons.music_note, color: scheme.onSurfaceVariant),
       ),
     );
   }

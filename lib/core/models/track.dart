@@ -128,7 +128,9 @@ class Track {
 
   // Display-only metadata (coverPath, coverUrl) is intentionally absent: the
   // playback persistence service compares queues with `listEquals`, and a
-  // newly resolved cover must never look like a queue change.
+  // newly resolved cover must never look like a queue change. The player UI
+  // still refreshes on a cover change because `PlaybackState ==` compares
+  // `currentTrack.coverPath` explicitly.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -147,8 +149,7 @@ class Track {
           other.duration == duration &&
           other.bitrate == bitrate &&
           other.sampleRate == sampleRate &&
-          other.genre == genre &&
-          other.coverPath == coverPath;
+          other.genre == genre;
 
   @override
   int get hashCode => Object.hash(
@@ -167,7 +168,6 @@ class Track {
     bitrate,
     sampleRate,
     genre,
-    coverPath,
   );
 
   @override

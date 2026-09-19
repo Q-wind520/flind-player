@@ -41,6 +41,18 @@ abstract interface class PlaybackController {
     bool autoPlay = true,
   });
 
+  /// Replaces the cover pointer of the queued track identified by [uri].
+  ///
+  /// Covers are resolved *after* a track enters the queue, so the live
+  /// in-memory queue must be patched for the player UI to show the freshly
+  /// cached artwork. A no-op when no queued track carries [uri]; `null` values
+  /// leave the corresponding field unchanged.
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  });
+
   Future<void> play();
 
   Future<void> pause();

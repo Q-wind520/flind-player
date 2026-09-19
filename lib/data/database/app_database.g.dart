@@ -171,6 +171,17 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverUrlMeta = const VerificationMeta(
+    'coverUrl',
+  );
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+    'cover_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
     'lastSeenAt',
   );
@@ -266,6 +277,7 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     sampleRate,
     genre,
     coverPath,
+    coverUrl,
     lastSeenAt,
     sizeBytes,
     mtimeMs,
@@ -393,6 +405,12 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
       );
     }
+    if (data.containsKey('cover_url')) {
+      context.handle(
+        _coverUrlMeta,
+        coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
+      );
+    }
     if (data.containsKey('last_seen_at')) {
       context.handle(
         _lastSeenAtMeta,
@@ -515,6 +533,10 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         DriftSqlType.string,
         data['${effectivePrefix}cover_path'],
       ),
+      coverUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_url'],
+      ),
       lastSeenAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}last_seen_at'],
@@ -575,6 +597,12 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
   final int? sampleRate;
   final String? genre;
   final String? coverPath;
+
+  /// Remote cover URL (e.g. a Bilibili `pic` link), or `null` (schema v7).
+  ///
+  /// Persisted so a cover can be re-resolved from the cache index — or fetched
+  /// again after LRU eviction — without another `view` API round-trip.
+  final String? coverUrl;
   final int? lastSeenAt;
 
   /// Size of the source file in bytes at the last scan (schema v5).
@@ -622,6 +650,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     this.sampleRate,
     this.genre,
     this.coverPath,
+    this.coverUrl,
     this.lastSeenAt,
     this.sizeBytes,
     this.mtimeMs,
@@ -670,6 +699,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     }
     if (!nullToAbsent || coverPath != null) {
       map['cover_path'] = Variable<String>(coverPath);
+    }
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<int>(lastSeenAt);
@@ -729,6 +761,9 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       coverPath: coverPath == null && nullToAbsent
           ? const Value.absent()
           : Value(coverPath),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
@@ -771,6 +806,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       sampleRate: serializer.fromJson<int?>(json['sampleRate']),
       genre: serializer.fromJson<String?>(json['genre']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
       lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
       sizeBytes: serializer.fromJson<int?>(json['sizeBytes']),
       mtimeMs: serializer.fromJson<int?>(json['mtimeMs']),
@@ -800,6 +836,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       'sampleRate': serializer.toJson<int?>(sampleRate),
       'genre': serializer.toJson<String?>(genre),
       'coverPath': serializer.toJson<String?>(coverPath),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
       'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
       'sizeBytes': serializer.toJson<int?>(sizeBytes),
       'mtimeMs': serializer.toJson<int?>(mtimeMs),
@@ -827,6 +864,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     Value<int?> sampleRate = const Value.absent(),
     Value<String?> genre = const Value.absent(),
     Value<String?> coverPath = const Value.absent(),
+    Value<String?> coverUrl = const Value.absent(),
     Value<int?> lastSeenAt = const Value.absent(),
     Value<int?> sizeBytes = const Value.absent(),
     Value<int?> mtimeMs = const Value.absent(),
@@ -851,6 +889,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     sampleRate: sampleRate.present ? sampleRate.value : this.sampleRate,
     genre: genre.present ? genre.value : this.genre,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
+    coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
     sizeBytes: sizeBytes.present ? sizeBytes.value : this.sizeBytes,
     mtimeMs: mtimeMs.present ? mtimeMs.value : this.mtimeMs,
@@ -885,6 +924,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           : this.sampleRate,
       genre: data.genre.present ? data.genre.value : this.genre,
       coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
@@ -916,6 +956,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           ..write('sampleRate: $sampleRate, ')
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
+          ..write('coverUrl: $coverUrl, ')
           ..write('lastSeenAt: $lastSeenAt, ')
           ..write('sizeBytes: $sizeBytes, ')
           ..write('mtimeMs: $mtimeMs, ')
@@ -945,6 +986,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     sampleRate,
     genre,
     coverPath,
+    coverUrl,
     lastSeenAt,
     sizeBytes,
     mtimeMs,
@@ -973,6 +1015,7 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           other.sampleRate == this.sampleRate &&
           other.genre == this.genre &&
           other.coverPath == this.coverPath &&
+          other.coverUrl == this.coverUrl &&
           other.lastSeenAt == this.lastSeenAt &&
           other.sizeBytes == this.sizeBytes &&
           other.mtimeMs == this.mtimeMs &&
@@ -999,6 +1042,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
   final Value<int?> sampleRate;
   final Value<String?> genre;
   final Value<String?> coverPath;
+  final Value<String?> coverUrl;
   final Value<int?> lastSeenAt;
   final Value<int?> sizeBytes;
   final Value<int?> mtimeMs;
@@ -1023,6 +1067,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.sampleRate = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
+    this.coverUrl = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
     this.sizeBytes = const Value.absent(),
     this.mtimeMs = const Value.absent(),
@@ -1048,6 +1093,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.sampleRate = const Value.absent(),
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
+    this.coverUrl = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
     this.sizeBytes = const Value.absent(),
     this.mtimeMs = const Value.absent(),
@@ -1078,6 +1124,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Expression<int>? sampleRate,
     Expression<String>? genre,
     Expression<String>? coverPath,
+    Expression<String>? coverUrl,
     Expression<int>? lastSeenAt,
     Expression<int>? sizeBytes,
     Expression<int>? mtimeMs,
@@ -1103,6 +1150,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       if (sampleRate != null) 'sample_rate': sampleRate,
       if (genre != null) 'genre': genre,
       if (coverPath != null) 'cover_path': coverPath,
+      if (coverUrl != null) 'cover_url': coverUrl,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
       if (sizeBytes != null) 'size_bytes': sizeBytes,
       if (mtimeMs != null) 'mtime_ms': mtimeMs,
@@ -1130,6 +1178,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Value<int?>? sampleRate,
     Value<String?>? genre,
     Value<String?>? coverPath,
+    Value<String?>? coverUrl,
     Value<int?>? lastSeenAt,
     Value<int?>? sizeBytes,
     Value<int?>? mtimeMs,
@@ -1155,6 +1204,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       sampleRate: sampleRate ?? this.sampleRate,
       genre: genre ?? this.genre,
       coverPath: coverPath ?? this.coverPath,
+      coverUrl: coverUrl ?? this.coverUrl,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       mtimeMs: mtimeMs ?? this.mtimeMs,
@@ -1216,6 +1266,9 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     if (coverPath.present) {
       map['cover_path'] = Variable<String>(coverPath.value);
     }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<int>(lastSeenAt.value);
     }
@@ -1259,6 +1312,7 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
           ..write('sampleRate: $sampleRate, ')
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
+          ..write('coverUrl: $coverUrl, ')
           ..write('lastSeenAt: $lastSeenAt, ')
           ..write('sizeBytes: $sizeBytes, ')
           ..write('mtimeMs: $mtimeMs, ')
@@ -2418,6 +2472,481 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
   }
 }
 
+class $CoverCacheTable extends CoverCache
+    with TableInfo<$CoverCacheTable, CoverCacheRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CoverCacheTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _urlHashMeta = const VerificationMeta(
+    'urlHash',
+  );
+  @override
+  late final GeneratedColumn<String> urlHash = GeneratedColumn<String>(
+    'url_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _filePathMeta = const VerificationMeta(
+    'filePath',
+  );
+  @override
+  late final GeneratedColumn<String> filePath = GeneratedColumn<String>(
+    'file_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentHashMeta = const VerificationMeta(
+    'contentHash',
+  );
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+    'content_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<int> bytes = GeneratedColumn<int>(
+    'bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastAccessedAtMeta = const VerificationMeta(
+    'lastAccessedAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastAccessedAt = GeneratedColumn<int>(
+    'last_accessed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    urlHash,
+    filePath,
+    contentHash,
+    bytes,
+    cachedAt,
+    lastAccessedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cover_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CoverCacheRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('url_hash')) {
+      context.handle(
+        _urlHashMeta,
+        urlHash.isAcceptableOrUnknown(data['url_hash']!, _urlHashMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_urlHashMeta);
+    }
+    if (data.containsKey('file_path')) {
+      context.handle(
+        _filePathMeta,
+        filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_filePathMeta);
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+        _contentHashMeta,
+        contentHash.isAcceptableOrUnknown(
+          data['content_hash']!,
+          _contentHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentHashMeta);
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bytesMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    if (data.containsKey('last_accessed_at')) {
+      context.handle(
+        _lastAccessedAtMeta,
+        lastAccessedAt.isAcceptableOrUnknown(
+          data['last_accessed_at']!,
+          _lastAccessedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastAccessedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CoverCacheRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CoverCacheRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      urlHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url_hash'],
+      )!,
+      filePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_path'],
+      )!,
+      contentHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_hash'],
+      )!,
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bytes'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_at'],
+      )!,
+      lastAccessedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_accessed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CoverCacheTable createAlias(String alias) {
+    return $CoverCacheTable(attachedDatabase, alias);
+  }
+}
+
+class CoverCacheRow extends DataClass implements Insertable<CoverCacheRow> {
+  final int id;
+
+  /// `sha1(normalized cover URL)`; the lookup key.
+  final String urlHash;
+
+  /// Absolute path of the cached file.
+  final String filePath;
+
+  /// `sha1` hex digest of the stored bytes; also the on-disk file name.
+  final String contentHash;
+
+  /// Size of the cached file, in bytes.
+  final int bytes;
+
+  /// Unix timestamp when the file entered the cache.
+  final int cachedAt;
+
+  /// Unix timestamp of the last read; the LRU ordering key.
+  final int lastAccessedAt;
+  const CoverCacheRow({
+    required this.id,
+    required this.urlHash,
+    required this.filePath,
+    required this.contentHash,
+    required this.bytes,
+    required this.cachedAt,
+    required this.lastAccessedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['url_hash'] = Variable<String>(urlHash);
+    map['file_path'] = Variable<String>(filePath);
+    map['content_hash'] = Variable<String>(contentHash);
+    map['bytes'] = Variable<int>(bytes);
+    map['cached_at'] = Variable<int>(cachedAt);
+    map['last_accessed_at'] = Variable<int>(lastAccessedAt);
+    return map;
+  }
+
+  CoverCacheCompanion toCompanion(bool nullToAbsent) {
+    return CoverCacheCompanion(
+      id: Value(id),
+      urlHash: Value(urlHash),
+      filePath: Value(filePath),
+      contentHash: Value(contentHash),
+      bytes: Value(bytes),
+      cachedAt: Value(cachedAt),
+      lastAccessedAt: Value(lastAccessedAt),
+    );
+  }
+
+  factory CoverCacheRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CoverCacheRow(
+      id: serializer.fromJson<int>(json['id']),
+      urlHash: serializer.fromJson<String>(json['urlHash']),
+      filePath: serializer.fromJson<String>(json['filePath']),
+      contentHash: serializer.fromJson<String>(json['contentHash']),
+      bytes: serializer.fromJson<int>(json['bytes']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+      lastAccessedAt: serializer.fromJson<int>(json['lastAccessedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'urlHash': serializer.toJson<String>(urlHash),
+      'filePath': serializer.toJson<String>(filePath),
+      'contentHash': serializer.toJson<String>(contentHash),
+      'bytes': serializer.toJson<int>(bytes),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+      'lastAccessedAt': serializer.toJson<int>(lastAccessedAt),
+    };
+  }
+
+  CoverCacheRow copyWith({
+    int? id,
+    String? urlHash,
+    String? filePath,
+    String? contentHash,
+    int? bytes,
+    int? cachedAt,
+    int? lastAccessedAt,
+  }) => CoverCacheRow(
+    id: id ?? this.id,
+    urlHash: urlHash ?? this.urlHash,
+    filePath: filePath ?? this.filePath,
+    contentHash: contentHash ?? this.contentHash,
+    bytes: bytes ?? this.bytes,
+    cachedAt: cachedAt ?? this.cachedAt,
+    lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+  );
+  CoverCacheRow copyWithCompanion(CoverCacheCompanion data) {
+    return CoverCacheRow(
+      id: data.id.present ? data.id.value : this.id,
+      urlHash: data.urlHash.present ? data.urlHash.value : this.urlHash,
+      filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      contentHash: data.contentHash.present
+          ? data.contentHash.value
+          : this.contentHash,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+      lastAccessedAt: data.lastAccessedAt.present
+          ? data.lastAccessedAt.value
+          : this.lastAccessedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoverCacheRow(')
+          ..write('id: $id, ')
+          ..write('urlHash: $urlHash, ')
+          ..write('filePath: $filePath, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('bytes: $bytes, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    urlHash,
+    filePath,
+    contentHash,
+    bytes,
+    cachedAt,
+    lastAccessedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CoverCacheRow &&
+          other.id == this.id &&
+          other.urlHash == this.urlHash &&
+          other.filePath == this.filePath &&
+          other.contentHash == this.contentHash &&
+          other.bytes == this.bytes &&
+          other.cachedAt == this.cachedAt &&
+          other.lastAccessedAt == this.lastAccessedAt);
+}
+
+class CoverCacheCompanion extends UpdateCompanion<CoverCacheRow> {
+  final Value<int> id;
+  final Value<String> urlHash;
+  final Value<String> filePath;
+  final Value<String> contentHash;
+  final Value<int> bytes;
+  final Value<int> cachedAt;
+  final Value<int> lastAccessedAt;
+  const CoverCacheCompanion({
+    this.id = const Value.absent(),
+    this.urlHash = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.lastAccessedAt = const Value.absent(),
+  });
+  CoverCacheCompanion.insert({
+    this.id = const Value.absent(),
+    required String urlHash,
+    required String filePath,
+    required String contentHash,
+    required int bytes,
+    required int cachedAt,
+    required int lastAccessedAt,
+  }) : urlHash = Value(urlHash),
+       filePath = Value(filePath),
+       contentHash = Value(contentHash),
+       bytes = Value(bytes),
+       cachedAt = Value(cachedAt),
+       lastAccessedAt = Value(lastAccessedAt);
+  static Insertable<CoverCacheRow> custom({
+    Expression<int>? id,
+    Expression<String>? urlHash,
+    Expression<String>? filePath,
+    Expression<String>? contentHash,
+    Expression<int>? bytes,
+    Expression<int>? cachedAt,
+    Expression<int>? lastAccessedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (urlHash != null) 'url_hash': urlHash,
+      if (filePath != null) 'file_path': filePath,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (bytes != null) 'bytes': bytes,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+    });
+  }
+
+  CoverCacheCompanion copyWith({
+    Value<int>? id,
+    Value<String>? urlHash,
+    Value<String>? filePath,
+    Value<String>? contentHash,
+    Value<int>? bytes,
+    Value<int>? cachedAt,
+    Value<int>? lastAccessedAt,
+  }) {
+    return CoverCacheCompanion(
+      id: id ?? this.id,
+      urlHash: urlHash ?? this.urlHash,
+      filePath: filePath ?? this.filePath,
+      contentHash: contentHash ?? this.contentHash,
+      bytes: bytes ?? this.bytes,
+      cachedAt: cachedAt ?? this.cachedAt,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (urlHash.present) {
+      map['url_hash'] = Variable<String>(urlHash.value);
+    }
+    if (filePath.present) {
+      map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<int>(bytes.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    if (lastAccessedAt.present) {
+      map['last_accessed_at'] = Variable<int>(lastAccessedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoverCacheCompanion(')
+          ..write('id: $id, ')
+          ..write('urlHash: $urlHash, ')
+          ..write('filePath: $filePath, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('bytes: $bytes, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PlaybackStatesTable extends PlaybackStates
     with TableInfo<$PlaybackStatesTable, PlaybackStateRow> {
   @override
@@ -2994,6 +3523,17 @@ class $FavoritesTable extends Favorites
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverUrlMeta = const VerificationMeta(
+    'coverUrl',
+  );
+  @override
+  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
+    'cover_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _favoritedAtMeta = const VerificationMeta(
     'favoritedAt',
   );
@@ -3016,6 +3556,7 @@ class $FavoritesTable extends Favorites
     album,
     durationMs,
     coverPath,
+    coverUrl,
     favoritedAt,
   ];
   @override
@@ -3092,6 +3633,12 @@ class $FavoritesTable extends Favorites
         coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
       );
     }
+    if (data.containsKey('cover_url')) {
+      context.handle(
+        _coverUrlMeta,
+        coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
+      );
+    }
     if (data.containsKey('favorited_at')) {
       context.handle(
         _favoritedAtMeta,
@@ -3148,6 +3695,10 @@ class $FavoritesTable extends Favorites
         DriftSqlType.string,
         data['${effectivePrefix}cover_path'],
       ),
+      coverUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_url'],
+      ),
       favoritedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}favorited_at'],
@@ -3178,6 +3729,9 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
   final int? durationMs;
   final String? coverPath;
 
+  /// Remote cover URL, mirroring [Tracks.coverUrl] (schema v7).
+  final String? coverUrl;
+
   /// Unix timestamp when the track was favourited; the ordering key.
   final int favoritedAt;
   const FavoriteRow({
@@ -3190,6 +3744,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
     this.album,
     this.durationMs,
     this.coverPath,
+    this.coverUrl,
     required this.favoritedAt,
   });
   @override
@@ -3211,6 +3766,9 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
     }
     if (!nullToAbsent || coverPath != null) {
       map['cover_path'] = Variable<String>(coverPath);
+    }
+    if (!nullToAbsent || coverUrl != null) {
+      map['cover_url'] = Variable<String>(coverUrl);
     }
     map['favorited_at'] = Variable<int>(favoritedAt);
     return map;
@@ -3235,6 +3793,9 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
       coverPath: coverPath == null && nullToAbsent
           ? const Value.absent()
           : Value(coverPath),
+      coverUrl: coverUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverUrl),
       favoritedAt: Value(favoritedAt),
     );
   }
@@ -3254,6 +3815,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
       album: serializer.fromJson<String?>(json['album']),
       durationMs: serializer.fromJson<int?>(json['durationMs']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
+      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
       favoritedAt: serializer.fromJson<int>(json['favoritedAt']),
     );
   }
@@ -3270,6 +3832,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
       'album': serializer.toJson<String?>(album),
       'durationMs': serializer.toJson<int?>(durationMs),
       'coverPath': serializer.toJson<String?>(coverPath),
+      'coverUrl': serializer.toJson<String?>(coverUrl),
       'favoritedAt': serializer.toJson<int>(favoritedAt),
     };
   }
@@ -3284,6 +3847,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
     Value<String?> album = const Value.absent(),
     Value<int?> durationMs = const Value.absent(),
     Value<String?> coverPath = const Value.absent(),
+    Value<String?> coverUrl = const Value.absent(),
     int? favoritedAt,
   }) => FavoriteRow(
     id: id ?? this.id,
@@ -3295,6 +3859,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
     album: album.present ? album.value : this.album,
     durationMs: durationMs.present ? durationMs.value : this.durationMs,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
+    coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
     favoritedAt: favoritedAt ?? this.favoritedAt,
   );
   FavoriteRow copyWithCompanion(FavoritesCompanion data) {
@@ -3312,6 +3877,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
           ? data.durationMs.value
           : this.durationMs,
       coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
+      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
       favoritedAt: data.favoritedAt.present
           ? data.favoritedAt.value
           : this.favoritedAt,
@@ -3330,6 +3896,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
           ..write('album: $album, ')
           ..write('durationMs: $durationMs, ')
           ..write('coverPath: $coverPath, ')
+          ..write('coverUrl: $coverUrl, ')
           ..write('favoritedAt: $favoritedAt')
           ..write(')'))
         .toString();
@@ -3346,6 +3913,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
     album,
     durationMs,
     coverPath,
+    coverUrl,
     favoritedAt,
   );
   @override
@@ -3361,6 +3929,7 @@ class FavoriteRow extends DataClass implements Insertable<FavoriteRow> {
           other.album == this.album &&
           other.durationMs == this.durationMs &&
           other.coverPath == this.coverPath &&
+          other.coverUrl == this.coverUrl &&
           other.favoritedAt == this.favoritedAt);
 }
 
@@ -3374,6 +3943,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
   final Value<String?> album;
   final Value<int?> durationMs;
   final Value<String?> coverPath;
+  final Value<String?> coverUrl;
   final Value<int> favoritedAt;
   const FavoritesCompanion({
     this.id = const Value.absent(),
@@ -3385,6 +3955,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
     this.album = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.coverPath = const Value.absent(),
+    this.coverUrl = const Value.absent(),
     this.favoritedAt = const Value.absent(),
   });
   FavoritesCompanion.insert({
@@ -3397,6 +3968,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
     this.album = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.coverPath = const Value.absent(),
+    this.coverUrl = const Value.absent(),
     required int favoritedAt,
   }) : uri = Value(uri),
        source = Value(source),
@@ -3413,6 +3985,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
     Expression<String>? album,
     Expression<int>? durationMs,
     Expression<String>? coverPath,
+    Expression<String>? coverUrl,
     Expression<int>? favoritedAt,
   }) {
     return RawValuesInsertable({
@@ -3425,6 +3998,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
       if (album != null) 'album': album,
       if (durationMs != null) 'duration_ms': durationMs,
       if (coverPath != null) 'cover_path': coverPath,
+      if (coverUrl != null) 'cover_url': coverUrl,
       if (favoritedAt != null) 'favorited_at': favoritedAt,
     });
   }
@@ -3439,6 +4013,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
     Value<String?>? album,
     Value<int?>? durationMs,
     Value<String?>? coverPath,
+    Value<String?>? coverUrl,
     Value<int>? favoritedAt,
   }) {
     return FavoritesCompanion(
@@ -3451,6 +4026,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
       album: album ?? this.album,
       durationMs: durationMs ?? this.durationMs,
       coverPath: coverPath ?? this.coverPath,
+      coverUrl: coverUrl ?? this.coverUrl,
       favoritedAt: favoritedAt ?? this.favoritedAt,
     );
   }
@@ -3485,6 +4061,9 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
     if (coverPath.present) {
       map['cover_path'] = Variable<String>(coverPath.value);
     }
+    if (coverUrl.present) {
+      map['cover_url'] = Variable<String>(coverUrl.value);
+    }
     if (favoritedAt.present) {
       map['favorited_at'] = Variable<int>(favoritedAt.value);
     }
@@ -3503,6 +4082,7 @@ class FavoritesCompanion extends UpdateCompanion<FavoriteRow> {
           ..write('album: $album, ')
           ..write('durationMs: $durationMs, ')
           ..write('coverPath: $coverPath, ')
+          ..write('coverUrl: $coverUrl, ')
           ..write('favoritedAt: $favoritedAt')
           ..write(')'))
         .toString();
@@ -3516,11 +4096,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ScanRootsTable scanRoots = $ScanRootsTable(this);
   late final $ScanStateTable scanState = $ScanStateTable(this);
   late final $AudioCacheTable audioCache = $AudioCacheTable(this);
+  late final $CoverCacheTable coverCache = $CoverCacheTable(this);
   late final $PlaybackStatesTable playbackStates = $PlaybackStatesTable(this);
   late final $FavoritesTable favorites = $FavoritesTable(this);
   late final Index idxAudioCacheLru = Index(
     'idx_audio_cache_lru',
     'CREATE INDEX IF NOT EXISTS idx_audio_cache_lru ON audio_cache (pinned, last_accessed_at)',
+  );
+  late final Index idxCoverCacheLru = Index(
+    'idx_cover_cache_lru',
+    'CREATE INDEX IF NOT EXISTS idx_cover_cache_lru ON cover_cache (last_accessed_at)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -3531,9 +4116,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     scanRoots,
     scanState,
     audioCache,
+    coverCache,
     playbackStates,
     favorites,
     idxAudioCacheLru,
+    idxCoverCacheLru,
   ];
 }
 
@@ -3554,6 +4141,7 @@ typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
   Value<int?> sampleRate,
   Value<String?> genre,
   Value<String?> coverPath,
+  Value<String?> coverUrl,
   Value<int?> lastSeenAt,
   Value<int?> sizeBytes,
   Value<int?> mtimeMs,
@@ -3579,6 +4167,7 @@ typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
   Value<int?> sampleRate,
   Value<String?> genre,
   Value<String?> coverPath,
+  Value<String?> coverUrl,
   Value<int?> lastSeenAt,
   Value<int?> sizeBytes,
   Value<int?> mtimeMs,
@@ -3674,6 +4263,11 @@ class $$TracksTableFilterComposer
 
   ColumnFilters<String> get coverPath => $composableBuilder(
     column: $table.coverPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3802,6 +4396,11 @@ class $$TracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => ColumnOrderings(column),
@@ -3903,6 +4502,9 @@ class $$TracksTableAnnotationComposer
   GeneratedColumn<String> get coverPath =>
       $composableBuilder(column: $table.coverPath, builder: (column) => column);
 
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
+
   GeneratedColumn<int> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => column,
@@ -3971,6 +4573,7 @@ class $$TracksTableTableManager
                 Value<int?> sampleRate = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
                 Value<int?> sizeBytes = const Value.absent(),
                 Value<int?> mtimeMs = const Value.absent(),
@@ -3995,6 +4598,7 @@ class $$TracksTableTableManager
                 sampleRate: sampleRate,
                 genre: genre,
                 coverPath: coverPath,
+                coverUrl: coverUrl,
                 lastSeenAt: lastSeenAt,
                 sizeBytes: sizeBytes,
                 mtimeMs: mtimeMs,
@@ -4021,6 +4625,7 @@ class $$TracksTableTableManager
                 Value<int?> sampleRate = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
                 Value<int?> sizeBytes = const Value.absent(),
                 Value<int?> mtimeMs = const Value.absent(),
@@ -4045,6 +4650,7 @@ class $$TracksTableTableManager
                 sampleRate: sampleRate,
                 genre: genre,
                 coverPath: coverPath,
+                coverUrl: coverUrl,
                 lastSeenAt: lastSeenAt,
                 sizeBytes: sizeBytes,
                 mtimeMs: mtimeMs,
@@ -4708,6 +5314,249 @@ typedef $$AudioCacheTableProcessedTableManager =
       AudioCacheRow,
       PrefetchHooks Function()
     >;
+typedef $$CoverCacheTableCreateCompanionBuilder = CoverCacheCompanion Function({
+  Value<int> id,
+  required String urlHash,
+  required String filePath,
+  required String contentHash,
+  required int bytes,
+  required int cachedAt,
+  required int lastAccessedAt,
+});
+typedef $$CoverCacheTableUpdateCompanionBuilder = CoverCacheCompanion Function({
+  Value<int> id,
+  Value<String> urlHash,
+  Value<String> filePath,
+  Value<String> contentHash,
+  Value<int> bytes,
+  Value<int> cachedAt,
+  Value<int> lastAccessedAt,
+});
+
+class $$CoverCacheTableFilterComposer
+    extends Composer<_$AppDatabase, $CoverCacheTable> {
+  $$CoverCacheTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get urlHash => $composableBuilder(
+    column: $table.urlHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CoverCacheTableOrderingComposer
+    extends Composer<_$AppDatabase, $CoverCacheTable> {
+  $$CoverCacheTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get urlHash => $composableBuilder(
+    column: $table.urlHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CoverCacheTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CoverCacheTable> {
+  $$CoverCacheTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get urlHash =>
+      $composableBuilder(column: $table.urlHash, builder: (column) => column);
+
+  GeneratedColumn<String> get filePath =>
+      $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$CoverCacheTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CoverCacheTable,
+          CoverCacheRow,
+          $$CoverCacheTableFilterComposer,
+          $$CoverCacheTableOrderingComposer,
+          $$CoverCacheTableAnnotationComposer,
+          $$CoverCacheTableCreateCompanionBuilder,
+          $$CoverCacheTableUpdateCompanionBuilder,
+          (
+            CoverCacheRow,
+            BaseReferences<_$AppDatabase, $CoverCacheTable, CoverCacheRow>,
+          ),
+          CoverCacheRow,
+          PrefetchHooks Function()
+        > {
+  $$CoverCacheTableTableManager(_$AppDatabase db, $CoverCacheTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CoverCacheTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CoverCacheTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CoverCacheTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> urlHash = const Value.absent(),
+                Value<String> filePath = const Value.absent(),
+                Value<String> contentHash = const Value.absent(),
+                Value<int> bytes = const Value.absent(),
+                Value<int> cachedAt = const Value.absent(),
+                Value<int> lastAccessedAt = const Value.absent(),
+              }) => CoverCacheCompanion(
+                id: id,
+                urlHash: urlHash,
+                filePath: filePath,
+                contentHash: contentHash,
+                bytes: bytes,
+                cachedAt: cachedAt,
+                lastAccessedAt: lastAccessedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String urlHash,
+                required String filePath,
+                required String contentHash,
+                required int bytes,
+                required int cachedAt,
+                required int lastAccessedAt,
+              }) => CoverCacheCompanion.insert(
+                id: id,
+                urlHash: urlHash,
+                filePath: filePath,
+                contentHash: contentHash,
+                bytes: bytes,
+                cachedAt: cachedAt,
+                lastAccessedAt: lastAccessedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CoverCacheTable, CoverCacheRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CoverCacheTable,
+                    CoverCacheRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CoverCacheTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CoverCacheTable,
+      CoverCacheRow,
+      $$CoverCacheTableFilterComposer,
+      $$CoverCacheTableOrderingComposer,
+      $$CoverCacheTableAnnotationComposer,
+      $$CoverCacheTableCreateCompanionBuilder,
+      $$CoverCacheTableUpdateCompanionBuilder,
+      (
+        CoverCacheRow,
+        BaseReferences<_$AppDatabase, $CoverCacheTable, CoverCacheRow>,
+      ),
+      CoverCacheRow,
+      PrefetchHooks Function()
+    >;
 typedef $$PlaybackStatesTableCreateCompanionBuilder =
     PlaybackStatesCompanion Function({
       Value<int> id,
@@ -4973,6 +5822,7 @@ typedef $$FavoritesTableCreateCompanionBuilder = FavoritesCompanion Function({
   Value<String?> album,
   Value<int?> durationMs,
   Value<String?> coverPath,
+  Value<String?> coverUrl,
   required int favoritedAt,
 });
 typedef $$FavoritesTableUpdateCompanionBuilder = FavoritesCompanion Function({
@@ -4985,6 +5835,7 @@ typedef $$FavoritesTableUpdateCompanionBuilder = FavoritesCompanion Function({
   Value<String?> album,
   Value<int?> durationMs,
   Value<String?> coverPath,
+  Value<String?> coverUrl,
   Value<int> favoritedAt,
 });
 
@@ -5039,6 +5890,11 @@ class $$FavoritesTableFilterComposer
 
   ColumnFilters<String> get coverPath => $composableBuilder(
     column: $table.coverPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5102,6 +5958,11 @@ class $$FavoritesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get coverUrl => $composableBuilder(
+    column: $table.coverUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get favoritedAt => $composableBuilder(
     column: $table.favoritedAt,
     builder: (column) => ColumnOrderings(column),
@@ -5147,6 +6008,9 @@ class $$FavoritesTableAnnotationComposer
 
   GeneratedColumn<String> get coverPath =>
       $composableBuilder(column: $table.coverPath, builder: (column) => column);
+
+  GeneratedColumn<String> get coverUrl =>
+      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
 
   GeneratedColumn<int> get favoritedAt => $composableBuilder(
     column: $table.favoritedAt,
@@ -5194,6 +6058,7 @@ class $$FavoritesTableTableManager
                 Value<String?> album = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
                 Value<int> favoritedAt = const Value.absent(),
               }) => FavoritesCompanion(
                 id: id,
@@ -5205,6 +6070,7 @@ class $$FavoritesTableTableManager
                 album: album,
                 durationMs: durationMs,
                 coverPath: coverPath,
+                coverUrl: coverUrl,
                 favoritedAt: favoritedAt,
               ),
           createCompanionCallback:
@@ -5218,6 +6084,7 @@ class $$FavoritesTableTableManager
                 Value<String?> album = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
+                Value<String?> coverUrl = const Value.absent(),
                 required int favoritedAt,
               }) => FavoritesCompanion.insert(
                 id: id,
@@ -5229,6 +6096,7 @@ class $$FavoritesTableTableManager
                 album: album,
                 durationMs: durationMs,
                 coverPath: coverPath,
+                coverUrl: coverUrl,
                 favoritedAt: favoritedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -5277,6 +6145,8 @@ class $AppDatabaseManager {
       $$ScanStateTableTableManager(_db, _db.scanState);
   $$AudioCacheTableTableManager get audioCache =>
       $$AudioCacheTableTableManager(_db, _db.audioCache);
+  $$CoverCacheTableTableManager get coverCache =>
+      $$CoverCacheTableTableManager(_db, _db.coverCache);
   $$PlaybackStatesTableTableManager get playbackStates =>
       $$PlaybackStatesTableTableManager(_db, _db.playbackStates);
   $$FavoritesTableTableManager get favorites =>

@@ -72,6 +72,7 @@ Track decodeTrack(Map<String, dynamic> json) {
     sampleRate: _asIntOrNull(json['sampleRate']),
     genre: _asStringOrNull(json['genre'], 'genre'),
     coverPath: _asStringOrNull(json['coverPath'], 'coverPath'),
+    coverUrl: _asCoverUrlOrNull(json['coverUrl']),
   );
 }
 

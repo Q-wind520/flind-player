@@ -319,6 +319,19 @@ class AudioCacheStore {
     return row.read<int>('total');
   }
 
+  /// Distinct cover bytes, mirroring [totalBytes] for the `cover_cache` table.
+  ///
+  /// Covers share the quota with audio; see [ensureSpace].
+  Future<int> _coverCacheBytes() async {
+    final query = _db.customSelect(
+      'SELECT COALESCE(SUM(bytes), 0) AS total FROM ('
+      'SELECT DISTINCT file_path, bytes FROM cover_cache)',
+      readsFrom: {_db.coverCache},
+    );
+    final row = await query.getSingle();
+    return row.read<int>('total');
+  }
+
   /// Every cached row, oldest `lastAccessedAt` first (LRU order).
   Future<List<CachedAudio>> entries() async {
     final rows =
@@ -330,60 +343,96 @@ class AudioCacheStore {
     return rows.map(_toDomain).toList(growable: false);
   }
 
-  /// Evicts non-pinned entries (oldest `lastAccessedAt` first) until
-  /// `totalBytes() + incomingBytes <= limitBytes`.
+  /// Evicts cache entries until `used + incomingBytes <= limitBytes`, where
+  /// `used` is the combined cover and audio footprint.
   ///
-  /// Reads the current [CacheSettings] on every call, so a settings change
-  /// applies immediately. Pinned entries are never evicted; when they alone
-  /// exceed the limit, [EvictionResult.hasSpace] is `false`.
+  /// Cover rows are evicted first (oldest `lastAccessedAt` first, and they are
+  /// never pinned), then non-pinned audio rows oldest-first. Reads the current
+  /// [CacheSettings] on every call, so a settings change applies immediately.
+  /// Pinned audio entries are never evicted; when they alone exceed the limit,
+  /// [EvictionResult.hasSpace] is `false`.
   ///
   /// Only files no other row references are deleted and counted as freed, so a
-  /// physical file shared by a pinned and a non-pinned row survives eviction of
-  /// the latter.
+  /// physical file shared by two rows survives eviction of one of them.
+  ///
+  /// Never throws; a failure is logged and reported as no space.
   Future<EvictionResult> ensureSpace(int incomingBytes) async {
-    await _resolveDir();
-    final settings = await _settings.cacheSettings();
-    final used = await totalBytes();
+    var evictedCount = 0;
+    var freedBytes = 0;
+    try {
+      await _resolveDir();
+      final settings = await _settings.cacheSettings();
+      final used = await totalBytes() + await _coverCacheBytes();
 
-    if (used + incomingBytes <= settings.limitBytes) {
-      return const EvictionResult(
-        evictedCount: 0,
-        freedBytes: 0,
-        hasSpace: true,
-      );
-    }
+      if (used + incomingBytes <= settings.limitBytes) {
+        return const EvictionResult(
+          evictedCount: 0,
+          freedBytes: 0,
+          hasSpace: true,
+        );
+      }
 
-    final candidates =
-        await (_db.select(_db.audioCache)
-              ..where((t) => t.pinned.equals(false))
-              ..orderBy([
+      // Covers share the quota but are never pinned, so they go first.
+      final coverCandidates =
+          await (_db.select(_db.coverCache)..orderBy([
                 (t) => OrderingTerm.asc(t.lastAccessedAt),
                 (t) => OrderingTerm.asc(t.id),
               ]))
-            .get();
-
-    var evictedCount = 0;
-    var freedBytes = 0;
-    for (final candidate in candidates) {
-      if (used - freedBytes + incomingBytes <= settings.limitBytes) break;
-      await (_db.delete(
-        _db.audioCache,
-      )..where((t) => t.id.equals(candidate.id))).go();
-      evictedCount++;
-      final stillReferenced = await (_db.select(
-        _db.audioCache,
-      )..where((t) => t.filePath.equals(candidate.filePath))).get();
-      if (stillReferenced.isEmpty) {
-        _deleteFile(candidate.filePath);
-        freedBytes += candidate.bytes;
+              .get();
+      for (final candidate in coverCandidates) {
+        if (used - freedBytes + incomingBytes <= settings.limitBytes) break;
+        await (_db.delete(
+          _db.coverCache,
+        )..where((t) => t.id.equals(candidate.id))).go();
+        evictedCount++;
+        final stillReferenced = await (_db.select(
+          _db.coverCache,
+        )..where((t) => t.filePath.equals(candidate.filePath))).get();
+        if (stillReferenced.isEmpty) {
+          // Cover files live outside the audio base dir, so the containment
+          // guard in `_deleteFile` cannot be used here.
+          _deleteCoverFile(candidate.filePath);
+          freedBytes += candidate.bytes;
+        }
       }
-    }
 
-    return EvictionResult(
-      evictedCount: evictedCount,
-      freedBytes: freedBytes,
-      hasSpace: used - freedBytes + incomingBytes <= settings.limitBytes,
-    );
+      final candidates =
+          await (_db.select(_db.audioCache)
+                ..where((t) => t.pinned.equals(false))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.lastAccessedAt),
+                  (t) => OrderingTerm.asc(t.id),
+                ]))
+              .get();
+
+      for (final candidate in candidates) {
+        if (used - freedBytes + incomingBytes <= settings.limitBytes) break;
+        await (_db.delete(
+          _db.audioCache,
+        )..where((t) => t.id.equals(candidate.id))).go();
+        evictedCount++;
+        final stillReferenced = await (_db.select(
+          _db.audioCache,
+        )..where((t) => t.filePath.equals(candidate.filePath))).get();
+        if (stillReferenced.isEmpty) {
+          _deleteFile(candidate.filePath);
+          freedBytes += candidate.bytes;
+        }
+      }
+
+      return EvictionResult(
+        evictedCount: evictedCount,
+        freedBytes: freedBytes,
+        hasSpace: used - freedBytes + incomingBytes <= settings.limitBytes,
+      );
+    } catch (error) {
+      debugPrint('AudioCacheStore: ensureSpace failed: $error');
+      return EvictionResult(
+        evictedCount: evictedCount,
+        freedBytes: freedBytes,
+        hasSpace: false,
+      );
+    }
   }
 
   /// Evicts non-pinned entries oldest-first until usage fits the configured cap.
@@ -510,6 +559,21 @@ class AudioCacheStore {
       }
     } catch (error) {
       debugPrint('AudioCacheStore: failed to delete $path: $error');
+    }
+  }
+
+  /// Deletes a cover cache file, best-effort; never throws.
+  ///
+  /// Cover files live outside the audio cache root, so [_deleteFile]'s
+  /// containment guard must not be applied here.
+  void _deleteCoverFile(String path) {
+    try {
+      final file = File(path);
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    } catch (error) {
+      debugPrint('AudioCacheStore: failed to delete cover $path: $error');
     }
   }
 

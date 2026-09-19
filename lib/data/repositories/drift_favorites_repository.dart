@@ -61,6 +61,7 @@ class DriftFavoritesRepository implements FavoritesRepository {
       album: Value(track.album),
       durationMs: Value(track.duration?.inMilliseconds),
       coverPath: Value(track.coverPath),
+      coverUrl: Value(track.coverUrl),
       favoritedAt: Value(DateTime.now().millisecondsSinceEpoch),
     );
 
@@ -78,6 +79,22 @@ class DriftFavoritesRepository implements FavoritesRepository {
   @override
   Future<void> removeFavorite(String uri) async {
     await (_db.delete(_db.favorites)..where((f) => f.uri.equals(uri))).go();
+  }
+
+  @override
+  Future<void> updateFavoriteCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {
+    // `favoritedAt` is deliberately untouched: refreshing a cover must not
+    // reorder the list. A missing row is a no-op.
+    await (_db.update(_db.favorites)..where((f) => f.uri.equals(uri))).write(
+      FavoritesCompanion(
+        coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
+        coverUrl: coverUrl == null ? const Value.absent() : Value(coverUrl),
+      ),
+    );
   }
 
   @override
@@ -114,6 +131,7 @@ class DriftFavoritesRepository implements FavoritesRepository {
           ? null
           : Duration(milliseconds: row.durationMs!),
       coverPath: row.coverPath,
+      coverUrl: row.coverUrl,
     );
   }
 }

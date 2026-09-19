@@ -266,6 +266,42 @@ String? _parseCoverUrl(Object? raw) {
   return raw;
 }
 
+/// Normalizes a Bilibili cover URL for network use and cache keying.
+///
+/// Search/view payloads return protocol-relative (`//i0.hdslb.com/...`) and
+/// legacy `http://` links; both are upgraded to `https://` so the same image
+/// hashes to one cache entry regardless of the payload spelling. Any CDN
+/// processing suffix (`@672w_378h_1c.webp`) is stripped, since callers append
+/// their own; this keeps the cache key stable across differing request sizes.
+///
+/// Returns `null` for an absent, blank, or unrecognizably relative value.
+String? normalizeCoverUrl(String? raw) {
+  if (raw == null) return null;
+  var value = raw.trim();
+  if (value.isEmpty) return null;
+
+  if (value.startsWith('//')) {
+    value = 'https:$value';
+  } else if (value.startsWith('http://')) {
+    value = 'https://${value.substring('http://'.length)}';
+  } else if (value.startsWith('/')) {
+    value = 'https://www.bilibili.com$value';
+  }
+
+  if (!value.startsWith('https://') && !value.startsWith('http://')) {
+    return null;
+  }
+
+  // Drop an existing CDN size/format suffix (`...jpg@480w.webp`), keeping the
+  // base asset so every payload variant maps to the same cache entry.
+  final at = value.lastIndexOf('@');
+  if (at > value.lastIndexOf('/')) {
+    value = value.substring(0, at);
+  }
+
+  return value.isEmpty ? null : value;
+}
+
 /// Parses the search `duration` field, which is `mm:ss` (or `hh:mm:ss`) text.
 Duration? _parseDuration(Object? raw) {
   if (raw is num) {

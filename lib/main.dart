@@ -27,6 +27,7 @@ import 'package:flind_player/app/di/application_overrides.dart';
 import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
@@ -117,6 +118,18 @@ Future<void> main() async {
       (_) {},
       onError: (Object error) {
         debugPrint('Flind Player: cache deduplication failed: $error');
+      },
+    ),
+  );
+
+  // Same reconciliation for the remote-cover cache: a row whose file vanished
+  // would otherwise keep consuming the shared quota against phantom bytes.
+  final coverCacheStore = container.read(coverCacheStoreProvider);
+  unawaited(
+    coverCacheStore.checkIntegrity().then<void>(
+      (_) {},
+      onError: (Object error) {
+        debugPrint('Flind Player: cover cache integrity check failed: $error');
       },
     ),
   );

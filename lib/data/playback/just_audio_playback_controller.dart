@@ -23,6 +23,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
+import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
 
@@ -108,6 +109,28 @@ class JustAudioPlaybackController implements PlaybackController {
     _queue = next;
     _emit();
     await _playCurrent(autoPlay: autoPlay);
+  }
+
+  @override
+  Future<void> updateTrackCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {
+    if (_disposed) {
+      return;
+    }
+    final index = _queue.tracks.indexWhere((track) => track.uri == uri);
+    if (index < 0) {
+      return;
+    }
+    final tracks = List<Track>.of(_queue.tracks);
+    tracks[index] = tracks[index].copyWith(
+      coverPath: coverPath,
+      coverUrl: coverUrl,
+    );
+    _queue = _queue.copyWith(tracks: tracks);
+    _emit();
   }
 
   @override

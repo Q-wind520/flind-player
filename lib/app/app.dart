@@ -20,6 +20,7 @@ import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
@@ -29,6 +30,9 @@ class FlindApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Keep the queue cover-prefetch coordinator alive for the whole session.
+    ref.watch(coverPrefetchCoordinatorProvider);
+
     final language =
         ref.watch(appLanguageProvider).value ?? AppLanguage.system;
     return MaterialApp(

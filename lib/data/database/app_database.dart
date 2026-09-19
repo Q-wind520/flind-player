@@ -22,7 +22,15 @@ part 'app_database.g.dart';
 
 /// SQLite-backed application database.
 @DriftDatabase(
-  tables: [Tracks, ScanRoots, ScanState, AudioCache, PlaybackStates, Favorites],
+  tables: [
+    Tracks,
+    ScanRoots,
+    ScanState,
+    AudioCache,
+    CoverCache,
+    PlaybackStates,
+    Favorites,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   /// Opens the platform database, or uses [executor] when one is injected
@@ -30,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -74,6 +82,15 @@ class AppDatabase extends _$AppDatabase {
         // v5 had no content hash, so identical audio under two logical keys
         // could not be deduplicated. Guarded for the same reason as above.
         await _addColumnIfMissing(m, audioCache, audioCache.contentHash);
+      }
+      if (from < 7) {
+        // v6 had no remote cover URL nor a remote cover cache index. The new
+        // columns are guarded like v5's; `createTable`/`createIndex` emit
+        // `IF NOT EXISTS`, so a fixture already carrying them upgrades cleanly.
+        await _addColumnIfMissing(m, tracks, tracks.coverUrl);
+        await _addColumnIfMissing(m, favorites, favorites.coverUrl);
+        await m.createTable(coverCache);
+        await m.createIndex(idxCoverCacheLru);
       }
     },
   );

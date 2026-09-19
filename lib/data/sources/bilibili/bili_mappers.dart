@@ -86,6 +86,7 @@ Track favoriteResourceToTrack(FavResourceDto resource) => Track(
   duration: resource.durationSeconds > 0
       ? Duration(seconds: resource.durationSeconds)
       : null,
+  coverUrl: normalizeCoverUrl(resource.coverUrl),
 );
 
 /// Maps favourite resources to playable [Track]s, skipping entries that the
@@ -152,6 +153,7 @@ Track searchItemToTrack(SearchItemDto item) => Track(
   title: stripHtml(item.title),
   artist: item.author.isEmpty ? null : stripHtml(item.author),
   duration: item.duration,
+  coverUrl: normalizeCoverUrl(item.coverUrl),
 );
 
 /// Maps one part of a video to a [Track].
@@ -179,5 +181,6 @@ Track videoPageToTrack(VideoInfoDto video, VideoPageDto page) {
     artist: video.ownerName.isEmpty ? null : stripHtml(video.ownerName),
     album: videoTitle.isEmpty ? null : videoTitle,
     duration: duration,
+    coverUrl: normalizeCoverUrl(video.coverUrl),
   );
 }

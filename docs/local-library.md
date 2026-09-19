@@ -110,6 +110,24 @@
   - 专辑封面天然去重（同专辑多曲共享 hash）
 - 解码/缩放必须在非 UI isolate
 
+### 3.1 在线（Bilibili）远程封面
+
+内嵌封面只覆盖本地文件；B 站音源需要单独抓取视频封面（`pic` / 收藏夹 `cover`）：
+
+- **来源**：搜索/详情/收藏夹 DTO 已带封面 URL，`bili_mappers` 透传并归一化；
+  `searchItemToTrack` / `favoriteResourceToTrack` / `videoPageToTrack` 写入
+  `Track.coverUrl`。缺失时用 `bvid` 调 `/x/web-interface/view` 兜底。
+- **归一化**：`normalizeCoverUrl` 把 `//host/...` 与 `http://` 升到 `https://`，
+  并剥掉既有 CDN 处理后缀（`@672w_...`），保证同一图片的缓存键稳定。
+- **缓存**：`CoverCacheStore` 以 `sha1(归一化 URL)` 为键索引、以 `sha1(图片字节)`
+  命名文件（`cover_cache/<contentHash>.jpg`，512px JPEG q85，复用 `encodeCoverJpeg`）。
+  相同图片在不同 URL 下只占一份磁盘。
+- **共享配额**：封面字节与音频缓存共用一个上限（见 §4）。
+- **触发**：`CoverPrefetchCoordinator` 监听播放队列，**进队即拉**；命中本地文件即跳过，
+  失败按 10 分钟退避重试，最多 4 个并发。解析成功后写回 `tracks.cover_url` /
+  `tracks.cover_path` 与 `favorites.cover_url` / `favorites.cover_path`。
+- **多 P 视频**：`pic` 是视频级封面，各分 P 共用同一张（预期行为）。
+
 ---
 
 ## 4. 离线音频缓存（D9）
@@ -127,7 +145,8 @@ Bilibili 音频缓存到本地，实现：
 
 ```
 <app support>/
-├── covers/<sha1>.webp           # 封面缓存
+├── covers/<sha1>.webp           # 本地内嵌封面缓存（不入配额）
+├── cover_cache/<sha1>.jpg       # 远程（B 站）封面缓存（入共享配额）
 └── audio_cache/
     ├── bilibili/<sha1>.<ext>    # 在线音频（通常 .m4a）
     └── local/                    # 预留（本地文件不复制）
@@ -158,13 +177,29 @@ CREATE TABLE audio_cache (
 );
 CREATE INDEX idx_audio_cache_lru ON audio_cache(pinned, last_accessed_at);
 CREATE INDEX idx_audio_cache_content_hash ON audio_cache(content_hash);
+
+-- v7：远程封面缓存（与 audio_cache 共享同一配额）
+CREATE TABLE cover_cache (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  url_hash         TEXT    NOT NULL UNIQUE,  -- sha1(归一化封面 URL)，查找键
+  file_path        TEXT    NOT NULL,
+  content_hash     TEXT    NOT NULL,         -- sha1(图片字节)，同时是文件名
+  bytes            INTEGER NOT NULL,
+  cached_at        INTEGER NOT NULL,
+  last_accessed_at INTEGER NOT NULL
+);
+CREATE INDEX idx_cover_cache_lru ON cover_cache(last_accessed_at);
+
+-- v7：封面 URL 随轨道/收藏持久化，淘汰后无需再请求 view 接口
+ALTER TABLE tracks    ADD COLUMN cover_url TEXT;
+ALTER TABLE favorites ADD COLUMN cover_url TEXT;
 ```
 
 设置项（`SettingsRepository`）：缓存只有一个可配置项——上限。
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `cache_limit_bytes` | `1073741824`（1 GiB） | 上限，可自定义 MB / GB |
+| `cache_limit_bytes` | `1073741824`（1 GiB） | 音频 + 封面共享上限，设置页以 **MB** 为单位编辑（无 MB/GB 选择器） |
 
 > 缓存始终开启（在线音频播放时后台写入）；旧版本写入的 `cache_enabled` /
 > `cache_auto_on_play` 键不再读取。
@@ -173,15 +208,22 @@ CREATE INDEX idx_audio_cache_content_hash ON audio_cache(content_hash);
 
 ```
 写入前检查:
-  used = SUM(bytes) over DISTINCT file_path   -- 内容去重后多行可共享一个物理文件，只计一次
+  used = SUM(bytes) over DISTINCT file_path(audio_cache)
+       + SUM(bytes) over DISTINCT file_path(cover_cache)   -- 两表共享同一上限
   if used + new_bytes > limit:
+      -- 1) 封面先让路（永不可 pin）
+      candidates = SELECT * FROM cover_cache ORDER BY last_accessed_at ASC
+      逐个删除：先删行；仅当没有其他行引用同一 file_path 时才删文件并计入释放量
+      -- 2) 仍不足再淘汰非 pin 音频
       candidates = SELECT * FROM audio_cache
-                   WHERE pinned = 0
-                   ORDER BY last_accessed_at ASC
+                   WHERE pinned = 0 ORDER BY last_accessed_at ASC
       逐个删除：先删行；仅当没有其他行引用同一 file_path 时才删文件并计入释放量
       if 仍不足（pinned 占用过多）:
           拒绝新的播放缓存；手动下载前提示用户
 ```
+
+- **封面让路、音频优先**：音频需要空间时先淘汰封面；封面自己需要空间而音频已占满时，
+  直接放弃该封面（best-effort），**绝不驱逐音频**。
 
 - **内容去重**：下载完成后按字节计算 SHA-1；若已有行索引同一 `content_hash`，
   新下载的文件被删除，本行指向既有物理文件。因此同一份音频只占一份磁盘、只计一次用量。

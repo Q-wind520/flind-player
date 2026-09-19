@@ -895,7 +895,10 @@ class _TrackCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final coverPath = track.coverPath;
-    final hasCover = coverPath != null && coverPath.isNotEmpty;
+    final coverUrl = track.coverUrl;
+    final hasCover =
+        (coverPath != null && coverPath.isNotEmpty) ||
+        (coverUrl != null && coverUrl.isNotEmpty);
     final useFixedSize = !size.isInfinite;
     final borderRadius = useFixedSize ? size * 0.16 : 4.0;
 
@@ -906,6 +909,7 @@ class _TrackCover extends StatelessWidget {
       child: hasCover
           ? CoverImage(
               path: coverPath,
+              url: coverUrl,
               size: size,
               errorBuilder: (context, error, stackTrace) =>
                   _placeholder(scheme),

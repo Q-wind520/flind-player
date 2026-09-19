@@ -36,3 +36,14 @@ String _oneDecimal(double value) {
   final text = value.toStringAsFixed(1);
   return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
 }
+
+/// Formats a byte count as mebibytes, always with an explicit `MB` suffix.
+///
+/// The cache cap is edited and displayed in a single unit (MB), so the settings
+/// screen needs a stable unit rather than [formatBytes]'s KB/MB/GB scaling.
+/// Examples: `0 MB`, `300 MB`, `1024 MB`, `12.5 MB`.
+String formatMegabytes(int bytes) {
+  if (bytes <= 0) return '0 MB';
+  const int mb = 1024 * 1024;
+  return '${_oneDecimal(bytes / mb)} MB';
+}

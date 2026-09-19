@@ -219,6 +219,21 @@ BV1uv411q7Mv  audio=[(30216,67268),(30232,132803),(30280,315098)]  dolby=null fl
 
 结论：防盗链**按 CDN 不同、且可能变化**，绝不硬编码单一 CDN；播放器必须支持自定义 HTTP 头。
 
+### 7.6 视频封面
+
+封面作为“音乐封面”抓取，与音频共用同一套请求头（`User-Agent` + `Referer`），
+但走独立下载通道（不进 `RateLimiter` 的 API 限流）：
+
+- **来源**：搜索 `data.result[].pic`、详情 `data.pic`、收藏夹 `data.medias[].cover`。
+  DTO 已解析，`bili_mappers` 归一化后写入 `Track.coverUrl`；缺失时用
+  `/x/web-interface/view?bvid=` 兜底。
+- **归一化**：`normalizeCoverUrl` 处理 `//` 协议相对、`http://` 升级，并剥掉 CDN
+  处理后缀（`@672w_378h_1c.webp`）后再缓存。图片 CDN 为 `*.hdslb.com`。
+- **缓存**：见 [`local-library.md`](local-library.md) §3.1 与 §4（与音频缓存共享配额、
+  内容寻址、LRU 让路）。
+- **多 P**：`pic` 为视频级，各分 P 共用同一封面。
+- **合规**：整个抓取受 B 站音源启用开关约束；音源可远程禁用时封面同步禁用。
+
 ---
 
 ## 8. 参考项目

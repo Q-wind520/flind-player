@@ -82,6 +82,10 @@ class PlaybackState {
     );
   }
 
+  // `Track ==` deliberately ignores cover metadata so a resolved cover is not
+  // seen as a queue change, so the current track's cover pointer is compared
+  // explicitly here. Without it, Riverpod would drop the post-resolution state
+  // emission and the player would keep showing the placeholder.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -92,6 +96,8 @@ class PlaybackState {
           other.position == position &&
           other.duration == duration &&
           other.currentTrack == currentTrack &&
+          other.currentTrack?.coverPath == currentTrack?.coverPath &&
+          other.currentTrack?.coverUrl == currentTrack?.coverUrl &&
           other.repeatMode == repeatMode &&
           other.shuffleEnabled == shuffleEnabled &&
           other.hasNext == hasNext &&
@@ -105,6 +111,8 @@ class PlaybackState {
     position,
     duration,
     currentTrack,
+    currentTrack?.coverPath,
+    currentTrack?.coverUrl,
     repeatMode,
     shuffleEnabled,
     hasNext,
