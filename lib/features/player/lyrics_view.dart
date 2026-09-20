@@ -81,10 +81,11 @@ class LyricsView extends StatelessWidget {
 
 /// Compact teaser strip for the lyrics placeholder.
 ///
-/// Fills its parent (typically the 25%-height portrait slot), scrolls instead
-/// of overflowing on very short viewports, and shows the "词莫见，敬聆听" line
+/// Fills its parent (typically the 5-line portrait slot), scrolls instead of
+/// overflowing on very short viewports, and shows the "词莫见，敬聆听" line
 /// centred with a lyrics icon. Tapping it calls [onTap] to expand the lyrics
-/// pane.
+/// pane. A plain [GestureDetector] keeps the strip free of hover/focus
+/// highlights.
 class LyricsPreview extends StatelessWidget {
   const LyricsPreview({super.key, this.onTap});
 
@@ -97,7 +98,8 @@ class LyricsPreview extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return AppSurface(
-      child: InkWell(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: LayoutBuilder(
           builder: (context, constraints) {

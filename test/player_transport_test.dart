@@ -28,6 +28,7 @@ import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
+import 'package:flind_player/features/player/mini_settings.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/l10n.dart';
@@ -185,47 +186,54 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.playlist_play), findsOneWidget);
+      // The mode cycler lives in MiniSettings; the transport ends with the
+      // playlist button instead.
+      Finder modeButton(IconData icon) => find.descendant(
+        of: find.byType(MiniSettings),
+        matching: find.byIcon(icon),
+      );
+
+      expect(modeButton(Icons.playlist_play), findsOneWidget);
 
       // 顺序播放 → 列表循环.
-      await tester.tap(find.byIcon(Icons.playlist_play));
+      await tester.tap(modeButton(Icons.playlist_play));
       await tester.pumpAndSettle();
       expect(controller.calls, [
         ('shuffle', false),
         ('repeat', RepeatMode.all),
       ]);
-      expect(find.byIcon(Icons.repeat), findsOneWidget);
+      expect(modeButton(Icons.repeat), findsOneWidget);
 
       // 列表循环 → 单曲循环.
-      await tester.tap(find.byIcon(Icons.repeat));
+      await tester.tap(modeButton(Icons.repeat));
       await tester.pumpAndSettle();
       expect(controller.calls.sublist(2), [
         ('shuffle', false),
         ('repeat', RepeatMode.one),
       ]);
-      expect(find.byIcon(Icons.repeat_one), findsOneWidget);
+      expect(modeButton(Icons.repeat_one), findsOneWidget);
 
       // 单曲循环 → 随机播放 (shuffle is applied before the repeat mode).
-      await tester.tap(find.byIcon(Icons.repeat_one));
+      await tester.tap(modeButton(Icons.repeat_one));
       await tester.pumpAndSettle();
       expect(controller.calls.sublist(4), [
         ('shuffle', true),
         ('repeat', RepeatMode.off),
       ]);
-      expect(find.byIcon(Icons.shuffle), findsOneWidget);
+      expect(modeButton(Icons.shuffle), findsOneWidget);
 
       // 随机播放 → 顺序播放.
-      await tester.tap(find.byIcon(Icons.shuffle));
+      await tester.tap(modeButton(Icons.shuffle));
       await tester.pumpAndSettle();
       expect(controller.calls.sublist(6), [
         ('shuffle', false),
         ('repeat', RepeatMode.off),
       ]);
-      expect(find.byIcon(Icons.playlist_play), findsOneWidget);
+      expect(modeButton(Icons.playlist_play), findsOneWidget);
       expect(controller.calls, hasLength(8));
     });
 
-    testWidgets('favourite sits leftmost and the mode button rightmost', (
+    testWidgets('favourite sits leftmost and the playlist button rightmost', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(800, 900);
@@ -242,12 +250,12 @@ void main() {
       final previous = tester.getTopLeft(find.byIcon(Icons.skip_previous)).dx;
       final playPause = tester.getTopLeft(find.byIcon(Icons.play_arrow)).dx;
       final next = tester.getTopLeft(find.byIcon(Icons.skip_next)).dx;
-      final mode = tester.getTopLeft(find.byIcon(Icons.playlist_play)).dx;
+      final playlist = tester.getTopLeft(find.byIcon(Icons.queue_music)).dx;
 
       expect(favourite, lessThan(previous));
       expect(previous, lessThan(playPause));
       expect(playPause, lessThan(next));
-      expect(next, lessThan(mode));
+      expect(next, lessThan(playlist));
     });
 
     testWidgets('five controls fit at 280×640 without overflow', (
@@ -265,6 +273,8 @@ void main() {
       expect(find.byIcon(Icons.skip_previous), findsOneWidget);
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
       expect(find.byIcon(Icons.skip_next), findsOneWidget);
+      expect(find.byIcon(Icons.queue_music), findsOneWidget);
+      // The mode cycler still fits, now in MiniSettings.
       expect(find.byIcon(Icons.playlist_play), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

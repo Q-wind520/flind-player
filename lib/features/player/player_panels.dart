@@ -289,7 +289,7 @@ class _ActiveBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            Icons.bedtime,
+            Icons.timer,
             size: 20,
             color: theme.colorScheme.onPrimaryContainer,
           ),

@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/features/player/play_mode_button.dart';
 import 'package:flind_player/features/player/player_panels.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
@@ -28,10 +29,11 @@ const double kMiniSettingsHeight = 56;
 
 /// The docked bottom control bar of the now-playing screen.
 ///
-/// Five compact icon buttons: 更多, 调节, 定时关闭, 音量 and 播放列表. The sleep
+/// Five compact icon buttons: 更多, 调节, 定时关闭, 音量 and 播放模式. The sleep
 /// timer button reflects the armed state (tinted icon plus a live countdown
 /// label); the volume button delegates to [onVolumeTap] so the parent can swap
-/// the bar for a [VolumeBar].
+/// the bar for a [VolumeBar]. No tooltips: the player avoids hover/focus
+/// "bubble" hints.
 class MiniSettings extends ConsumerWidget {
   const MiniSettings({super.key, required this.onVolumeTap});
 
@@ -44,7 +46,7 @@ class MiniSettings extends ConsumerWidget {
   static const Key tuneKey = Key('mini_settings_tune');
   static const Key sleepTimerKey = Key('mini_settings_sleep_timer');
   static const Key volumeKey = Key('mini_settings_volume');
-  static const Key playlistKey = Key('mini_settings_playlist');
+  static const Key playModeKey = Key('mini_settings_play_mode');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,7 +64,6 @@ class MiniSettings extends ConsumerWidget {
                 child: _barButton(
                   key: moreKey,
                   icon: Icons.more_vert,
-                  tooltip: l10n.playerMore,
                   onTap: () => _openPanel(
                     context,
                     EmptyPanel(icon: Icons.more_vert, title: l10n.playerMore),
@@ -75,7 +76,6 @@ class MiniSettings extends ConsumerWidget {
                 child: _barButton(
                   key: tuneKey,
                   icon: Icons.tune,
-                  tooltip: l10n.playerTune,
                   onTap: () => _openPanel(
                     context,
                     EmptyPanel(icon: Icons.tune, title: l10n.playerTune),
@@ -85,29 +85,19 @@ class MiniSettings extends ConsumerWidget {
               ),
             ),
             Expanded(
-              child: Center(
-                child: _sleepTimerButton(context, l10n, sleepState),
-              ),
+              child: Center(child: _sleepTimerButton(context, sleepState)),
             ),
             Expanded(
               child: Center(
                 child: _barButton(
                   key: volumeKey,
                   icon: _volumeIcon(volume),
-                  tooltip: l10n.playerVolume,
                   onTap: onVolumeTap,
                 ),
               ),
             ),
             Expanded(
-              child: Center(
-                child: _barButton(
-                  key: playlistKey,
-                  icon: Icons.queue_music,
-                  tooltip: l10n.playerPlaylist,
-                  onTap: () => _openPanel(context, const PlaylistPanel()),
-                ),
-              ),
+              child: Center(child: PlayModeButton(key: playModeKey)),
             ),
           ],
         ),
@@ -119,76 +109,65 @@ class MiniSettings extends ConsumerWidget {
   Widget _barButton({
     required Key key,
     required IconData icon,
-    required String tooltip,
     required VoidCallback onTap,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
-        key: key,
-        onPressed: onTap,
-        icon: Icon(icon),
-        visualDensity: VisualDensity.compact,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-      ),
+    return IconButton(
+      key: key,
+      onPressed: onTap,
+      icon: Icon(icon),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
     );
   }
 
   /// The sleep-timer button: tinted when armed, with a live countdown label
   /// (or a dot for end-of-track mode) under the icon.
-  Widget _sleepTimerButton(
-    BuildContext context,
-    AppLocalizations l10n,
-    SleepTimerState state,
-  ) {
+  Widget _sleepTimerButton(BuildContext context, SleepTimerState state) {
     final scheme = Theme.of(context).colorScheme;
     final active = state.isActive;
     final color = active ? scheme.primary : null;
 
-    return Tooltip(
-      message: l10n.playerSleepTimer,
-      child: InkWell(
-        key: MiniSettings.sleepTimerKey,
-        onTap: () => _openPanel(
-          context,
-          const SleepTimerPanel(),
-          portraitFraction: 0.5,
-          landscapeFraction: 0.5,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        child: SizedBox(
-          width: 56,
-          height: kMiniSettingsHeight,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                active ? Icons.bedtime : Icons.bedtime_outlined,
-                size: 24,
-                color: color,
-              ),
-              if (state.mode == SleepTimerMode.duration &&
-                  state.remaining != null)
-                Text(
-                  formatSleepTimerCountdown(state.remaining!),
-                  style: TextStyle(
-                    fontSize: 10,
-                    height: 1.0,
-                    color: color ?? scheme.onSurfaceVariant,
-                  ),
-                )
-              else if (state.isEndOfTrack)
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: color ?? scheme.onSurfaceVariant,
-                    shape: BoxShape.circle,
-                  ),
+    return InkWell(
+      key: MiniSettings.sleepTimerKey,
+      onTap: () => _openPanel(
+        context,
+        const SleepTimerPanel(),
+        portraitFraction: 0.5,
+        landscapeFraction: 0.5,
+      ),
+      borderRadius: BorderRadius.circular(24),
+      child: SizedBox(
+        width: 56,
+        height: kMiniSettingsHeight,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              active ? Icons.timer : Icons.timer_outlined,
+              size: 24,
+              color: color,
+            ),
+            if (state.mode == SleepTimerMode.duration &&
+                state.remaining != null)
+              Text(
+                formatSleepTimerCountdown(state.remaining!),
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.0,
+                  color: color ?? scheme.onSurfaceVariant,
                 ),
-            ],
-          ),
+              )
+            else if (state.isEndOfTrack)
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: color ?? scheme.onSurfaceVariant,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
         ),
       ),
     );

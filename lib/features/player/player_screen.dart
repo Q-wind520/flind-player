@@ -22,12 +22,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/core/models/playback_state.dart';
-import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/mini_settings.dart';
+import 'package:flind_player/features/player/player_panels.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -37,8 +37,8 @@ import 'package:flind_player/shared/responsive_center.dart';
 /// The "now playing" screen: artwork, progress and transport controls.
 ///
 /// Shown full-screen on every platform. The whole body sits on a single
-/// [AppSurface]; the collapse button and the current artist live in a
-/// header row inside the content so the same layout works in both
+/// [AppSurface]; the collapse button and the current track title and artist
+/// live in a header row above the content so the same layout works in both
 /// orientations.
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
@@ -75,6 +75,7 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
     final state = ref.watch(playbackStateProvider).value;
     final track = state?.currentTrack;
     final l10n = AppLocalizations.of(context);
+    final title = track?.title ?? '';
     final artist = track == null ? '' : (track.artist ?? l10n.unknownArtist);
 
     return LayoutBuilder(
@@ -84,24 +85,17 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
 
         final Widget body;
         if (!hasTrack) {
-          body = Column(
-            children: [
-              _HeaderRow(artist: ''),
-              const Expanded(child: _NothingPlaying()),
-            ],
-          );
+          body = const _NothingPlaying();
         } else if (landscape) {
           body = _LandscapeBody(
             state: state,
             track: track,
-            artist: artist,
             onVolumeTap: () => setState(() => _volumeOpen = true),
           );
         } else {
           body = _PortraitBody(
             state: state,
             track: track,
-            artist: artist,
             lyricsExpanded: _lyricsExpanded,
             onLyricsTap: () => setState(() => _lyricsExpanded = true),
             onLyricsCollapse: () => setState(() => _lyricsExpanded = false),
@@ -127,6 +121,10 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
           children: [
             Column(
               children: [
+                // The header spans both panes in landscape and sits above the
+                // whole portrait body, so the title and artist stay visible on
+                // the lyrics page too.
+                _HeaderRow(title: title, artist: artist),
                 Expanded(child: body),
                 // Portrait docks MiniSettings at the bottom of the screen;
                 // landscape embeds it in the left pane instead.
@@ -194,16 +192,20 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
 }
 
 /// The top row of the player content: the collapse (hide) button and the
-/// current artist. Replaces the former [AppBar] so the same header works in
-/// both orientations and on the lyrics page.
+/// current track title and artist. Replaces the former [AppBar] so the same
+/// header works in both orientations and on the lyrics page.
 class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({required this.artist});
+  const _HeaderRow({required this.title, required this.artist});
+
+  /// The track title to show; empty when nothing is playing.
+  final String title;
 
   /// The artist to show; empty when nothing is playing.
   final String artist;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         IconButton(
@@ -211,27 +213,45 @@ class _HeaderRow extends StatelessWidget {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         Expanded(
-          child: Text(
-            artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ),
+        // Balances the leading IconButton so the centred title/artist block
+        // is truly screen-centred.
+        const SizedBox(width: 48),
       ],
     );
   }
 }
 
-/// Portrait body: header, title, cover, a 25%-height lyrics teaser, then
-/// progress and transport. When [lyricsExpanded] the title/cover/teaser are
-/// replaced by the full [LyricsView] while progress and transport stay pinned
-/// at the bottom.
+/// Portrait body: cover, a 5-line lyrics teaser, then progress and transport.
+/// When [lyricsExpanded] the cover and teaser are replaced by the full
+/// [LyricsView] while progress and transport stay pinned at the bottom.
 class _PortraitBody extends StatelessWidget {
   const _PortraitBody({
     required this.state,
     required this.track,
-    required this.artist,
     required this.lyricsExpanded,
     required this.onLyricsTap,
     required this.onLyricsCollapse,
@@ -239,92 +259,81 @@ class _PortraitBody extends StatelessWidget {
 
   final PlaybackState state;
   final Track track;
-  final String artist;
   final bool lyricsExpanded;
   final VoidCallback onLyricsTap;
   final VoidCallback onLyricsCollapse;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = AppBreakpoints.isCompact(constraints.biggest);
-        final lyricsStripHeight = constraints.maxHeight * 0.25;
-        return Column(
-          children: [
-            _HeaderRow(artist: artist),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.08),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-                child: lyricsExpanded
-                    ? LyricsView(
-                        key: const ValueKey('lyrics'),
-                        onTap: onLyricsCollapse,
-                      )
-                    : _PortraitNormal(
-                        key: const ValueKey('normal'),
-                        track: track,
-                        compact: compact,
-                        lyricsStripHeight: lyricsStripHeight,
-                        onLyricsTap: onLyricsTap,
-                      ),
-              ),
-            ),
-            _ProgressBar(state: state),
-            const SizedBox(height: 8),
-            _TransportControls(state: state),
-          ],
-        );
-      },
+    final compact = AppBreakpoints.isCompact(MediaQuery.sizeOf(context));
+    return Column(
+      children: [
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.08),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: lyricsExpanded
+                ? LyricsView(
+                    key: const ValueKey('lyrics'),
+                    onTap: onLyricsCollapse,
+                  )
+                : _PortraitNormal(
+                    key: const ValueKey('normal'),
+                    track: track,
+                    compact: compact,
+                    onLyricsTap: onLyricsTap,
+                  ),
+          ),
+        ),
+        _ProgressBar(state: state),
+        _TransportControls(state: state),
+        // A larger gap before the docked MiniSettings so the controls and the
+        // settings bar read as two separated rows; the expanded lyrics page
+        // keeps the transport clear of the very bottom instead.
+        SizedBox(height: lyricsExpanded ? 24 : 16),
+      ],
     );
   }
 }
 
-/// The collapsed portrait content: track title, adaptive cover and the
-/// 25%-height lyrics teaser strip.
+/// The collapsed portrait content: adaptive cover and the 5-line lyrics
+/// teaser strip. The title and artist live in the shared header row.
 class _PortraitNormal extends StatelessWidget {
   const _PortraitNormal({
     super.key,
     required this.track,
     required this.compact,
-    required this.lyricsStripHeight,
     required this.onLyricsTap,
   });
 
   final Track track;
   final bool compact;
-  final double lyricsStripHeight;
   final VoidCallback onLyricsTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Five lines of the lyrics text style, so the strip reads as a teaser of
+    // the lyrics page rather than an arbitrary fraction of the viewport.
+    final lyricsStyle = theme.textTheme.bodyMedium;
+    final lineHeight =
+        (lyricsStyle?.fontSize ?? 14) * (lyricsStyle?.height ?? 1.4);
+    final lyricsStripHeight = lineHeight * 5;
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Text(
-            track.title,
-            style: theme.textTheme.titleLarge,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
-        ),
         Expanded(
           child: _CoverArt(track: track, compact: compact),
         ),
@@ -338,19 +347,18 @@ class _PortraitNormal extends StatelessWidget {
 }
 
 /// Landscape body: two equal panes — the left [MiniMain] and the full-height
-/// [LyricsView] on the right. No divider: both panes share the same
+/// [LyricsView] on the right. The shared header row above both panes is
+/// rendered by the parent. No divider: both panes share the same
 /// [AppSurface] background.
 class _LandscapeBody extends StatelessWidget {
   const _LandscapeBody({
     required this.state,
     required this.track,
-    required this.artist,
     required this.onVolumeTap,
   });
 
   final PlaybackState state;
   final Track track;
-  final String artist;
   final VoidCallback onVolumeTap;
 
   @override
@@ -358,12 +366,7 @@ class _LandscapeBody extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: MiniMain(
-            state: state,
-            track: track,
-            artist: artist,
-            onVolumeTap: onVolumeTap,
-          ),
+          child: MiniMain(state: state, track: track, onVolumeTap: onVolumeTap),
         ),
         Expanded(child: LyricsView()),
       ],
@@ -371,67 +374,48 @@ class _LandscapeBody extends StatelessWidget {
   }
 }
 
-/// The landscape left pane: header, title, cover, progress, transport and the
-/// docked [MiniSettings].
+/// The landscape left pane: cover, progress, transport and the docked
+/// [MiniSettings]. The track title and artist live in the shared header row
+/// above both panes.
 ///
-/// The cover lives in an [Expanded] so it shrinks with the window; the title
-/// is hidden when vertical space is very small. The artist lives in the
-/// header row instead of a separate bar.
+/// The cover lives in an [Expanded] so it shrinks with the window.
 class MiniMain extends StatelessWidget {
   const MiniMain({
     super.key,
     required this.state,
     required this.track,
-    required this.artist,
     required this.onVolumeTap,
   });
 
   final PlaybackState state;
   final Track track;
-  final String artist;
   final VoidCallback onVolumeTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final showTitle = constraints.maxHeight >= 220;
-        return Column(
-          children: [
-            _HeaderRow(artist: artist),
-            if (showTitle)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  track.title,
-                  style: theme.textTheme.titleLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, coverConstraints) {
-                  final coverSize = math
-                      .min(
-                        coverConstraints.maxWidth * 0.7,
-                        coverConstraints.maxHeight,
-                      )
-                      .clamp(80.0, 280.0);
-                  return ResponsiveCenter(
-                    child: _PlayerCover(track: track, size: coverSize),
-                  );
-                },
-              ),
-            ),
-            _ProgressBar(state: state),
-            _TransportControls(state: state),
-            MiniSettings(onVolumeTap: onVolumeTap),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, coverConstraints) {
+              final coverSize = math
+                  .min(
+                    coverConstraints.maxWidth * 0.7,
+                    coverConstraints.maxHeight,
+                  )
+                  .clamp(80.0, 280.0);
+              return ResponsiveCenter(
+                child: _PlayerCover(track: track, size: coverSize),
+              );
+            },
+          ),
+        ),
+        _ProgressBar(state: state),
+        _TransportControls(state: state),
+        // Same gap as portrait: keep the controls and the settings bar apart.
+        const SizedBox(height: 16),
+        MiniSettings(onVolumeTap: onVolumeTap),
+      ],
     );
   }
 }
@@ -504,7 +488,7 @@ class _PlayerCover extends StatelessWidget {
       Icon(Icons.music_note, size: size * 0.4, color: scheme.onSurfaceVariant);
 }
 
-/// Seekable progress bar with `m:ss` labels on both sides.
+/// Seekable progress bar with `m:ss` labels on both sides of the slider.
 ///
 /// The slider tracks the drag locally so the thumb follows the finger while
 /// dragging; the seek is issued once on release.
@@ -536,45 +520,52 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
         ? state.position
         : Duration(milliseconds: dragMs.round());
 
-    return Column(
-      children: [
-        Slider(
-          value: dragMs ?? positionValue,
-          max: maxValue,
-          onChanged: enabled
-              ? (value) => setState(() => _dragMs = value)
-              : null,
-          onChangeEnd: enabled
-              ? (value) {
-                  setState(() => _dragMs = null);
-                  ref
-                      .read(playbackControllerProvider)
-                      .seek(Duration(milliseconds: value.round()));
-                }
-              : null,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              Text(
-                formatTrackDuration(shownPosition),
-                style: theme.textTheme.labelMedium,
-              ),
-              const Spacer(),
-              Text(
-                formatTrackDuration(state.duration),
-                style: theme.textTheme.labelMedium,
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          Text(
+            formatTrackDuration(shownPosition),
+            style: theme.textTheme.labelMedium,
           ),
-        ),
-      ],
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 2,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              ),
+              child: Slider(
+                value: dragMs ?? positionValue,
+                max: maxValue,
+                onChanged: enabled
+                    ? (value) => setState(() => _dragMs = value)
+                    : null,
+                onChangeEnd: enabled
+                    ? (value) {
+                        setState(() => _dragMs = null);
+                        ref
+                            .read(playbackControllerProvider)
+                            .seek(Duration(milliseconds: value.round()));
+                      }
+                    : null,
+              ),
+            ),
+          ),
+          Text(
+            formatTrackDuration(state.duration),
+            style: theme.textTheme.labelMedium,
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// Favourite / previous / play-pause / next / play-mode controls.
+/// Favourite / previous / play-pause / next / playlist controls.
+///
+/// The five controls sit grouped in the centre rather than stretched
+/// edge-to-edge; the play-mode cycler lives in [MiniSettings] below.
 class _TransportControls extends ConsumerWidget {
   const _TransportControls({required this.state});
 
@@ -582,59 +573,67 @@ class _TransportControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
     final controller = ref.read(playbackControllerProvider);
     final track = state.currentTrack;
-    final mode = _PlayMode.fromState(state);
 
-    // Five icon buttons never fit a 280 px-wide content column, so the row is
-    // allowed to scale down as a whole instead of overflowing. Above its
-    // intrinsic width the controls stay at full size.
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 420),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            if (track != null) _FavoriteButton(track: track),
-            IconButton(
-              onPressed: state.hasPrevious ? controller.previous : null,
-              icon: const Icon(Icons.skip_previous),
-              iconSize: 36,
-            ),
-            IconButton.filled(
-              onPressed: controller.togglePlayPause,
-              icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-              iconSize: 36,
-            ),
-            IconButton(
-              onPressed: state.hasNext ? controller.next : null,
-              icon: const Icon(Icons.skip_next),
-              iconSize: 36,
-            ),
-            IconButton(
-              onPressed: () {
-                final next = mode.next;
-                // Shuffle first so the queue is (un)shuffled before the
-                // controller applies the new repeat mode.
-                controller.setShuffle(next.shuffle);
-                controller.setRepeatMode(next.repeat);
-              },
-              icon: Icon(mode.icon),
-              color: mode.isActive ? scheme.primary : null,
-            ),
-          ],
+    // Compact buttons (44 px minimum, no padding) so the grouped row still
+    // fits the 240 px-wide landscape left pane at 480×320.
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        if (track == null)
+          const SizedBox.shrink()
+        else
+          _FavoriteButton(track: track),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: state.hasPrevious ? controller.previous : null,
+          icon: const Icon(Icons.skip_previous),
+          iconSize: 36,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
         ),
-      ),
+        const SizedBox(width: 4),
+        IconButton.filled(
+          onPressed: controller.togglePlayPause,
+          icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+          iconSize: 36,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: state.hasNext ? controller.next : null,
+          icon: const Icon(Icons.skip_next),
+          iconSize: 36,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: () => showPlayerPanel<void>(
+            context,
+            builder: (_) => const PlaylistPanel(),
+          ),
+          icon: const Icon(Icons.queue_music),
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        ),
+      ],
     );
   }
 }
 
 /// Heart toggle for the current track in the player transport area.
 ///
-/// Hidden when nothing is playing (no track).
+/// Hidden when nothing is playing (no track). The filled heart is always red,
+/// regardless of the theme, so a favourited track reads the same in light and
+/// dark mode.
 class _FavoriteButton extends ConsumerWidget {
   const _FavoriteButton({required this.track});
 
@@ -644,7 +643,6 @@ class _FavoriteButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isFavourite =
         ref.watch(_playerFavoriteProvider(track.uri)).value ?? false;
-    final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
 
     return IconButton(
@@ -665,7 +663,10 @@ class _FavoriteButton extends ConsumerWidget {
         }
       },
       icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
-      color: isFavourite ? scheme.primary : null,
+      color: isFavourite ? Colors.red : null,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
     );
   }
 }
@@ -676,61 +677,6 @@ final _playerFavoriteProvider = FutureProvider.family<bool, String>((ref, uri) {
   ref.watch(favoritesProvider);
   return ref.watch(favoritesRepositoryProvider).isFavorite(uri);
 }, retry: (_, _) => null);
-
-/// The playback modes cycled by the transport's single mode button.
-///
-/// Each mode maps to one `(repeatMode, shuffle)` pair on the controller.
-enum _PlayMode {
-  /// Plays through the queue once, in order.
-  sequential(icon: Icons.playlist_play, repeat: RepeatMode.off, shuffle: false),
-
-  /// Loops the whole queue.
-  repeatAll(icon: Icons.repeat, repeat: RepeatMode.all, shuffle: false),
-
-  /// Repeats the current track.
-  repeatOne(icon: Icons.repeat_one, repeat: RepeatMode.one, shuffle: false),
-
-  /// Shuffles the queue without repeating.
-  shufflePlay(icon: Icons.shuffle, repeat: RepeatMode.off, shuffle: true);
-
-  const _PlayMode({
-    required this.icon,
-    required this.repeat,
-    required this.shuffle,
-  });
-
-  /// Icon shown on the button.
-  final IconData icon;
-
-  /// Repeat mode the controller is put into for this mode.
-  final RepeatMode repeat;
-
-  /// Whether the queue is shuffled in this mode.
-  final bool shuffle;
-
-  /// Whether this mode differs from plain sequential playback.
-  bool get isActive => this != _PlayMode.sequential;
-
-  /// The mode reached by the next tap, wrapping 随机 → 顺序.
-  _PlayMode get next => switch (this) {
-    _PlayMode.sequential => _PlayMode.repeatAll,
-    _PlayMode.repeatAll => _PlayMode.repeatOne,
-    _PlayMode.repeatOne => _PlayMode.shufflePlay,
-    _PlayMode.shufflePlay => _PlayMode.sequential,
-  };
-
-  /// Derives the mode from [state]; shuffle takes precedence over repeat.
-  static _PlayMode fromState(PlaybackState state) {
-    if (state.shuffleEnabled) {
-      return _PlayMode.shufflePlay;
-    }
-    return switch (state.repeatMode) {
-      RepeatMode.off => _PlayMode.sequential,
-      RepeatMode.all => _PlayMode.repeatAll,
-      RepeatMode.one => _PlayMode.repeatOne,
-    };
-  }
-}
 
 /// Shown when nothing is loaded.
 class _NothingPlaying extends StatelessWidget {

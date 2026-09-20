@@ -179,10 +179,30 @@ void main() {
 
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
       expect(find.byIcon(Icons.tune), findsOneWidget);
-      expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
       expect(find.byIcon(Icons.volume_up), findsOneWidget);
+      expect(find.byIcon(Icons.playlist_play), findsOneWidget);
+      // The playlist button moved to the transport row.
       expect(find.byIcon(Icons.queue_music), findsOneWidget);
     });
+
+    testWidgets(
+      'tapping the transport playlist button opens the playlist panel',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final controller = _FakePlaybackController(_playingState());
+        await tester.pumpWidget(_app(controller));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byIcon(Icons.queue_music));
+        await tester.pumpAndSettle();
+
+        expect(find.text(testL10n().playerPlaylist), findsOneWidget);
+      },
+    );
 
     testWidgets('tapping the volume button opens the VolumeBar', (
       tester,
@@ -293,8 +313,8 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      // The artist lives only in the header row, never duplicated in the
-      // content below.
+      // The title and artist live only in the header row, never duplicated in
+      // the content below.
       expect(find.text('Test Artist'), findsOneWidget);
       expect(find.text('Test Song'), findsOneWidget);
     });
@@ -354,15 +374,16 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      // Left pane order: header artist, title, cover, progress, transport.
-      final artistDy = tester.getTopLeft(find.text('未知艺术家')).dy;
+      // The shared header (title above artist) spans both panes; the left
+      // pane then runs cover, progress, transport.
       final titleDy = tester.getTopLeft(find.text('Test Song')).dy;
+      final artistDy = tester.getTopLeft(find.text('未知艺术家')).dy;
       final coverDy = tester.getTopLeft(find.byIcon(Icons.music_note)).dy;
       final sliderDy = tester.getTopLeft(find.byType(Slider)).dy;
       final transportDy = tester.getTopLeft(find.byIcon(Icons.play_arrow)).dy;
 
-      expect(artistDy, lessThan(titleDy));
-      expect(titleDy, lessThan(coverDy));
+      expect(titleDy, lessThan(artistDy));
+      expect(artistDy, lessThan(coverDy));
       expect(coverDy, lessThan(sliderDy));
       expect(sliderDy, lessThan(transportDy));
 
