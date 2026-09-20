@@ -43,15 +43,6 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
-  /// Below this window height the [NavigationRail] drops its always-visible
-  /// labels: three labelled destinations need roughly 240 px, and stacking
-  /// them in a very short window would overflow the rail.
-  static const double _railLabelsMinHeight = 420;
-
-  /// Compact bottom bar height: below the Material default of 80 so the bar
-  /// stays narrow, while still fitting the icon and the selected label.
-  static const double _navigationBarHeight = 60;
-
   static const List<Widget> _screens = <Widget>[
     SearchScreen(),
     LibraryScreen(),
@@ -110,7 +101,6 @@ class _HomeShellState extends State<HomeShell> {
       builder: (context, constraints) {
         final compact = AppBreakpoints.isCompact(constraints.biggest);
         if (!compact) {
-          final showRailLabels = constraints.maxHeight >= _railLabelsMinHeight;
           return Scaffold(
             backgroundColor: AppSurface.colorOf(context),
             body: SafeArea(
@@ -119,9 +109,9 @@ class _HomeShellState extends State<HomeShell> {
                   NavigationRail(
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: _onDestinationSelected,
-                    labelType: showRailLabels
-                        ? NavigationRailLabelType.all
-                        : NavigationRailLabelType.selected,
+                    // Like the compact NavigationBar: only the selected
+                    // destination shows its label.
+                    labelType: NavigationRailLabelType.selected,
                     destinations: _railDestinations(l10n),
                   ),
                   Expanded(
@@ -151,12 +141,8 @@ class _HomeShellState extends State<HomeShell> {
             children: [
               const MiniPlayerBar(),
               NavigationBar(
-                height: _navigationBarHeight,
                 labelBehavior:
                     NavigationDestinationLabelBehavior.onlyShowSelected,
-                labelTextStyle: WidgetStatePropertyAll(
-                  Theme.of(context).textTheme.labelSmall,
-                ),
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: _onDestinationSelected,
                 destinations: _destinations(l10n),

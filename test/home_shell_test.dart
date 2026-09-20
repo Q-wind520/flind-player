@@ -341,28 +341,38 @@ void main() {
     expect(find.byIcon(Icons.account_circle_outlined), findsNothing);
   });
 
-  testWidgets(
-    'bottom NavigationBar is compact and shows only the selected label',
-    (tester) async {
-      // A narrow portrait window uses the compact shell with a bottom bar.
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+  testWidgets('bottom NavigationBar shows only the selected label', (
+    tester,
+  ) async {
+    // A narrow portrait window uses the compact shell with a bottom bar.
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(_app());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
 
-      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
-      // Unselected labels are hidden while the selected one stays visible.
-      expect(
-        bar.labelBehavior,
-        NavigationDestinationLabelBehavior.onlyShowSelected,
-      );
-      // Narrower than the Material default of 80 px.
-      expect(bar.height, 60);
-      expect(tester.getSize(find.byType(NavigationBar)).height, 60);
-    },
-  );
+    final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+    // Unselected labels are hidden while the selected one stays visible.
+    expect(
+      bar.labelBehavior,
+      NavigationDestinationLabelBehavior.onlyShowSelected,
+    );
+  });
+
+  testWidgets('wide layout NavigationRail shows only the selected label', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.labelType, NavigationRailLabelType.selected);
+  });
 
   testWidgets('tapping 曲库 shows the library screen', (tester) async {
     await tester.pumpWidget(_app());
