@@ -19,6 +19,7 @@ import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
@@ -27,7 +28,19 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/cache/cover_downloader.dart';
 import 'package:flind_player/data/sources/bilibili/bili_models.dart';
-import 'package:flind_player/data/sources/local/artwork_cache.dart';
+
+/// Returns whether [bytes] decode as an image.
+///
+/// Top-level so it can run inside a short-lived isolate (see
+/// [_downloadAndStore]); a non-image payload (e.g. an HTML error page served
+/// with HTTP 200) must not be cached.
+bool isDecodableImage(Uint8List bytes) {
+  try {
+    return img.decodeImage(bytes) != null;
+  } catch (_) {
+    return false;
+  }
+}
 
 /// Resolves a Bilibili video's remote cover URL from its `bvid`.
 ///
@@ -37,16 +50,16 @@ typedef CoverUrlResolver = Future<String?> Function(String bvid);
 
 /// Resolves, downloads and caches a track's remote cover.
 ///
-/// The pipeline mirrors `ArtworkCache` for storage (content-addressed,
-/// downscaled JPEG) and `AudioCacheStore` for accounting (LRU, shared quota):
+/// The pipeline mirrors `ArtworkCache` for storage (content-addressed, original
+/// bytes) and `AudioCacheStore` for accounting (LRU, shared quota):
 ///
 /// 1. a track that already points at an existing local file is returned as-is;
 /// 2. otherwise the cover URL is taken from the track (Bilibili search/view
 ///    payloads already carry it) and, when absent, resolved through
 ///    [resolveRemoteUrl] for a Bilibili track;
 /// 3. a cache hit on the URL is served without a network round-trip;
-/// 4. a miss downloads the bytes, re-encodes them to a 512 px JPEG and stores
-///    them via [CoverCacheStore];
+/// 4. a miss downloads the bytes, decode-validates them off the UI isolate and
+///    stores them verbatim via [CoverCacheStore];
 /// 5. the resulting local path and URL are written back to the library row and
 ///    the favourite snapshot, when either exists.
 ///
@@ -64,7 +77,8 @@ class CoverService {
        _downloader = downloader, // ignore: prefer_initializing_formals
        _library = library, // ignore: prefer_initializing_formals
        _favorites = favorites, // ignore: prefer_initializing_formals
-       _resolveRemoteUrl = resolveRemoteUrl; // ignore: prefer_initializing_formals
+       // ignore: prefer_initializing_formals
+       _resolveRemoteUrl = resolveRemoteUrl;
 
   final CoverCacheStore _store;
   final CoverDownloader _downloader;
@@ -137,7 +151,7 @@ class CoverService {
     }
   }
 
-  /// Downloads, encodes and stores [url], deduping concurrent requests for the
+  /// Downloads and stores [url], deduping concurrent requests for the
   /// same URL (several video parts share one cover).
   Future<String?> _storeDownload(
     String url,
@@ -162,21 +176,21 @@ class CoverService {
     final bytes = await _downloader.download(url);
     if (bytes == null) return null;
 
-    // Decode-validate and downscale off the UI isolate, reusing the exact
-    // encoder the local artwork cache uses so both caches store one format.
-    // A cover may be several megabytes, so this must not run on the UI isolate.
-    final encoded = await Isolate.run(() => encodeCoverJpeg(bytes));
-    if (encoded == null || encoded.isEmpty) return null;
+    // Decode-validate off the UI isolate so a non-image payload (e.g. an HTML
+    // error page returned with HTTP 200) is rejected exactly as before. A cover
+    // may be several megabytes, so this must not run on the UI isolate.
+    final decodable = await Isolate.run(() => isDecodableImage(bytes));
+    if (!decodable) return null;
 
-    // The encoded length is already known, so `ensureSpace` only needs to make
+    // The original length is already known, so `ensureSpace` only needs to make
     // room for exactly what is about to be written.
-    final eviction = await _store.ensureSpace(encoded.length);
+    final eviction = await _store.ensureSpace(bytes.length);
     if (!eviction.hasSpace) return null;
 
     return _store.insert(
       urlHash: urlHash,
-      contentHash: _sha1Bytes(encoded),
-      bytes: encoded,
+      contentHash: _sha1Bytes(bytes),
+      bytes: bytes,
     );
   }
 
@@ -187,7 +201,9 @@ class CoverService {
     try {
       return _normalize(await _resolveRemoteUrl(id.bvid));
     } catch (error) {
-      debugPrint('CoverService: cover URL lookup failed for ${id.bvid}: $error');
+      debugPrint(
+        'CoverService: cover URL lookup failed for ${id.bvid}: $error',
+      );
       return null;
     }
   }

@@ -14,7 +14,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
@@ -42,15 +41,19 @@ void main() {
     }
   });
 
+  /// A small red PNG used as the embedded front cover.
+  Uint8List redPng() {
+    final image = img.Image(width: 8, height: 8);
+    img.fill(image, color: img.ColorRgb8(200, 30, 30));
+    return Uint8List.fromList(img.encodePng(image));
+  }
+
   /// Copies the tone fixture and embeds a small red PNG front cover.
   File withEmbeddedArt(String name) {
     final file = File('${root.path}/$name')..createSync(recursive: true);
     fixture.copySync(file.path);
 
-    final image = img.Image(width: 8, height: 8);
-    img.fill(image, color: img.ColorRgb8(200, 30, 30));
-    final png = Uint8List.fromList(img.encodePng(image));
-
+    final png = redPng();
     updateMetadata(file, (metadata) {
       metadata.setPictures([Picture(png, 'image/png', PictureType.coverFront)]);
     });
@@ -64,21 +67,47 @@ void main() {
     return file;
   }
 
-  test('caches embedded art once and dedupes repeated calls', () async {
+  test('caches embedded art verbatim and dedupes repeated calls', () async {
     final file = withEmbeddedArt('song.mp3');
+    final expected = redPng();
 
     final first = await cache.cacheFromFile(file.path);
     final second = await cache.cacheFromFile(file.path);
 
     expect(first, isNotNull);
-    expect(first, endsWith('.jpg'));
+    expect(first, endsWith('.png'));
     expect(second, first);
+    expect(File(first!).readAsBytesSync(), expected);
     expect(
       covers.listSync().whereType<File>(),
       hasLength(1),
       reason: 'the same picture must not be written twice',
     );
   });
+
+  test(
+    'stores a JPEG picture under a .jpg name with its original bytes',
+    () async {
+      final file = File('${root.path}/jpeg-song.mp3')
+        ..createSync(recursive: true);
+      fixture.copySync(file.path);
+
+      final image = img.Image(width: 16, height: 16);
+      img.fill(image, color: img.ColorRgb8(10, 200, 90));
+      final jpeg = Uint8List.fromList(img.encodeJpg(image));
+      updateMetadata(file, (metadata) {
+        metadata.setPictures([
+          Picture(jpeg, 'image/jpeg', PictureType.coverFront),
+        ]);
+      });
+
+      final path = await cache.cacheFromFile(file.path);
+
+      expect(path, isNotNull);
+      expect(path, endsWith('.jpg'));
+      expect(File(path!).readAsBytesSync(), jpeg);
+    },
+  );
 
   test('returns null when the file has no embedded art', () async {
     final file = withoutArt('plain.mp3');
@@ -107,39 +136,4 @@ void main() {
       expect(covers.existsSync(), isTrue);
     },
   );
-
-  group('encodeCoverJpeg', () {
-    test('returns null for garbage bytes', () {
-      final garbage = Uint8List.fromList(List<int>.generate(256, (i) => i));
-
-      expect(encodeCoverJpeg(garbage), isNull);
-    });
-
-    test('returns null for empty bytes without throwing', () {
-      expect(encodeCoverJpeg(Uint8List(0)), isNull);
-    });
-
-    test('encodes a decodable PNG as a JPEG (SOI magic)', () {
-      final image = img.Image(width: 8, height: 8);
-      img.fill(image, color: img.ColorRgb8(20, 120, 200));
-      final png = Uint8List.fromList(img.encodePng(image));
-
-      final encoded = encodeCoverJpeg(png);
-
-      expect(encoded, isNotNull);
-      expect(encoded!.sublist(0, 3), [0xFF, 0xD8, 0xFF]);
-    });
-
-    test('downscales the longest edge to ArtworkCache.maxEdge', () {
-      final image = img.Image(width: 1024, height: 600);
-      img.fill(image, color: img.ColorRgb8(20, 120, 200));
-      final png = Uint8List.fromList(img.encodePng(image));
-
-      final decoded = img.decodeJpg(encodeCoverJpeg(png)!);
-
-      expect(decoded, isNotNull);
-      expect(decoded!.width, ArtworkCache.maxEdge);
-      expect(math.max(decoded.width, decoded.height), ArtworkCache.maxEdge);
-    });
-  });
 }

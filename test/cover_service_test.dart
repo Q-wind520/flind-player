@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -198,7 +199,7 @@ class _FakeFavoritesRepository implements FavoritesRepository {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// A small but real JPEG the service's [encodeCoverJpeg] pipeline can decode.
+/// A small but real JPEG the service's decode-validation accepts.
 Uint8List _jpegBytes() {
   final image = img.Image(width: 8, height: 8);
   img.fill(image, color: img.ColorRgb8(30, 120, 200));
@@ -267,32 +268,38 @@ void main() {
     }
   });
 
-  test('downloads, stores under the base dir, and writes back path + URL', () async {
-    final track = _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg');
+  test(
+    'downloads, stores under the base dir, and writes back path + URL',
+    () async {
+      final track = _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg');
 
-    final path = await service.ensureCover(track);
+      final path = await service.ensureCover(track);
 
-    expect(path, isNotNull);
-    expect(File(path!).existsSync(), isTrue);
-    expect(path, startsWith(root.path));
-    expect(
-      downloader.requestedUrls,
-      const <String>['https://i0.hdslb.com/bfs/a.jpg'],
-    );
+      expect(path, isNotNull);
+      expect(File(path!).existsSync(), isTrue);
+      expect(path, startsWith(root.path));
+      expect(File(path).readAsBytesSync(), downloader.bytes);
+      expect(downloader.requestedUrls, const <String>[
+        'https://i0.hdslb.com/bfs/a.jpg',
+      ]);
 
-    expect(library.coverWrites, hasLength(1));
-    expect(library.coverWrites.single.uri, track.uri);
-    expect(library.coverWrites.single.coverPath, path);
-    expect(library.coverWrites.single.coverUrl, 'https://i0.hdslb.com/bfs/a.jpg');
+      expect(library.coverWrites, hasLength(1));
+      expect(library.coverWrites.single.uri, track.uri);
+      expect(library.coverWrites.single.coverPath, path);
+      expect(
+        library.coverWrites.single.coverUrl,
+        'https://i0.hdslb.com/bfs/a.jpg',
+      );
 
-    expect(favorites.coverWrites, hasLength(1));
-    expect(favorites.coverWrites.single.uri, track.uri);
-    expect(favorites.coverWrites.single.coverPath, path);
-    expect(
-      favorites.coverWrites.single.coverUrl,
-      'https://i0.hdslb.com/bfs/a.jpg',
-    );
-  });
+      expect(favorites.coverWrites, hasLength(1));
+      expect(favorites.coverWrites.single.uri, track.uri);
+      expect(favorites.coverWrites.single.coverPath, path);
+      expect(
+        favorites.coverWrites.single.coverUrl,
+        'https://i0.hdslb.com/bfs/a.jpg',
+      );
+    },
+  );
 
   test('serves a URL cache hit without downloading again', () async {
     final track = _biliTrack(coverUrl: 'https://i0.hdslb.com/bfs/a.jpg');
@@ -304,19 +311,21 @@ void main() {
     expect(downloader.requestedUrls, hasLength(1));
   });
 
-  test('resolves a BiliTrackId cover URL when the track carries none', () async {
-    final track = _biliTrack();
+  test(
+    'resolves a BiliTrackId cover URL when the track carries none',
+    () async {
+      final track = _biliTrack();
 
-    final path = await service.ensureCover(track);
+      final path = await service.ensureCover(track);
 
-    expect(resolvedBvids, const <String>['BV1GJ411x7h7']);
-    expect(
-      downloader.requestedUrls,
-      const <String>['https://i0.hdslb.com/bfs/resolved.jpg'],
-    );
-    expect(path, isNotNull);
-    expect(File(path!).existsSync(), isTrue);
-  });
+      expect(resolvedBvids, const <String>['BV1GJ411x7h7']);
+      expect(downloader.requestedUrls, const <String>[
+        'https://i0.hdslb.com/bfs/resolved.jpg',
+      ]);
+      expect(path, isNotNull);
+      expect(File(path!).existsSync(), isTrue);
+    },
+  );
 
   test('returns null and persists nothing when the download fails', () async {
     downloader.returnNull = true;
@@ -327,6 +336,31 @@ void main() {
     expect(path, isNull);
     expect(library.coverWrites, isEmpty);
     expect(favorites.coverWrites, isEmpty);
+  });
+
+  test('rejects a non-decodable payload without storing anything', () async {
+    final bad = _FakeCoverDownloader(
+      Uint8List.fromList(utf8.encode('<html>not an image</html>')),
+    );
+    final service = CoverService(
+      store: CoverCacheStore(
+        database: db,
+        settings: _FakeSettingsRepository(),
+        baseDir: root,
+      ),
+      downloader: bad,
+      library: library,
+      favorites: favorites,
+      resolveRemoteUrl: (bvid) async => '//i0.hdslb.com/bfs/resolved.jpg',
+    );
+    final track = _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg');
+
+    final path = await service.ensureCover(track);
+
+    expect(path, isNull);
+    expect(library.coverWrites, isEmpty);
+    expect(favorites.coverWrites, isEmpty);
+    expect(root.listSync().whereType<File>(), isEmpty);
   });
 
   test('force bypasses the cache and downloads again', () async {

@@ -15,20 +15,20 @@
 
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math' as math;
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 /// Content-addressed cache for embedded album art.
 ///
-/// A picture's bytes are SHA-1 hashed and downscaled to a JPEG named
-/// `<sha1>.jpg` under the cache directory, so every track of an album shares
-/// one file (docs/local-library.md §3). The directory must be inside the
-/// application support tree — never a temp directory, which the OS may clear.
+/// A picture's bytes are SHA-1 hashed and stored verbatim under
+/// `<sha1>.<ext>` (the extension follows the picture's MIME type) in the cache
+/// directory, so every track of an album shares one file and the original
+/// quality is preserved (docs/local-library.md §3). The directory must be
+/// inside the application support tree — never a temp directory, which the OS
+/// may clear.
 class ArtworkCache {
   /// Creates a cache rooted at [baseDir].
   ArtworkCache({required Directory baseDir})
@@ -46,12 +46,6 @@ class ArtworkCache {
   final Directory? _baseDir;
   final Future<Directory> Function()? _resolveBaseDir;
 
-  /// Longest edge, in pixels, of a cached cover.
-  static const int maxEdge = 512;
-
-  /// JPEG quality used for re-encoded covers.
-  static const int jpegQuality = 85;
-
   /// Caches the cover embedded in the audio file at [audioPath].
   ///
   /// Returns the cached file path, or `null` when the file is missing or has no
@@ -60,7 +54,7 @@ class ArtworkCache {
   Future<String?> cacheFromFile(String audioPath) async {
     try {
       final basePath = (await _resolveDir()).path;
-      // Decode/resize/encode happen off the UI isolate (docs §3).
+      // Reading, hashing and writing happen off the UI isolate (docs §3).
       return await _cacheInIsolate(audioPath, basePath);
     } catch (error) {
       debugPrint('ArtworkCache: failed for $audioPath: $error');
@@ -109,7 +103,7 @@ class ArtworkCache {
   }
 }
 
-/// Isolate entry point: reads, hashes, downscales and stores one cover.
+/// Isolate entry point: reads, hashes and stores one cover verbatim.
 ///
 /// Top-level so it is safe to send through `Isolate.run`.
 String? _cacheSync(String audioPath, String baseDirPath) {
@@ -129,25 +123,15 @@ String? _cacheSync(String audioPath, String baseDirPath) {
     directory.createSync(recursive: true);
   }
 
-  final jpegPath = p.join(baseDirPath, '$digest.jpg');
-  final jpegFile = File(jpegPath);
-  if (jpegFile.existsSync()) return jpegPath;
-
-  final encoded = encodeCoverJpeg(bytes);
-  if (encoded != null && encoded.isNotEmpty) {
-    jpegFile.writeAsBytesSync(encoded, flush: true);
-    return jpegPath;
-  }
-
-  // The bytes could not be decoded; keep them verbatim under their original
-  // extension rather than losing the cover.
-  final fallback = File(
-    p.join(baseDirPath, '$digest.${_extensionForMime(picture.mimetype)}'),
+  final path = p.join(
+    baseDirPath,
+    '$digest.${_extensionForMime(picture.mimetype)}',
   );
-  if (!fallback.existsSync()) {
-    fallback.writeAsBytesSync(bytes, flush: true);
-  }
-  return fallback.path;
+  final cachedFile = File(path);
+  if (cachedFile.existsSync()) return path;
+
+  cachedFile.writeAsBytesSync(bytes, flush: true);
+  return path;
 }
 
 /// Runs [_cacheSync] in a short-lived isolate.
@@ -165,38 +149,6 @@ Picture _pickCover(List<Picture> pictures) {
     if (picture.pictureType == PictureType.coverFront) return picture;
   }
   return pictures.first;
-}
-
-/// Decode-validates [bytes], downscales to [ArtworkCache.maxEdge] and encodes
-/// JPEG at [ArtworkCache.jpegQuality]; returns `null` when the bytes are not a
-/// decodable image.
-///
-/// Top-level so callers may run it inside a short-lived isolate (see
-/// [_cacheInIsolate]).
-Uint8List? encodeCoverJpeg(Uint8List bytes) {
-  try {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) return null;
-
-    final longest = math.max(decoded.width, decoded.height);
-    final resized = longest <= ArtworkCache.maxEdge
-        ? decoded
-        : decoded.width >= decoded.height
-        ? img.copyResize(
-            decoded,
-            width: ArtworkCache.maxEdge,
-            interpolation: img.Interpolation.average,
-          )
-        : img.copyResize(
-            decoded,
-            height: ArtworkCache.maxEdge,
-            interpolation: img.Interpolation.average,
-          );
-
-    return img.encodeJpg(resized, quality: ArtworkCache.jpegQuality);
-  } catch (_) {
-    return null;
-  }
 }
 
 String _extensionForMime(String mimeType) {
