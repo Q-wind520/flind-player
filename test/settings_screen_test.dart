@@ -44,6 +44,7 @@ import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 
 import 'support/l10n.dart';
 
@@ -58,6 +59,7 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   CacheSettings current;
   AppLanguage language = AppLanguage.system;
+  AppThemeMode themeMode = AppThemeMode.system;
   final List<CacheSettings> writes = <CacheSettings>[];
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
@@ -70,6 +72,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setAppLanguage(AppLanguage value) async => language = value;
+
+  @override
+  Future<AppThemeMode> appThemeMode() async => themeMode;
+
+  @override
+  Future<void> setAppThemeMode(AppThemeMode value) async => themeMode = value;
 
   @override
   Future<TrackSort> librarySort() async => TrackSort.title;
@@ -452,7 +460,7 @@ void main() {
     expect(find.text('简体中文'), findsOneWidget);
   });
 
-  testWidgets('renders the AppBar title as 设置', (tester) async {
+  testWidgets('renders no AppBar', (tester) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
@@ -460,7 +468,33 @@ void main() {
     await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
-    expect(find.text('设置'), findsOneWidget);
+    expect(find.byType(AppBar), findsNothing);
+  });
+
+  testWidgets('theme follows the system by default and can switch', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+
+    expect(find.text('主题'), findsOneWidget);
+    expect(find.text('自动'), findsOneWidget);
+
+    await tester.tap(find.text('主题'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('浅色'), findsOneWidget);
+    expect(find.text('深色'), findsOneWidget);
+
+    await tester.tap(find.text('深色'));
+    await tester.pumpAndSettle();
+
+    expect(settings.themeMode, AppThemeMode.dark);
+    expect(find.text('深色'), findsOneWidget);
   });
 
   // -- 播放 section (two cache rows) --

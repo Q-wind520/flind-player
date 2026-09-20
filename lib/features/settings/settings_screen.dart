@@ -22,7 +22,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:flind_player/app/language.dart';
+import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
@@ -34,6 +36,7 @@ import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/format_bytes.dart';
@@ -47,7 +50,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.navSettings)),
+      backgroundColor: AppSurface.colorOf(context),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
@@ -78,31 +81,49 @@ class SettingsScreen extends ConsumerWidget {
 // 通用 section
 // ---------------------------------------------------------------------------
 
-/// UI language selection, applied app-wide and persisted across restarts.
+/// UI language and appearance selection, applied app-wide and persisted
+/// across restarts.
 class _GeneralSection extends ConsumerWidget {
   const _GeneralSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final language =
-        ref.watch(appLanguageProvider).value ?? AppLanguage.system;
-    return ListTile(
-      leading: const Icon(Icons.language_outlined),
-      title: Text(l10n.language),
-      subtitle: Text(_languageLabel(l10n, language)),
-      onTap: () => _pickLanguage(context, ref, language),
+    final language = ref.watch(appLanguageProvider).value ?? AppLanguage.system;
+    final themeMode =
+        ref.watch(appThemeModeProvider).value ?? AppThemeMode.system;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.language_outlined),
+          title: Text(l10n.language),
+          subtitle: Text(_languageLabel(l10n, language)),
+          onTap: () => _pickLanguage(context, ref, language),
+        ),
+        ListTile(
+          leading: const Icon(Icons.brightness_6_outlined),
+          title: Text(l10n.themeMode),
+          subtitle: Text(_themeModeLabel(l10n, themeMode)),
+          onTap: () => _pickThemeMode(context, ref, themeMode),
+        ),
+      ],
     );
   }
 
-  static String _languageLabel(
-    AppLocalizations l10n,
-    AppLanguage language,
-  ) => switch (language) {
-    AppLanguage.system => l10n.languageSystem,
-    AppLanguage.english => l10n.languageEnglish,
-    AppLanguage.simplifiedChinese => l10n.languageSimplifiedChinese,
-  };
+  static String _languageLabel(AppLocalizations l10n, AppLanguage language) =>
+      switch (language) {
+        AppLanguage.system => l10n.languageSystem,
+        AppLanguage.english => l10n.languageEnglish,
+        AppLanguage.simplifiedChinese => l10n.languageSimplifiedChinese,
+      };
+
+  static String _themeModeLabel(AppLocalizations l10n, AppThemeMode mode) =>
+      switch (mode) {
+        AppThemeMode.system => l10n.themeModeAuto,
+        AppThemeMode.light => l10n.themeModeLight,
+        AppThemeMode.dark => l10n.themeModeDark,
+      };
 
   Future<void> _pickLanguage(
     BuildContext context,
@@ -136,6 +157,40 @@ class _GeneralSection extends ConsumerWidget {
     );
     if (selected == null || selected == current) return;
     await ref.read(appLanguageProvider.notifier).setLanguage(selected);
+  }
+
+  Future<void> _pickThemeMode(
+    BuildContext context,
+    WidgetRef ref,
+    AppThemeMode current,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final selected = await showDialog<AppThemeMode>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.themeMode),
+        children: [
+          for (final mode in AppThemeMode.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(dialogContext).pop(mode),
+              child: Row(
+                children: [
+                  Icon(
+                    mode == current
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(_themeModeLabel(l10n, mode)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || selected == current) return;
+    await ref.read(appThemeModeProvider.notifier).setThemeMode(selected);
   }
 }
 
@@ -759,10 +814,8 @@ class _AboutSection extends ConsumerWidget {
           leading: const Icon(Icons.description_outlined),
           title: Text(l10n.openSourceLicenses),
           subtitle: const Text('GNU General Public License v3.0'),
-          onTap: () => showLicensePage(
-            context: context,
-            applicationName: l10n.appName,
-          ),
+          onTap: () =>
+              showLicensePage(context: context, applicationName: l10n.appName),
         ),
         ListTile(
           leading: const Icon(Icons.code_outlined),
