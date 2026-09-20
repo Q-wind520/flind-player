@@ -137,9 +137,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       case _LibraryAction.bilibiliFavorites:
         await _openBilibiliFavorites();
       case _LibraryAction.sortByTitle ||
-           _LibraryAction.sortByArtist ||
-           _LibraryAction.sortByAlbum ||
-           _LibraryAction.sortByRecentlyAdded:
+          _LibraryAction.sortByArtist ||
+          _LibraryAction.sortByAlbum ||
+          _LibraryAction.sortByRecentlyAdded:
         final sort = action.sort;
         if (sort != null) {
           await ref.read(librarySortProvider.notifier).setSort(sort);
@@ -710,26 +710,42 @@ class _LibraryFilterSelector extends StatelessWidget {
           onFilterChanged(_retreat());
         }
       },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < labels.length; i++) ...[
-            if (i > 0) const SizedBox(width: 12),
-            AnimatedDefaultTextStyle(
-              key: ValueKey(labels[i]),
-              duration: _animation,
-              curve: Curves.easeOutCubic,
-              style:
-                  (i == 0 ? selectedStyle : unselectedStyle) ??
-                  const TextStyle(),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: i == 0 ? null : () => onFilterChanged(labels[i]),
-                child: Text(_label(l10n, labels[i]), maxLines: 1),
+      // The whole row cross-fades between the two orderings. The text styles
+      // are fixed per state, so only opacity/offset animate — never the font
+      // size, which would force a font re-resolution every frame.
+      child: AnimatedSwitcher(
+        duration: _animation,
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.08, 0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: Row(
+          key: ValueKey(filter),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < labels.length; i++) ...[
+              if (i > 0) const SizedBox(width: 12),
+              DefaultTextStyle(
+                style:
+                    (i == 0 ? selectedStyle : unselectedStyle) ??
+                    const TextStyle(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: i == 0 ? null : () => onFilterChanged(labels[i]),
+                  child: Text(_label(l10n, labels[i]), maxLines: 1),
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
