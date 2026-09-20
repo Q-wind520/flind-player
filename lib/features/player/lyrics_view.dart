@@ -15,7 +15,7 @@
 
 import 'package:flutter/material.dart';
 
-import 'package:flind_player/features/player/player_surface.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Full-area lyrics placeholder shown while no lyrics source is adapted.
@@ -96,7 +96,7 @@ class LyricsPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
 
-    return PlayerSurface(
+    return AppSurface(
       child: InkWell(
         onTap: onTap,
         child: LayoutBuilder(

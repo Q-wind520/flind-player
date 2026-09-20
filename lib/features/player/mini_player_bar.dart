@@ -19,7 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_screen.dart';
-import 'package:flind_player/features/player/player_surface.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
@@ -50,7 +50,7 @@ class MiniPlayerBar extends ConsumerWidget {
         ? (positionMs / durationMs).clamp(0.0, 1.0)
         : 0.0;
 
-    return PlayerSurface(
+    return AppSurface(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

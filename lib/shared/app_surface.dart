@@ -15,18 +15,19 @@
 
 import 'package:flutter/material.dart';
 
-/// The single background surface shared by the player screen and every player
-/// chrome element (mini player bar, MiniSettings, volume bar, lyrics strip).
+/// The single background surface shared by every screen and player chrome
+/// element (mini player bar, MiniSettings, volume bar, lyrics strip).
 ///
-/// Every player background goes through this widget so a future transparent /
-/// glass style can be introduced in one place without touching each widget.
-class PlayerSurface extends StatelessWidget {
-  const PlayerSurface({super.key, required this.child, this.borderRadius});
+/// Every background goes through this widget (or [colorOf]) so a future
+/// transparent / glass style can be introduced in one place without touching
+/// each widget — keeping the mini player and the rest of the app in sync.
+class AppSurface extends StatelessWidget {
+  const AppSurface({super.key, required this.child, this.borderRadius});
 
   final Widget child;
   final BorderRadius? borderRadius;
 
-  /// The flat colour every player surface uses today.
+  /// The flat colour every surface uses today.
   static Color colorOf(BuildContext context) =>
       Theme.of(context).colorScheme.surfaceContainerHigh;
 

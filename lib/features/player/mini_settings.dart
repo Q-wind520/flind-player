@@ -18,7 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_panels.dart';
-import 'package:flind_player/features/player/player_surface.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
@@ -52,7 +52,7 @@ class MiniSettings extends ConsumerWidget {
     final volume = ref.watch(playbackStateProvider).value?.volume ?? 1.0;
     final sleepState = ref.watch(sleepTimerProvider);
 
-    return PlayerSurface(
+    return AppSurface(
       child: SizedBox(
         height: kMiniSettingsHeight,
         child: Row(
@@ -210,7 +210,7 @@ class VolumeBar extends ConsumerWidget {
     final controller = ref.read(playbackControllerProvider);
     final percent = (volume * 100).round();
 
-    return PlayerSurface(
+    return AppSurface(
       child: SizedBox(
         height: kMiniSettingsHeight,
         child: Row(

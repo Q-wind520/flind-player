@@ -28,7 +28,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/mini_settings.dart';
-import 'package:flind_player/features/player/player_surface.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
@@ -37,7 +37,7 @@ import 'package:flind_player/shared/responsive_center.dart';
 /// The "now playing" screen: artwork, progress and transport controls.
 ///
 /// Shown full-screen on every platform. The whole body sits on a single
-/// [PlayerSurface]; the collapse button and the current artist live in a
+/// [AppSurface]; the collapse button and the current artist live in a
 /// header row inside the content so the same layout works in both
 /// orientations.
 class PlayerScreen extends StatelessWidget {
@@ -46,7 +46,7 @@ class PlayerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: PlayerSurface(child: SafeArea(child: const PlayerView())),
+      body: AppSurface(child: SafeArea(child: const PlayerView())),
     );
   }
 }
@@ -339,7 +339,7 @@ class _PortraitNormal extends StatelessWidget {
 
 /// Landscape body: two equal panes — the left [MiniMain] and the full-height
 /// [LyricsView] on the right. No divider: both panes share the same
-/// [PlayerSurface] background.
+/// [AppSurface] background.
 class _LandscapeBody extends StatelessWidget {
   const _LandscapeBody({
     required this.state,
