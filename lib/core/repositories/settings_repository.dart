@@ -16,6 +16,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 
 /// User-configurable offline audio cache settings.
@@ -72,4 +73,10 @@ abstract interface class SettingsRepository {
 
   /// Persists [language] as the UI language.
   Future<void> setAppLanguage(AppLanguage language);
+
+  /// The persisted app appearance, falling back to [AppThemeMode.system].
+  Future<AppThemeMode> appThemeMode();
+
+  /// Persists [mode] as the app appearance.
+  Future<void> setAppThemeMode(AppThemeMode mode);
 }

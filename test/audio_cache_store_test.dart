@@ -24,6 +24,7 @@ import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 
 /// In-memory [SettingsRepository] whose value the test can mutate.
 class _FakeSettingsRepository implements SettingsRepository {
@@ -32,6 +33,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setAppLanguage(AppLanguage language) async {}
+
+  @override
+  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
+
+  @override
+  Future<void> setAppThemeMode(AppThemeMode mode) async {}
 
   CacheSettings current = CacheSettings.defaults;
 

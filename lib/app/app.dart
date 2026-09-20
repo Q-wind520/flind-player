@@ -19,7 +19,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -35,6 +37,8 @@ class FlindApp extends ConsumerWidget {
 
     final language =
         ref.watch(appLanguageProvider).value ?? AppLanguage.system;
+    final themeMode =
+        ref.watch(appThemeModeProvider).value ?? AppThemeMode.system;
     return MaterialApp(
       locale: localeForAppLanguage(language),
       onGenerateTitle: (context) => AppLocalizations.of(context).appName,
@@ -42,7 +46,7 @@ class FlindApp extends ConsumerWidget {
       supportedLocales: appSupportedLocales,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeModeForAppThemeMode(themeMode),
       debugShowCheckedModeBanner: false,
       home: const HomeShell(),
     );

@@ -21,6 +21,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
@@ -34,6 +35,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setAppLanguage(AppLanguage language) async {}
+
+  @override
+  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
+
+  @override
+  Future<void> setAppThemeMode(AppThemeMode mode) async {}
 
   CacheSettings current = CacheSettings.defaults;
 

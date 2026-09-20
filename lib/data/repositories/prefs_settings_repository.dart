@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 
@@ -37,6 +38,9 @@ class PrefsSettingsRepository implements SettingsRepository {
 
   /// Preferences key for the UI language.
   static const String appLanguageKey = 'app.language';
+
+  /// Preferences key for the app appearance.
+  static const String appThemeModeKey = 'app.themeMode';
 
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
@@ -123,6 +127,25 @@ class PrefsSettingsRepository implements SettingsRepository {
   Future<void> setAppLanguage(AppLanguage language) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(appLanguageKey, language.name);
+  }
+
+  @override
+  Future<AppThemeMode> appThemeMode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final name = prefs.getString(appThemeModeKey);
+      if (name == null) return AppThemeMode.system;
+      return AppThemeMode.values.asNameMap()[name] ?? AppThemeMode.system;
+    } catch (error) {
+      debugPrint('PrefsSettingsRepository: appThemeMode read failed: $error');
+      return AppThemeMode.system;
+    }
+  }
+
+  @override
+  Future<void> setAppThemeMode(AppThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(appThemeModeKey, mode.name);
   }
 
   CacheSettings _read(SharedPreferences prefs) {
