@@ -34,6 +34,7 @@ import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
@@ -42,7 +43,24 @@ import 'package:flind_player/shared/platform_support.dart';
 import 'package:flind_player/shared/responsive_center.dart';
 
 /// Actions exposed by the library overflow menu.
-enum _LibraryAction { addFolder, rescan, importFiles, bilibiliFavorites }
+///
+/// The `sortBy*` variants carry the [TrackSort] they apply, so the sort choices
+/// live in the same menu as the library actions.
+enum _LibraryAction {
+  addFolder,
+  rescan,
+  importFiles,
+  bilibiliFavorites,
+  sortByTitle(TrackSort.title),
+  sortByArtist(TrackSort.artist),
+  sortByAlbum(TrackSort.album),
+  sortByRecentlyAdded(TrackSort.recentlyAdded);
+
+  const _LibraryAction([this.sort]);
+
+  /// The sort order applied by a `sortBy*` variant; `null` for other actions.
+  final TrackSort? sort;
+}
 
 /// Library list mode: all tracks vs. favourites only.
 enum LibraryFilter { all, favourites }
@@ -61,6 +79,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Timer? _debounce;
   String _query = '';
   LibraryFilter _filter = LibraryFilter.all;
+
+  /// Whether the inline search field is expanded under the header row.
+  bool _searchOpen = false;
+
+  /// Text of the sync bubble currently shown, so identical progress updates do
+  /// not re-trigger the notification.
+  String? _syncBubbleText;
 
   /// Local FTS is fast, but debouncing keeps the family provider from churning
   /// on every keystroke.
@@ -91,6 +116,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  /// Expands/collapses the inline search field; collapsing clears the query.
+  void _toggleSearch() {
+    if (_searchOpen) {
+      _debounce?.cancel();
+      _searchController.clear();
+      _query = '';
+    }
+    setState(() => _searchOpen = !_searchOpen);
+  }
+
   Future<void> _onAction(_LibraryAction action) async {
     switch (action) {
       case _LibraryAction.addFolder:
@@ -101,6 +136,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         await _importFiles();
       case _LibraryAction.bilibiliFavorites:
         await _openBilibiliFavorites();
+      case _LibraryAction.sortByTitle ||
+           _LibraryAction.sortByArtist ||
+           _LibraryAction.sortByAlbum ||
+           _LibraryAction.sortByRecentlyAdded:
+        final sort = action.sort;
+        if (sort != null) {
+          await ref.read(librarySortProvider.notifier).setSort(sort);
+        }
     }
   }
 
@@ -214,8 +257,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final hasLocalLibrary = supportsLocalLibrary;
+
+    ref.listen(librarySyncStateProvider, (previous, next) {
+      _onSyncStateChanged(next);
+    });
+
+    return Scaffold(
+      backgroundColor: AppSurface.colorOf(context),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeaderRow(hasLocalLibrary: hasLocalLibrary),
+            if (hasLocalLibrary) _buildSearchField(),
+            Expanded(
+              child: hasLocalLibrary
+                  ? _buildBody()
+                  : const _UnsupportedLibraryNotice(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The single top row: the 全部/收藏 selector on the left, then the search
+  /// and overflow-menu icons.
+  Widget _buildHeaderRow({required bool hasLocalLibrary}) {
+    final l10n = AppLocalizations.of(context);
+    final currentSort = ref.watch(librarySortProvider).value ?? TrackSort.title;
     final syncState =
         ref.watch(librarySyncStateProvider).value ?? LibrarySyncState.idle;
     final isSyncing = switch (syncState.phase) {
@@ -225,18 +297,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       _ => false,
     };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.musicLibrary),
-        actions: [
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: _LibraryFilterSelector(
+              filter: _filter,
+              onFilterChanged: (filter) => setState(() => _filter = filter),
+            ),
+          ),
           if (hasLocalLibrary)
-            _SortButton(
-              currentSort:
-                  ref.watch(librarySortProvider).value ?? TrackSort.title,
-              onSortChanged: (sort) =>
-                  ref.read(librarySortProvider.notifier).setSort(sort),
+            IconButton(
+              key: const Key('library_search_button'),
+              icon: Icon(_searchOpen ? Icons.close : Icons.search),
+              tooltip: _filter == LibraryFilter.favourites
+                  ? l10n.searchFavorites
+                  : l10n.searchLibrary,
+              onPressed: _toggleSearch,
             ),
           PopupMenuButton<_LibraryAction>(
+            key: const Key('library_more_menu'),
             // Empty message suppresses the default "Show menu" hover bubble.
             tooltip: '',
             onSelected: _onAction,
@@ -259,6 +340,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   value: _LibraryAction.importFiles,
                   child: _MenuRow(icon: Icons.add, label: l10n.importFiles),
                 ),
+                const PopupMenuDivider(),
+                for (final sort in TrackSort.values)
+                  PopupMenuItem<_LibraryAction>(
+                    value: _sortAction(sort),
+                    child: _SortRow(
+                      label: _sortLabel(l10n, sort),
+                      selected: sort == currentSort,
+                    ),
+                  ),
               ],
               PopupMenuItem(
                 value: _LibraryAction.bilibiliFavorites,
@@ -270,57 +360,140 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ],
           ),
         ],
-        bottom: hasLocalLibrary ? _buildSearchBar() : null,
       ),
-      body: hasLocalLibrary
-          ? Column(
-              children: [
-                _SyncStatus(state: syncState),
-                _FilterBar(
-                  filter: _filter,
-                  onFilterChanged: (f) => setState(() => _filter = f),
-                ),
-                Expanded(child: _buildBody()),
-              ],
-            )
-          : const _UnsupportedLibraryNotice(),
     );
   }
 
-  /// The search field pinned under the library AppBar.
-  PreferredSize _buildSearchBar() {
+  /// The inline search field, expanded under the header row.
+  Widget _buildSearchField() {
     final l10n = AppLocalizations.of(context);
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(64),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: ValueListenableBuilder<TextEditingValue>(
-          valueListenable: _searchController,
-          builder: (context, value, child) {
-            return TextField(
-              controller: _searchController,
-              textInputAction: TextInputAction.search,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: _filter == LibraryFilter.favourites
-                    ? l10n.searchFavorites
-                    : l10n.searchLibrary,
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: value.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: _clearSearch,
-                      ),
-                border: const OutlineInputBorder(),
-                isDense: true,
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: _searchOpen
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _searchController,
+                builder: (context, value, child) {
+                  return TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: _filter == LibraryFilter.favourites
+                          ? l10n.searchFavorites
+                          : l10n.searchLibrary,
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: value.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: _clearSearch,
+                            ),
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
-      ),
+            )
+          : const SizedBox(width: double.infinity),
     );
   }
+
+  /// Maps a [TrackSort] to the overflow-menu action that applies it.
+  static _LibraryAction _sortAction(TrackSort sort) => switch (sort) {
+    TrackSort.title => _LibraryAction.sortByTitle,
+    TrackSort.artist => _LibraryAction.sortByArtist,
+    TrackSort.album => _LibraryAction.sortByAlbum,
+    TrackSort.recentlyAdded => _LibraryAction.sortByRecentlyAdded,
+  };
+
+  /// Surfaces sync progress and results as floating bubble notifications.
+  void _onSyncStateChanged(AsyncValue<LibrarySyncState> asyncState) {
+    if (!mounted) return;
+    final state = asyncState.value;
+    if (state == null) return;
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    switch (state.phase) {
+      case LibrarySyncPhase.idle:
+        return;
+      case LibrarySyncPhase.scanning:
+      case LibrarySyncPhase.saving:
+      case LibrarySyncPhase.artwork:
+        final text = switch (state.phase) {
+          LibrarySyncPhase.scanning => l10n.scanning(
+            state.processed,
+            state.discovered,
+          ),
+          LibrarySyncPhase.saving => l10n.saving,
+          _ => l10n.coversCached(state.coversCached, state.saved),
+        };
+        if (_syncBubbleText == text) return;
+        _syncBubbleText = text;
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              duration: const Duration(days: 1),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(text),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(value: _syncProgress(state)),
+                ],
+              ),
+            ),
+          );
+      case LibrarySyncPhase.done:
+        _syncBubbleText = null;
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 3),
+              content: Text(
+                l10n.syncedAddedRemoved(
+                  state.discovered,
+                  state.saved,
+                  state.markedMissing,
+                ),
+              ),
+            ),
+          );
+      case LibrarySyncPhase.failed:
+        _syncBubbleText = null;
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 3),
+              content: Text(
+                l10n.syncFailedWith(
+                  state.error == null
+                      ? l10n.unknownError
+                      : describeError(l10n, state.error!),
+                ),
+              ),
+            ),
+          );
+    }
+  }
+
+  /// Fractional progress for an in-progress sync, or `null` when unknown.
+  static double? _syncProgress(LibrarySyncState state) => switch (state.phase) {
+    LibrarySyncPhase.scanning =>
+      state.discovered > 0 ? state.processed / state.discovered : null,
+    LibrarySyncPhase.artwork =>
+      state.saved > 0 ? state.coversCached / state.saved : null,
+    _ => null,
+  };
 
   Widget _buildBody() {
     final l10n = AppLocalizations.of(context);
@@ -491,89 +664,122 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-/// Compact filter bar at the top of the library list.
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({required this.filter, required this.onFilterChanged});
+/// The 全部/收藏 selector.
+///
+/// The selected filter is rendered bold and enlarged at the far left, acting
+/// as the page title; the remaining filters sit to its right, smaller and
+/// muted. Tapping a label selects it, and a horizontal swipe cycles through
+/// the filters like a wheel (advancing or retreating, wrapping around).
+class _LibraryFilterSelector extends StatelessWidget {
+  const _LibraryFilterSelector({
+    required this.filter,
+    required this.onFilterChanged,
+  });
 
   final LibraryFilter filter;
   final ValueChanged<LibraryFilter> onFilterChanged;
 
+  static const Duration _animation = Duration(milliseconds: 250);
+
+  /// The filters ordered with the selected one first.
+  List<LibraryFilter> get _ordered => <LibraryFilter>[
+    filter,
+    ...LibraryFilter.values.where((f) => f != filter),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: SegmentedButton<LibraryFilter>(
-        segments: [
-          ButtonSegment<LibraryFilter>(
-            value: LibraryFilter.all,
-            label: Text(l10n.tabAll),
-          ),
-          ButtonSegment<LibraryFilter>(
-            value: LibraryFilter.favourites,
-            label: Text(l10n.tabFavorites),
-          ),
+    final selectedStyle = theme.textTheme.headlineSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+    );
+    final unselectedStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final labels = _ordered;
+
+    return GestureDetector(
+      key: const Key('library_filter_selector'),
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -200) {
+          onFilterChanged(_advance());
+        } else if (velocity > 200) {
+          onFilterChanged(_retreat());
+        }
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < labels.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            AnimatedDefaultTextStyle(
+              key: ValueKey(labels[i]),
+              duration: _animation,
+              curve: Curves.easeOutCubic,
+              style:
+                  (i == 0 ? selectedStyle : unselectedStyle) ??
+                  const TextStyle(),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: i == 0 ? null : () => onFilterChanged(labels[i]),
+                child: Text(_label(l10n, labels[i]), maxLines: 1),
+              ),
+            ),
+          ],
         ],
-        selected: {filter},
-        onSelectionChanged: (selected) {
-          if (selected.isNotEmpty) onFilterChanged(selected.first);
-        },
-        style: ButtonStyle(
-          visualDensity: VisualDensity.compact,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
       ),
     );
   }
+
+  /// The next filter, wrapping around.
+  LibraryFilter _advance() {
+    final values = LibraryFilter.values;
+    return values[(values.indexOf(filter) + 1) % values.length];
+  }
+
+  /// The previous filter, wrapping around.
+  LibraryFilter _retreat() {
+    final values = LibraryFilter.values;
+    return values[(values.indexOf(filter) - 1 + values.length) % values.length];
+  }
+
+  static String _label(AppLocalizations l10n, LibraryFilter filter) =>
+      filter == LibraryFilter.all ? l10n.tabAll : l10n.tabFavorites;
 }
 
-/// Popup button that lets the user choose the library sort order.
-class _SortButton extends StatelessWidget {
-  const _SortButton({required this.currentSort, required this.onSortChanged});
+/// A sort option row inside the overflow menu, check-marked when active.
+class _SortRow extends StatelessWidget {
+  const _SortRow({required this.label, required this.selected});
 
-  final TrackSort currentSort;
-  final ValueChanged<TrackSort> onSortChanged;
+  final String label;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return PopupMenuButton<TrackSort>(
-      // Empty message suppresses the default "Show menu" hover bubble.
-      tooltip: '',
-      initialValue: currentSort,
-      onSelected: onSortChanged,
-      itemBuilder: (context) => [
-        for (final sort in TrackSort.values)
-          PopupMenuItem<TrackSort>(
-            value: sort,
-            child: Row(
-              children: [
-                if (sort == currentSort)
-                  Icon(
-                    Icons.check,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.primary,
-                  )
-                else
-                  const SizedBox(width: 20),
-                const SizedBox(width: 8),
-                Text(_sortLabel(l10n, sort)),
-              ],
-            ),
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        if (selected)
+          Icon(Icons.check, size: 20, color: scheme.primary)
+        else
+          const SizedBox(width: 20),
+        const SizedBox(width: 8),
+        Text(label),
       ],
-      icon: const Icon(Icons.sort),
     );
   }
-
-  static String _sortLabel(AppLocalizations l10n, TrackSort sort) =>
-      switch (sort) {
-        TrackSort.title => l10n.sortByTitle,
-        TrackSort.artist => l10n.sortByArtist,
-        TrackSort.album => l10n.sortByAlbum,
-        TrackSort.recentlyAdded => l10n.sortRecentlyAdded,
-      };
 }
+
+/// The display label for a [TrackSort] option.
+String _sortLabel(AppLocalizations l10n, TrackSort sort) => switch (sort) {
+  TrackSort.title => l10n.sortByTitle,
+  TrackSort.artist => l10n.sortByArtist,
+  TrackSort.album => l10n.sortByAlbum,
+  TrackSort.recentlyAdded => l10n.sortRecentlyAdded,
+};
 
 /// A menu entry: leading icon plus label.
 class _MenuRow extends StatelessWidget {
@@ -585,112 +791,6 @@ class _MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [Icon(icon), const SizedBox(width: 12), Text(label)]);
-  }
-}
-
-/// Inline progress / result banner for the active or last library sync.
-class _SyncStatus extends StatelessWidget {
-  const _SyncStatus({required this.state});
-
-  final LibrarySyncState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    return switch (state.phase) {
-      LibrarySyncPhase.idle => const SizedBox.shrink(),
-      LibrarySyncPhase.scanning => _SyncBanner(
-        text: l10n.scanning(state.processed, state.discovered),
-        color: scheme.primary,
-        showProgress: true,
-        progress: state.discovered > 0
-            ? state.processed / state.discovered
-            : null,
-      ),
-      LibrarySyncPhase.saving => _SyncBanner(
-        text: l10n.saving,
-        color: scheme.primary,
-        showProgress: true,
-      ),
-      LibrarySyncPhase.artwork => _SyncBanner(
-        text: l10n.coversCached(state.coversCached, state.saved),
-        color: scheme.primary,
-        showProgress: true,
-        progress: state.saved > 0 ? state.coversCached / state.saved : null,
-      ),
-      LibrarySyncPhase.done => _SyncBanner(
-        text: l10n.syncedAddedRemoved(
-          state.discovered,
-          state.saved,
-          state.markedMissing,
-        ),
-        color: scheme.tertiary,
-        icon: Icons.check_circle_outline,
-      ),
-      LibrarySyncPhase.failed => _SyncBanner(
-        text: l10n.syncFailedWith(
-          state.error == null
-              ? l10n.unknownError
-              : describeError(l10n, state.error!),
-        ),
-        color: scheme.error,
-        icon: Icons.error_outline,
-      ),
-    };
-  }
-}
-
-/// A tonal strip carrying a sync line and optional progress bar.
-class _SyncBanner extends StatelessWidget {
-  const _SyncBanner({
-    required this.text,
-    required this.color,
-    this.icon,
-    this.showProgress = false,
-    this.progress,
-  });
-
-  final String text;
-  final Color color;
-  final IconData? icon;
-  final bool showProgress;
-  final double? progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 18, color: color),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: Text(
-                    text,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: color),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            if (showProgress) ...[
-              const SizedBox(height: 8),
-              LinearProgressIndicator(value: progress, color: color),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 }
 

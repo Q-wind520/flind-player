@@ -184,7 +184,7 @@ void main() {
       await tester.tap(find.byType(TrackActionsButton));
       await tester.pumpAndSettle();
 
-      // Tap the favourite menu item (.last because the SegmentedButton also
+      // Tap the favourite menu item (.last because the filter selector also
       // contains the text "收藏").
       await tester.tap(find.text('收藏').last);
       await tester.pumpAndSettle();
@@ -263,6 +263,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Type a search query.
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Alpha');
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
@@ -290,6 +292,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Type a search query that matches nothing.
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Nothing');
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();

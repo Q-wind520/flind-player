@@ -156,9 +156,7 @@ void main() {
       await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.sort), findsOneWidget);
-
-      await tester.tap(find.byIcon(Icons.sort));
+      await tester.tap(find.byKey(const Key('library_more_menu')));
       await tester.pumpAndSettle();
 
       expect(find.text('按标题'), findsOneWidget);
@@ -172,7 +170,7 @@ void main() {
       await tester.pumpWidget(_app(tracks: [_track('Alpha'), _track('Beta')]));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.sort));
+      await tester.tap(find.byKey(const Key('library_more_menu')));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('按艺术家'));

@@ -180,6 +180,12 @@ Widget _app({
   );
 }
 
+/// Expands the inline search field via the header's search icon.
+Future<void> _openSearch(WidgetTester tester) async {
+  await tester.tap(find.byIcon(Icons.search));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('renders tracks from the library', (tester) async {
     // Set a narrow view so the compact (list) layout renders.
@@ -286,6 +292,7 @@ void main() {
 
     expect(find.text('Local Song'), findsOneWidget);
 
+    await _openSearch(tester);
     await tester.enterText(find.byType(TextField), 'Hit');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -305,6 +312,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await _openSearch(tester);
     await tester.enterText(find.byType(TextField), 'nothing');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -456,6 +464,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Type a search query.
+    await _openSearch(tester);
     await tester.enterText(find.byType(TextField), 'Alpha');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -483,6 +492,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Type a search query that matches nothing.
+      await _openSearch(tester);
       await tester.enterText(find.byType(TextField), 'Nothing');
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
@@ -490,6 +500,38 @@ void main() {
       expect(find.text('没有找到匹配的收藏'), findsOneWidget);
     },
   );
+
+  testWidgets('the header row shows the selector and two icons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('library_filter_selector')), findsOneWidget);
+    expect(find.text('全部'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.byIcon(Icons.search), findsOneWidget);
+    expect(find.byKey(const Key('library_more_menu')), findsOneWidget);
+    // The old sort icon is gone: sort lives in the overflow menu now.
+    expect(find.byIcon(Icons.sort), findsNothing);
+  });
+
+  testWidgets('swiping the selector changes the filter', (tester) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+
+    await tester.fling(
+      find.byKey(const Key('library_filter_selector')),
+      const Offset(-120, 0),
+      800,
+    );
+    await tester.pumpAndSettle();
+
+    // The favourites filter is now active and empty.
+    expect(find.text('还没有收藏的歌曲'), findsOneWidget);
+  });
 }
 
 /// Fake [LibrarySortNotifier] that returns a fixed value immediately.
