@@ -50,6 +50,7 @@ import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 
 import 'support/l10n.dart';
 
@@ -137,6 +138,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setAppLanguage(AppLanguage language) async {}
+
+  @override
+  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
+
+  @override
+  Future<void> setAppThemeMode(AppThemeMode mode) async {}
 
   _FakeSettingsRepository(this.current);
 
@@ -523,6 +530,8 @@ void main() {
           await tester.pumpAndSettle();
 
           // Cache-location dialog.
+          await tester.ensureVisible(find.text('缓存位置'));
+          await tester.pumpAndSettle();
           await tester.tap(find.text('缓存位置'));
           await tester.pumpAndSettle();
           expect(find.byType(AlertDialog), findsOneWidget);
@@ -531,6 +540,8 @@ void main() {
           await tester.pumpAndSettle();
 
           // Custom-limit dialog.
+          await tester.ensureVisible(find.text('缓存上限'));
+          await tester.pumpAndSettle();
           await tester.tap(find.text('缓存上限'));
           await tester.pumpAndSettle();
           expect(find.byType(AlertDialog), findsOneWidget);

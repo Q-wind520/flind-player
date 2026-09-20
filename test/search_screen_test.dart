@@ -168,6 +168,8 @@ void main() {
     );
 
     expect(find.text('搜索 Bilibili 上的音乐'), findsOneWidget);
+    // The former AppBar (and its title) is gone; the field lives in the body.
+    expect(find.byType(AppBar), findsNothing);
 
     await _submitQuery(tester, '周杰伦');
 

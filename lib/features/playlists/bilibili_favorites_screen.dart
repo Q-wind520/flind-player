@@ -24,6 +24,7 @@ import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -239,56 +240,83 @@ class _BilibiliFavoritesScreenState
   @override
   Widget build(BuildContext context) {
     final folder = _openFolder;
-    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        leading: folder == null
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _backToFolders,
-              ),
-        title: Text(
-          folder == null ? l10n.browseBiliFavorites : folder.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+      backgroundColor: AppSurface.colorOf(context),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildHeader(folder),
+            if (folder == null) _buildUidBar(),
+            Expanded(child: _buildBody()),
+          ],
         ),
-        bottom: folder == null
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(72),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _uidController,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.search,
-                          inputFormatters: <TextInputFormatter>[
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          onSubmitted: (_) => _loadFolders(),
-                          decoration: InputDecoration(
-                            hintText: l10n.upUid,
-                            prefixIcon: const Icon(Icons.person_outline),
-                            border: const OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _loading ? null : _loadFolders,
-                        child: Text(l10n.load),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            : null,
       ),
-      body: _buildBody(),
+    );
+  }
+
+  /// In-body header for this pushed route.
+  ///
+  /// Replaces the former [AppBar]: a back affordance plus the title. While a
+  /// folder's tracks are open the back button returns to the folder list;
+  /// otherwise it pops the route, matching the old leading-arrow behaviour.
+  Widget _buildHeader(RemotePlaylist? folder) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: folder == null
+                ? () => Navigator.of(context).maybePop()
+                : _backToFolders,
+          ),
+          Expanded(
+            child: Text(
+              folder == null ? l10n.browseBiliFavorites : folder.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// UID entry shown only before a folder is opened.
+  Widget _buildUidBar() {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _uidController,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.search,
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onSubmitted: (_) => _loadFolders(),
+              decoration: InputDecoration(
+                hintText: l10n.upUid,
+                prefixIcon: const Icon(Icons.person_outline),
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: _loading ? null : _loadFolders,
+            child: Text(l10n.load),
+          ),
+        ],
+      ),
     );
   }
 

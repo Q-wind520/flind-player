@@ -21,6 +21,7 @@ import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/shared/app_surface.dart';
 
 /// Adaptive application shell.
 ///
@@ -46,6 +47,10 @@ class _HomeShellState extends State<HomeShell> {
   /// labels: three labelled destinations need roughly 240 px, and stacking
   /// them in a very short window would overflow the rail.
   static const double _railLabelsMinHeight = 420;
+
+  /// Compact bottom bar height: below the Material default of 80 so the bar
+  /// stays narrow, while still fitting the icon and the selected label.
+  static const double _navigationBarHeight = 60;
 
   static const List<Widget> _screens = <Widget>[
     SearchScreen(),
@@ -107,6 +112,7 @@ class _HomeShellState extends State<HomeShell> {
         if (!compact) {
           final showRailLabels = constraints.maxHeight >= _railLabelsMinHeight;
           return Scaffold(
+            backgroundColor: AppSurface.colorOf(context),
             body: SafeArea(
               child: Row(
                 children: [
@@ -138,12 +144,19 @@ class _HomeShellState extends State<HomeShell> {
         }
 
         return Scaffold(
+          backgroundColor: AppSurface.colorOf(context),
           body: IndexedStack(index: _selectedIndex, children: _screens),
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const MiniPlayerBar(),
               NavigationBar(
+                height: _navigationBarHeight,
+                labelBehavior:
+                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                labelTextStyle: WidgetStatePropertyAll(
+                  Theme.of(context).textTheme.labelSmall,
+                ),
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: _onDestinationSelected,
                 destinations: _destinations(l10n),

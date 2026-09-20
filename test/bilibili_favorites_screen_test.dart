@@ -218,6 +218,35 @@ void main() {
     expect(find.text('已全部加载'), findsNothing);
   });
 
+  testWidgets('in-body header replaces the AppBar and backs out of a folder', (
+    tester,
+  ) async {
+    final source = _FakeRemotePlaylistSource(
+      folders: (uid) async => <RemotePlaylist>[_musicFolder],
+      tracks: (playlistId, page) async =>
+          _page(<Track>[_track('Alpha')], page: page),
+    );
+
+    await tester.pumpWidget(_app(source: source));
+
+    // No AppBar: the pushed route carries its own header with the title.
+    expect(find.byType(AppBar), findsNothing);
+    expect(find.text('浏览 B 站收藏夹'), findsOneWidget);
+
+    await _openFolder(tester);
+    expect(find.text('Alpha'), findsOneWidget);
+    // The open-folder title takes over the header.
+    expect(find.text('音乐收藏'), findsOneWidget);
+
+    // The header back affordance returns to the folder list.
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+
+    expect(find.text('浏览 B 站收藏夹'), findsOneWidget);
+    expect(find.text('音乐收藏'), findsOneWidget);
+    expect(find.text('Alpha'), findsNothing);
+  });
+
   testWidgets('an empty folder renders the empty state', (tester) async {
     final source = _FakeRemotePlaylistSource(
       folders: (uid) async => <RemotePlaylist>[_musicFolder],

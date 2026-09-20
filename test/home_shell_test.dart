@@ -44,6 +44,7 @@ import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_mode.dart';
 
 import 'support/l10n.dart';
 
@@ -54,6 +55,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setAppLanguage(AppLanguage language) async {}
+
+  @override
+  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
+
+  @override
+  Future<void> setAppThemeMode(AppThemeMode mode) async {}
 
   _FakeSettingsRepository(this.current);
 
@@ -318,12 +325,13 @@ void main() {
     await tester.pumpAndSettle();
 
     // Labels match the screen each destination shows: search / library / settings.
-    expect(find.text('搜索'), findsNWidgets(2)); // nav label + the search AppBar
-    expect(find.text('曲库'), findsOneWidget);
-    expect(
-      find.text('设置'),
-      findsOneWidget,
-    ); // nav label only; settings is offstage
+    // The search screen no longer has an AppBar, and the bottom bar only shows
+    // the selected destination's label, so 搜索 appears exactly once.
+    expect(find.text('搜索'), findsOneWidget);
+    // Unselected labels stay mounted (faded) for the transition, so the finder
+    // still sees them even though they are not visible.
+    expect(find.text('曲库'), findsOneWidget); // nav label, faded (unselected)
+    expect(find.text('设置'), findsOneWidget); // nav label, faded (unselected)
 
     // The previously mismatched labels are gone.
     expect(find.text('首页'), findsNothing);
@@ -333,6 +341,29 @@ void main() {
     expect(find.byIcon(Icons.account_circle_outlined), findsNothing);
   });
 
+  testWidgets(
+    'bottom NavigationBar is compact and shows only the selected label',
+    (tester) async {
+      // A narrow portrait window uses the compact shell with a bottom bar.
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(_app());
+      await tester.pumpAndSettle();
+
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      // Unselected labels are hidden while the selected one stays visible.
+      expect(
+        bar.labelBehavior,
+        NavigationDestinationLabelBehavior.onlyShowSelected,
+      );
+      // Narrower than the Material default of 80 px.
+      expect(bar.height, 60);
+      expect(tester.getSize(find.byType(NavigationBar)).height, 60);
+    },
+  );
+
   testWidgets('tapping 曲库 shows the library screen', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
@@ -340,8 +371,8 @@ void main() {
     // Default is 首页 (SearchScreen) which shows the search hint.
     expect(find.text('搜索 Bilibili 上的音乐'), findsOneWidget);
 
-    // Tap 曲库.
-    await tester.tap(find.text('曲库'));
+    // The unselected label is hidden, so tap the destination's icon instead.
+    await tester.tap(find.byIcon(Icons.library_music_outlined));
     await tester.pumpAndSettle();
 
     // LibraryScreen shows the empty library message.
@@ -352,7 +383,8 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('设置'));
+    // The unselected label is hidden, so tap the destination's icon instead.
+    await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
 
     // SettingsScreen shows the cache settings.

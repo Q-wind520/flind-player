@@ -24,6 +24,7 @@ import 'package:flind_player/features/library/widgets/track_actions_button.dart'
 import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
+import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
@@ -100,38 +101,40 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l10n = AppLocalizations.of(context);
     return PlaybackPermissionScope(
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.navSearch),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(64),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _controller,
-                builder: (context, value, child) {
-                  return TextField(
-                    controller: _controller,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: _submit,
-                    decoration: InputDecoration(
-                      hintText: l10n.searchHint,
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: value.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: _clear,
-                            ),
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  );
-                },
+        backgroundColor: AppSurface.colorOf(context),
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, child) {
+                    return TextField(
+                      controller: _controller,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _submit,
+                      decoration: InputDecoration(
+                        hintText: l10n.searchHint,
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: value.text.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: _clear,
+                              ),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
+              Expanded(child: _buildBody()),
+            ],
           ),
         ),
-        body: _buildBody(),
       ),
     );
   }
