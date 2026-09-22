@@ -145,7 +145,6 @@ class _PanelHeader extends StatelessWidget {
         children: [
           Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
           IconButton(
-            tooltip: l10n.close,
             onPressed: () => Navigator.of(context).maybePop(),
             icon: const Icon(Icons.close),
           ),

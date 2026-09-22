@@ -567,7 +567,6 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
             title: Text(l10n.loadFailedWith(describeError(l10n, e))),
             trailing: IconButton(
               icon: const Icon(Icons.refresh),
-              tooltip: l10n.retry,
               onPressed: () => ref.invalidate(scanRootsProvider),
             ),
           ),
@@ -596,7 +595,6 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline),
-                      tooltip: l10n.delete,
                       onPressed: () => _confirmRemoveRoot(context, ref, root),
                     ),
                   ),
@@ -768,7 +766,6 @@ class _ScanRootHeader extends StatelessWidget {
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.create_new_folder_outlined),
-            tooltip: l10n.addFolder,
             onPressed: isSyncing ? null : onAdd,
           ),
         ],

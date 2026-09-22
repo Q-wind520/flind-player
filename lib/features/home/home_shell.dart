@@ -55,16 +55,22 @@ class _HomeShellState extends State<HomeShell> {
           icon: const Icon(Icons.search_outlined),
           selectedIcon: const Icon(Icons.search),
           label: l10n.navSearch,
+          // Empty message suppresses the label hover bubble.
+          tooltip: '',
         ),
         NavigationDestination(
           icon: const Icon(Icons.library_music_outlined),
           selectedIcon: const Icon(Icons.library_music),
           label: l10n.navLibrary,
+          // Empty message suppresses the label hover bubble.
+          tooltip: '',
         ),
         NavigationDestination(
           icon: const Icon(Icons.settings_outlined),
           selectedIcon: const Icon(Icons.settings),
           label: l10n.navSettings,
+          // Empty message suppresses the label hover bubble.
+          tooltip: '',
         ),
       ];
 

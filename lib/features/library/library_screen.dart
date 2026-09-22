@@ -311,9 +311,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             IconButton(
               key: const Key('library_search_button'),
               icon: Icon(_searchOpen ? Icons.close : Icons.search),
-              tooltip: _filter == LibraryFilter.favourites
-                  ? l10n.searchFavorites
-                  : l10n.searchLibrary,
               onPressed: _toggleSearch,
             ),
           PopupMenuButton<_LibraryAction>(
