@@ -1003,8 +1003,24 @@ void main() {
       final file = File('${dir.path}/library.sqlite');
 
       // Build a current-schema file, then roll it back to v6 by dropping the
-      // two cover_url columns and the cover_cache table v7 introduces.
+      // two cover_url columns and the cover_cache table v7 introduces. The
+      // legacy `favorites` table is no longer created by the current schema
+      // (schema v8 removed it), so recreate it here to build the v6 fixture.
       final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement(
+        'CREATE TABLE IF NOT EXISTS favorites ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+        'uri TEXT NOT NULL UNIQUE, '
+        'source TEXT NOT NULL, '
+        'source_track_id TEXT NOT NULL, '
+        'title TEXT NOT NULL, '
+        'artist TEXT, '
+        'album TEXT, '
+        'duration_ms INTEGER, '
+        'cover_path TEXT, '
+        'cover_url TEXT, '
+        'favorited_at INTEGER NOT NULL)',
+      );
       await before.customStatement(
         'INSERT INTO tracks '
         '(source, source_track_id, uri, title, cover_path, created_at, '
@@ -1032,10 +1048,16 @@ void main() {
           .customSelect('SELECT cover_url FROM tracks')
           .getSingle();
       expect(track.data['cover_url'], isNull);
-      final favorite = await after
-          .customSelect('SELECT cover_url FROM favorites')
+      // The legacy favourites row migrated into the built-in playlist (the v8
+      // upgrade converts `favorites` into `playlist_tracks` and drops the old
+      // table), carrying the null cover URL the v7 column add produced.
+      final member = await after
+          .customSelect(
+            "SELECT cover_url FROM playlist_tracks "
+            "WHERE uri = 'bilibili:BV1:1'",
+          )
           .getSingle();
-      expect(favorite.data['cover_url'], isNull);
+      expect(member.data['cover_url'], isNull);
 
       // The recreated table is writable after the upgrade.
       await after.customStatement(
@@ -1048,6 +1070,185 @@ void main() {
           .customSelect('SELECT url_hash FROM cover_cache')
           .getSingle();
       expect(cover.data['url_hash'], 'h');
+    });
+
+    test('v7 -> v8 converts legacy favourites into the built-in playlist',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v8');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current-schema file, then roll it back to a v7 shape: no
+      // playlists, no `content_hash` on tracks, and the standalone `favorites`
+      // table (with the v7 `cover_url` column) carrying two rows.
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement(
+        'INSERT INTO tracks '
+        '(source, source_track_id, uri, title, cover_path, created_at, '
+        'updated_at) '
+        "VALUES ('bilibili', 'BV1:1', 'bilibili:BV1:1', 'Song', NULL, 1, 1)",
+      );
+      await before.customStatement('DROP TABLE IF EXISTS playlists');
+      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN content_hash');
+      await before.customStatement(
+        'CREATE TABLE IF NOT EXISTS favorites ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+        'uri TEXT NOT NULL UNIQUE, '
+        'source TEXT NOT NULL, '
+        'source_track_id TEXT NOT NULL, '
+        'title TEXT NOT NULL, '
+        'artist TEXT, '
+        'album TEXT, '
+        'duration_ms INTEGER, '
+        'cover_path TEXT, '
+        'cover_url TEXT, '
+        'favorited_at INTEGER NOT NULL)',
+      );
+      await before.customStatement(
+        'INSERT INTO favorites '
+        '(uri, source, source_track_id, title, favorited_at) '
+        "VALUES ('bilibili:BV1:1', 'bilibili', 'BV1:1', 'Song', 10)",
+      );
+      await before.customStatement(
+        'INSERT INTO favorites '
+        '(uri, source, source_track_id, title, favorited_at) '
+        "VALUES ('bilibili:BV1:2', 'bilibili', 'BV1:2', 'Song 2', 20)",
+      );
+      await before.customStatement('PRAGMA user_version = 7');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      // The built-in favourites playlist is seeded with the pinned id.
+      final playlist = await after
+          .customSelect(
+            "SELECT id, name, kind FROM playlists WHERE id = 1",
+          )
+          .getSingle();
+      expect(playlist.data['name'], 'Favorites');
+      expect(playlist.data['kind'], 'favorites');
+
+      // Legacy rows became members; `favorited_at` became `added_at`.
+      final members = await after.customSelect(
+        'SELECT uri, added_at FROM playlist_tracks '
+        'ORDER BY added_at DESC',
+      ).get();
+      expect(members.map((r) => r.data['uri']), [
+        'bilibili:BV1:2',
+        'bilibili:BV1:1',
+      ]);
+      expect(members[0].data['added_at'], 20);
+      expect(members[1].data['added_at'], 10);
+
+      // The legacy table is gone.
+      final legacy = await after.customSelect(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='favorites'",
+      ).get();
+      expect(legacy, isEmpty);
+
+      // The v8 `content_hash` column was added to tracks.
+      final columns = await after.customSelect(
+        'PRAGMA table_info(tracks)',
+      ).get();
+      expect(columns.map((r) => r.data['name']), contains('content_hash'));
+    });
+
+    test('v7 -> v8 without a legacy favourites table still seeds the playlist',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v8b');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // A v7 file that never had the `favorites` table (e.g. a user who never
+      // favourited anything).
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement('DROP TABLE IF EXISTS playlists');
+      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN content_hash');
+      await before.customStatement('PRAGMA user_version = 7');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      final playlist = await after
+          .customSelect(
+            "SELECT id, name, kind FROM playlists WHERE id = 1",
+          )
+          .getSingle();
+      expect(playlist.data['name'], 'Favorites');
+      expect(playlist.data['kind'], 'favorites');
+      final members = await after
+          .customSelect('SELECT COUNT(*) AS n FROM playlist_tracks')
+          .getSingle();
+      expect(members.data['n'], 0);
+    });
+
+    test('v7 -> v8 is idempotent when re-run over an upgraded file', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v8c');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Migrate once with a legacy favourite, then force the upgrade to run
+      // again by rolling `user_version` back to 7.
+      final first = AppDatabase(NativeDatabase(file));
+      await first.customStatement('DROP TABLE IF EXISTS playlists');
+      await first.customStatement('DROP TABLE IF EXISTS playlist_tracks');
+      await first.customStatement('ALTER TABLE tracks DROP COLUMN content_hash');
+      await first.customStatement(
+        'CREATE TABLE IF NOT EXISTS favorites ('
+        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+        'uri TEXT NOT NULL UNIQUE, '
+        'source TEXT NOT NULL, '
+        'source_track_id TEXT NOT NULL, '
+        'title TEXT NOT NULL, '
+        'artist TEXT, '
+        'album TEXT, '
+        'duration_ms INTEGER, '
+        'cover_path TEXT, '
+        'cover_url TEXT, '
+        'favorited_at INTEGER NOT NULL)',
+      );
+      await first.customStatement(
+        'INSERT INTO favorites '
+        '(uri, source, source_track_id, title, favorited_at) '
+        "VALUES ('bilibili:BV1:1', 'bilibili', 'BV1:1', 'Song', 10)",
+      );
+      await first.customStatement('PRAGMA user_version = 7');
+      await first.close();
+
+      final upgraded = AppDatabase(NativeDatabase(file));
+      await upgraded.customStatement('PRAGMA user_version = 7');
+      await upgraded.close();
+
+      // Re-running the upgrade must not duplicate members nor fail.
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+      final members = await after
+          .customSelect('SELECT COUNT(*) AS n FROM playlist_tracks')
+          .getSingle();
+      expect(members.data['n'], 1);
+    });
+
+    test('a fresh v8 database seeds the built-in favourites playlist', () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      final playlist = await db
+          .customSelect(
+            "SELECT id, name, kind FROM playlists WHERE id = 1",
+          )
+          .getSingle();
+      expect(playlist.data['name'], 'Favorites');
+      expect(playlist.data['kind'], 'favorites');
     });
   });
 }

@@ -16,6 +16,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'package:flind_player/data/database/playlist_defaults.dart';
 import 'package:flind_player/data/database/tables.dart';
 
 part 'app_database.g.dart';
@@ -29,7 +30,8 @@ part 'app_database.g.dart';
     AudioCache,
     CoverCache,
     PlaybackStates,
-    Favorites,
+    Playlists,
+    PlaylistTracks,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -38,13 +40,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
       await _installFts();
+      // A fresh database carries the built-in favourites playlist row too, so
+      // the favourites adapter (pinned to id 1) works without an upgrade.
+      await _seedFavoritesPlaylist();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -65,9 +70,24 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         // v3 had no playback snapshot nor favourites. `createTable` emits
         // `CREATE TABLE IF NOT EXISTS`, so a fixture that already carries the
-        // v4 tables upgrades cleanly.
+        // v4 tables upgrades cleanly. `Favorites` is no longer a drift table
+        // (schema v8), so the legacy table is created with raw SQL matching
+        // the exact v4 shape (no `cover_url`; that lands in v7).
         await m.createTable(playbackStates);
-        await m.createTable(favorites);
+        await customStatement('''
+CREATE TABLE IF NOT EXISTS favorites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uri TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  source_track_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  artist TEXT,
+  album TEXT,
+  duration_ms INTEGER,
+  cover_path TEXT,
+  favorited_at INTEGER NOT NULL
+)
+''');
       }
       if (from < 5) {
         // v4 had no file fingerprints nor root attribution. `addColumn` emits
@@ -88,9 +108,42 @@ class AppDatabase extends _$AppDatabase {
         // columns are guarded like v5's; `createTable`/`createIndex` emit
         // `IF NOT EXISTS`, so a fixture already carrying them upgrades cleanly.
         await _addColumnIfMissing(m, tracks, tracks.coverUrl);
-        await _addColumnIfMissing(m, favorites, favorites.coverUrl);
+        await _addColumnIfMissingRaw('favorites', 'cover_url', 'TEXT');
         await m.createTable(coverCache);
         await m.createIndex(idxCoverCacheLru);
+      }
+      if (from < 8) {
+        // v7 had no playlists: favourites were a standalone denormalised table
+        // and there were no user playlists. The new tables/index are created
+        // with `IF NOT EXISTS`, the favourites playlist is seeded with
+        // `INSERT OR IGNORE`, and the legacy `favorites` rows are converted
+        // into members (old `favorited_at` becomes `added_at`) only when the
+        // old table actually exists. Every step is re-runnable.
+        await m.createTable(playlists);
+        await m.createTable(playlistTracks);
+        await m.createIndex(idxPlaylistTracksOrder);
+        await _addColumnIfMissing(m, tracks, tracks.contentHash);
+
+        // 1) Seed the built-in favourites playlist (raw SQL: `Favorites` is no
+        // longer in the table list, so there is no generated code for it).
+        await _seedFavoritesPlaylist();
+
+        // 2) Legacy favourites -> members (only when the old table exists; the
+        // old `favorited_at` becomes `added_at`).
+        final hasLegacyFavorites = await customSelect(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='favorites'",
+        ).getSingleOrNull() != null;
+        if (hasLegacyFavorites) {
+          await customStatement(
+            'INSERT OR IGNORE INTO playlist_tracks '
+            '(playlist_id, uri, source, source_track_id, title, artist, album, '
+            ' duration_ms, cover_path, cover_url, added_at) '
+            'SELECT 1, uri, source, source_track_id, title, artist, album, '
+            '       duration_ms, cover_path, cover_url, favorited_at '
+            'FROM favorites',
+          );
+          await customStatement('DROP TABLE IF EXISTS favorites');
+        }
       }
     },
   );
@@ -100,6 +153,20 @@ class AppDatabase extends _$AppDatabase {
     for (final statement in TracksFts.createStatements) {
       await customStatement(statement);
     }
+  }
+
+  /// Inserts the built-in favourites playlist row (id pinned to 1) unless it
+  /// already exists.
+  ///
+  /// Called from both `onCreate` (fresh databases) and the v7 -> v8 upgrade,
+  /// so every database carries the row exactly once.
+  Future<void> _seedFavoritesPlaylist() async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await customStatement(
+      'INSERT OR IGNORE INTO playlists (id, name, kind, created_at, updated_at) '
+      "VALUES ($favoritesPlaylistId, '$favoritesPlaylistStoredName', "
+      "'$playlistKindFavorites', $now, $now)",
+    );
   }
 
   /// Adds [column] to [table] unless the physical table already has it.
@@ -117,6 +184,26 @@ class AppDatabase extends _$AppDatabase {
     ).get();
     if (rows.any((row) => row.data['name'] == column.name)) return;
     await m.addColumn(table, column);
+  }
+
+  /// Raw-SQL twin of [_addColumnIfMissing] for the legacy `favorites` table,
+  /// whose drift class no longer exists after schema v8.
+  ///
+  /// Also a no-op when [table] itself is absent: an upgrade starting from v4 or
+  /// v5 never ran the `from < 4` block that creates the legacy table, so it
+  /// must not try to alter it.
+  Future<void> _addColumnIfMissingRaw(
+    String table,
+    String column,
+    String type,
+  ) async {
+    final tableExists = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='$table'",
+    ).getSingleOrNull() != null;
+    if (!tableExists) return;
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    if (rows.any((row) => row.data['name'] == column)) return;
+    await customStatement('ALTER TABLE $table ADD COLUMN $column $type');
   }
 }
 

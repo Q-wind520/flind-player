@@ -50,6 +50,13 @@ class Tracks extends Table {
   /// Persisted so a cover can be re-resolved from the cache index — or fetched
   /// again after LRU eviction — without another `view` API round-trip.
   TextColumn get coverUrl => text().nullable()();
+
+  /// SHA-1 hex digest of the source file's content (schema v8).
+  ///
+  /// Additive only: the column is created but **not populated** in this round,
+  /// so scanning 3392 tracks is not slowed down. It is reserved for future
+  /// deduplication / stable identity work; `uri` remains the canonical key.
+  TextColumn get contentHash => text().nullable()();
   IntColumn get lastSeenAt => integer().nullable()();
 
   /// Size of the source file in bytes at the last scan (schema v5).
@@ -186,17 +193,48 @@ class PlaybackStates extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// Denormalised favourite snapshot (schema v4).
-///
-/// A favourite stores its own copy of the track metadata, so it survives the
-/// track leaving the library (e.g. a removed scan root or a soft-deleted row).
-/// The unique key is the canonical [uri].
-@DataClassName('FavoriteRow')
-class Favorites extends Table {
+/// Playlists: the built-in favourites playlist (`kind='favorites'`, id pinned
+/// to 1) plus user-created playlists (`kind='custom'`). The "all" pool is the
+/// `tracks` table itself and is not represented here.
+@DataClassName('PlaylistRow')
+class Playlists extends Table {
   IntColumn get id => integer().autoIncrement()();
 
-  /// Canonical source-namespaced key; the upsert conflict target.
-  TextColumn get uri => text().unique()();
+  /// Display name; required and non-blank.
+  TextColumn get name => text()();
+
+  /// `favorites` (built-in, id 1) or `custom` (user-created).
+  TextColumn get kind => text()();
+
+  TextColumn get description => text().nullable()();
+
+  /// Explicit cover (overrides the derived fallback chain).
+  TextColumn get coverPath => text().nullable()();
+
+  /// Remote cover URL, mirroring [Tracks.coverUrl].
+  TextColumn get coverUrl => text().nullable()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+}
+
+/// Playlist members: one row per (playlist, track).
+///
+/// `uri` is the reference into the pool; the metadata columns are a survival
+/// snapshot, so a member keeps resolving after the track leaves the library
+/// (a removed scan root, a soft-deleted row, or an offline Bilibili item).
+@DataClassName('PlaylistTrackRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order '
+  'ON playlist_tracks (playlist_id, added_at DESC, id DESC)',
+)
+class PlaylistTracks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Owning playlist row id.
+  IntColumn get playlistId => integer()();
+
+  /// Canonical pool key (`local:<path>` / `bilibili:<bvid>:<cid>`).
+  TextColumn get uri => text()();
 
   /// Source identifier, e.g. `local` or `bilibili`.
   TextColumn get source => text()();
@@ -210,11 +248,20 @@ class Favorites extends Table {
   IntColumn get durationMs => integer().nullable()();
   TextColumn get coverPath => text().nullable()();
 
-  /// Remote cover URL, mirroring [Tracks.coverUrl] (schema v7).
+  /// Remote cover URL, mirroring [Tracks.coverUrl].
   TextColumn get coverUrl => text().nullable()();
 
-  /// Unix timestamp when the track was favourited; the ordering key.
-  IntColumn get favoritedAt => integer()();
+  /// Unix timestamp when the member was added; the ordering key
+  /// (= the old favourites `favorited_at`).
+  IntColumn get addedAt => integer()();
+
+  /// Reserved for future manual ordering inside custom playlists; unused.
+  IntColumn get position => integer().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {playlistId, uri}, // the same song can be in several playlists
+  ];
 }
 
 /// Remote cover cache index (schema v7).

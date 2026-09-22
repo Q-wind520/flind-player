@@ -1,0 +1,330 @@
+// Flind Player - cross-platform music player
+// Copyright (C) 2026 top.qwind.app
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, version 3 of the License.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import 'package:drift/drift.dart';
+
+import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/playlist_repository.dart';
+import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/data/database/playlist_defaults.dart';
+
+/// Drift-backed [PlaylistRepository].
+///
+/// Members are stored as a denormalised snapshot keyed by `(playlist_id, uri)`
+/// and read through a `LEFT JOIN` on the pool with `COALESCE`, so pool
+/// metadata wins while the snapshot keeps a member resolvable after the track
+/// leaves the library.
+class DriftPlaylistRepository implements PlaylistRepository {
+  DriftPlaylistRepository(this._db);
+
+  final AppDatabase _db;
+
+  @override
+  Stream<List<Playlist>> watchPlaylists() {
+    return (_db.select(_db.playlists)
+          ..orderBy([
+            // The built-in favourites playlist is pinned first; custom
+            // playlists follow newest first.
+            (p) => OrderingTerm.asc(p.kind.equals(playlistKindCustom)),
+            (p) => OrderingTerm.desc(p.createdAt),
+            (p) => OrderingTerm.desc(p.id),
+          ]))
+        .watch()
+        .map((rows) => rows.map(_toPlaylist).toList(growable: false));
+  }
+
+  @override
+  Future<Playlist?> playlistById(int id) async {
+    final row = await (_db.select(
+      _db.playlists,
+    )..where((p) => p.id.equals(id))).getSingleOrNull();
+    return row == null ? null : _toPlaylist(row);
+  }
+
+  @override
+  Future<Playlist> createPlaylist({
+    required String name,
+    String? description,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Playlist name must not be blank');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final id = await _db.into(_db.playlists).insert(
+      PlaylistsCompanion.insert(
+        name: trimmed,
+        kind: playlistKindCustom,
+        description: Value(description),
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+    return (await playlistById(id))!;
+  }
+
+  @override
+  Future<void> updatePlaylist(
+    int id, {
+    String? name,
+    String? description,
+    String? coverPath,
+    String? coverUrl,
+  }) async {
+    final existing = await playlistById(id);
+    if (existing == null) return; // A missing playlist is a no-op.
+    if (existing.kind == PlaylistKind.favorites) {
+      throw StateError(
+        'The built-in favourites playlist cannot be renamed or re-covered',
+      );
+    }
+    if (name != null && name.trim().isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Playlist name must not be blank');
+    }
+    await (_db.update(_db.playlists)..where((p) => p.id.equals(id))).write(
+      PlaylistsCompanion(
+        name: name == null ? const Value.absent() : Value(name.trim()),
+        description: description == null
+            ? const Value.absent()
+            : Value(description),
+        coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
+        coverUrl: coverUrl == null ? const Value.absent() : Value(coverUrl),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  @override
+  Future<void> deletePlaylist(int id) async {
+    final existing = await playlistById(id);
+    if (existing == null) return; // A missing playlist is a no-op.
+    if (existing.kind == PlaylistKind.favorites) {
+      throw StateError('The built-in favourites playlist cannot be deleted');
+    }
+    await _db.transaction(() async {
+      // Cascade: members die with their playlist; the pool rows are untouched.
+      await (_db.delete(
+        _db.playlistTracks,
+      )..where((pt) => pt.playlistId.equals(id))).go();
+      await (_db.delete(_db.playlists)..where((p) => p.id.equals(id))).go();
+    });
+  }
+
+  @override
+  Stream<List<Track>> watchPlaylistTracks(int id) {
+    return _memberQuery(id)
+        .watch()
+        .map((rows) => rows.map(_toDomain).toList(growable: false));
+  }
+
+  @override
+  Future<List<Track>> playlistTracks(int id) async {
+    final rows = await _memberQuery(id).get();
+    return rows.map(_toDomain).toList(growable: false);
+  }
+
+  @override
+  Future<void> addTrack(int playlistId, Track track) async {
+    final companion = PlaylistTracksCompanion(
+      playlistId: Value(playlistId),
+      uri: Value(track.uri),
+      source: Value(track.source),
+      sourceTrackId: Value(_encodeSourceTrackId(track.sourceTrackId)),
+      title: Value(track.title),
+      artist: Value(track.artist),
+      album: Value(track.album),
+      durationMs: Value(track.duration?.inMilliseconds),
+      coverPath: Value(track.coverPath),
+      coverUrl: Value(track.coverUrl),
+      addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+    );
+
+    // The uniqueness key is `(playlist_id, uri)`, not the autoincrement primary
+    // key, so target the unique columns explicitly instead of relying on the
+    // primary-key default of `insertOnConflictUpdate`.
+    await _db.into(_db.playlistTracks).insert(
+      companion,
+      onConflict: DoUpdate(
+        (_) => companion,
+        target: [_db.playlistTracks.playlistId, _db.playlistTracks.uri],
+      ),
+    );
+  }
+
+  @override
+  Future<void> removeTrack(int playlistId, String uri) async {
+    await (_db.delete(_db.playlistTracks)
+          ..where(
+            (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
+          ))
+        .go();
+  }
+
+  @override
+  Future<bool> containsTrack(int playlistId, String uri) async {
+    final row = await (_db.select(_db.playlistTracks)
+          ..where(
+            (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
+          ))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  @override
+  Future<void> updateTrackCover(
+    int playlistId,
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {
+    // `addedAt` is deliberately untouched: refreshing a cover must not reorder
+    // the playlist. A missing member is a no-op.
+    await (_db.update(_db.playlistTracks)
+          ..where(
+            (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
+          ))
+        .write(
+      PlaylistTracksCompanion(
+        coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
+        coverUrl: coverUrl == null ? const Value.absent() : Value(coverUrl),
+      ),
+    );
+  }
+
+  @override
+  Stream<PlaylistCover?> watchPlaylistCover(int id) {
+    return _coverQuery(id).watch().map((rows) {
+      if (rows.isEmpty) return null; // Unknown playlist.
+      final row = rows.single;
+      // Explicit playlist cover wins over the derived member cover.
+      final playlistPath = row.read<String?>('playlist_cover_path');
+      final playlistUrl = row.read<String?>('playlist_cover_url');
+      if (playlistPath != null || playlistUrl != null) {
+        return PlaylistCover(coverPath: playlistPath, coverUrl: playlistUrl);
+      }
+      // Newest member's cover (pool first, snapshot fallback).
+      final memberPath = row.read<String?>('member_cover_path');
+      final memberUrl = row.read<String?>('member_cover_url');
+      if (memberPath != null || memberUrl != null) {
+        return PlaylistCover(coverPath: memberPath, coverUrl: memberUrl);
+      }
+      return null; // Default placeholder.
+    });
+  }
+
+  /// The pool-joined member query from the plan: pool metadata wins via
+  /// `COALESCE`, the snapshot is the fallback, and ordering is
+  /// `added_at DESC, id DESC`.
+  Selectable<QueryRow> _memberQuery(int playlistId) {
+    return _db.customSelect(
+      '''
+SELECT pt.uri, pt.source, pt.source_track_id,
+       COALESCE(t.title,       pt.title)       AS title,
+       COALESCE(t.artist,      pt.artist)      AS artist,
+       COALESCE(t.album,       pt.album)       AS album,
+       COALESCE(t.duration_ms, pt.duration_ms) AS duration_ms,
+       COALESCE(t.cover_path,  pt.cover_path)  AS cover_path,
+       COALESCE(t.cover_url,   pt.cover_url)   AS cover_url
+FROM playlist_tracks pt
+LEFT JOIN tracks t ON t.uri = pt.uri
+WHERE pt.playlist_id = ?1
+ORDER BY pt.added_at DESC, pt.id DESC
+''',
+      variables: [Variable<int>(playlistId)],
+      readsFrom: {_db.playlistTracks, _db.tracks},
+    );
+  }
+
+  /// One row per playlist: the explicit cover plus the newest member's cover
+  /// (pool first, snapshot fallback). A memberless playlist still yields one
+  /// row with null member covers.
+  Selectable<QueryRow> _coverQuery(int playlistId) {
+    return _db.customSelect(
+      '''
+SELECT p.cover_path AS playlist_cover_path,
+       p.cover_url  AS playlist_cover_url,
+       COALESCE(t.cover_path, pt.cover_path) AS member_cover_path,
+       COALESCE(t.cover_url,  pt.cover_url)  AS member_cover_url
+FROM playlists p
+LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+LEFT JOIN tracks t ON t.uri = pt.uri
+WHERE p.id = ?1
+ORDER BY pt.added_at DESC, pt.id DESC
+LIMIT 1
+''',
+      variables: [Variable<int>(playlistId)],
+      readsFrom: {_db.playlists, _db.playlistTracks, _db.tracks},
+    );
+  }
+
+  Playlist _toPlaylist(PlaylistRow row) {
+    return Playlist(
+      id: row.id,
+      name: row.name,
+      kind: row.kind == playlistKindFavorites
+          ? PlaylistKind.favorites
+          : PlaylistKind.custom,
+      description: row.description,
+      coverPath: row.coverPath,
+      coverUrl: row.coverUrl,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(row.updatedAt),
+    );
+  }
+
+  Track _toDomain(QueryRow row) {
+    final source = row.read<String>('source');
+    final sourceTrackId = row.read<String>('source_track_id');
+    final uri = row.read<String>('uri');
+    final durationMs = row.read<int?>('duration_ms');
+    return Track(
+      source: source,
+      sourceTrackId: _decodeSourceTrackId(source, sourceTrackId, uri),
+      uri: uri,
+      title: row.read<String>('title'),
+      artist: row.read<String?>('artist'),
+      album: row.read<String?>('album'),
+      duration: durationMs == null ? null : Duration(milliseconds: durationMs),
+      coverPath: row.read<String?>('cover_path'),
+      coverUrl: row.read<String?>('cover_url'),
+    );
+  }
+}
+
+String _encodeSourceTrackId(SourceTrackId id) {
+  return switch (id) {
+    LocalTrackId(:final path) => path,
+    BiliTrackId(:final bvid, :final cid) => '$bvid:$cid',
+  };
+}
+
+/// Rebuilds the domain [SourceTrackId] from the persisted columns, mirroring
+/// the music library's `local` path / `bilibili` `bvid:cid` convention.
+SourceTrackId _decodeSourceTrackId(String source, String raw, String uri) {
+  if (source == 'local') {
+    return LocalTrackId(raw);
+  }
+  if (source == 'bilibili') {
+    final separator = raw.lastIndexOf(':');
+    if (separator > 0) {
+      final cid = int.tryParse(raw.substring(separator + 1));
+      if (cid != null) {
+        return BiliTrackId(bvid: raw.substring(0, separator), cid: cid);
+      }
+    }
+  }
+  return LocalTrackId(uri);
+}
