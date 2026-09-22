@@ -14,23 +14,28 @@ main (入口)
       └─ FlindApp (应用根组件 ConsumerWidget)
          └─ MaterialApp (应用外壳)
             ├─ locale / localizationsDelegates / supportedLocales (国际化)
-            ├─ theme / darkTheme / themeMode (主题: 亮色/暗色/跟随系统)
+            ├─ theme / darkTheme (亮色/暗色主题)
+            ├─ themeMode ← appThemeModeProvider (外观: 自动/浅色/深色, 持久化)
             └─ home: HomeShell (主界面壳)
 ```
+
+> `FlindApp` 同时 watch `coverPrefetchCoordinatorProvider`,让队列封面预取
+> 协调器在整个会话期间保持存活。
 
 ## 主壳 HomeShell(自适应布局)
 
 HomeShell 用 `LayoutBuilder` 按窗口尺寸一分为二:
 宽度 < 600 或竖屏 → **紧凑模式**(底部导航);否则 → **宽屏模式**(侧边导航)。
+各个页面由 `IndexedStack` 保持状态;每个目的地页面自带 `Scaffold`。
 
 ```
 HomeShell (主界面壳 StatefulWidget)
 └─ LayoutBuilder (响应式布局决策)
    ├─ {宽屏模式}
-   │  └─ Scaffold (页面骨架)
+   │  └─ Scaffold (background: AppSurface.colorOf)
    │     └─ SafeArea (安全区)
    │        └─ Row (水平布局)
-   │           ├─ NavigationRail (侧边导航栏)
+   │           ├─ NavigationRail (侧边导航栏, labelType: selected — 仅选中项显示标签)
    │           │  └─ 3 × NavigationRailDestination (搜索/曲库/设置)
    │           └─ Expanded (内容区)
    │              └─ Column (垂直布局)
@@ -42,79 +47,102 @@ HomeShell (主界面壳 StatefulWidget)
    │                 └─ MiniPlayerBar (迷你播放条, 见下)
    │
    └─ {紧凑模式}
-      └─ Scaffold (页面骨架)
+      └─ Scaffold (background: AppSurface.colorOf)
          ├─ body: IndexedStack (页面堆栈 — 同上三个页面)
          └─ bottomNavigationBar: Column (垂直布局)
             ├─ MiniPlayerBar (迷你播放条, 见下)
-            └─ NavigationBar (底部导航栏)
+            └─ NavigationBar (底部导航栏, labelBehavior: onlyShowSelected)
                └─ 3 × NavigationDestination (搜索/曲库/设置)
 ```
 
+## 共享背景 AppSurface
+
+所有页面、播放条与控制条共用的单一背景抽象(`surfaceContainerHigh`),
+微型播放条与其余界面保持一致。
+
+```
+AppSurface (共享表面)
+├─ Material (color: colorOf = colorScheme.surfaceContainerHigh)
+├─ colorOf(context) — 静态方法,Scaffold 背景直达同一颜色
+└─ borderRadius (可选, clip 随圆角)
+```
+
+使用方:全部四个页面的 `Scaffold` 背景、`MiniPlayerBar`、`MiniSettings`、
+`VolumeBar`、`LyricsPreview`。
+
 ## 搜索页 SearchScreen(哔哩哔哩搜索)
+
+无标题栏;搜索框直接放在页面顶部(提交时才发起搜索,避免触顶 -412 限流)。
 
 ```
 SearchScreen (搜索页 ConsumerStatefulWidget)
 └─ PlaybackPermissionScope (播放权限作用域 — 授予后才允许播放)
-   └─ Scaffold (页面骨架)
-      ├─ AppBar (标题栏)
-      │  ├─ title: Text (标题「搜索」)
-      │  └─ bottom: PreferredSize
-      │     └─ TextField (搜索输入框 — 提交时才发起搜索)
-      └─ body
-         ├─ {未提交关键词} _SearchHint (搜索引导空态)
-         │  └─ ResponsiveCenter → Icon + 标题 + 提示文案
-         └─ {已提交} AsyncValue.when (异步结果分发)
-            ├─ loading → Center ( CircularProgressIndicator 加载圈 )
-            ├─ error   → _SearchError (搜索失败面板, 带重试按钮)
-            └─ data
-               ├─ {空结果} _NoResults (无结果空态)
-               └─ ListView.builder (结果列表)
-                  └─ _SearchResultTile (搜索结果行)
-                     └─ ListTile
-                        ├─ leading: Container (占位封面 48×48)
-                        ├─ title: Text (标题)
-                        ├─ subtitle: Text (UP 主)
-                        └─ trailing: Row
-                           ├─ {正在播放} Icon (graphic_eq 均衡器动画图标)
-                           ├─ Text (时长)
-                           └─ TrackActionsButton (轨道操作菜单, 见下)
+   └─ Scaffold (background: AppSurface.colorOf)
+      └─ SafeArea → Column
+         ├─ Padding → ValueListenableBuilder (清空按钮随输入状态显隐)
+         │  └─ TextField (搜索输入框 — 数字键盘/提交触发)
+         └─ Expanded → _buildBody
+            ├─ {未提交关键词} _SearchHint (搜索引导空态)
+            │  └─ ResponsiveCenter → Icon + 标题 + 提示文案
+            └─ {已提交} biliSearchResultsProvider.when (异步结果分发)
+               ├─ loading → Center ( CircularProgressIndicator 加载圈 )
+               ├─ error   → _SearchError (搜索失败面板, 带重试按钮)
+               └─ data
+                  ├─ {空结果} _NoResults (无结果空态)
+                  └─ ListView.builder (结果列表)
+                     └─ _SearchResultTile (搜索结果行)
+                        └─ ListTile
+                           ├─ leading: _SearchResultCover (圆角占位封面 48×48)
+                           ├─ title: Text (标题)
+                           ├─ subtitle: Text (UP 主)
+                           └─ trailing: Row
+                              ├─ {正在播放} Icon (graphic_eq 均衡器动画图标)
+                              ├─ Text (时长)
+                              └─ TrackActionsButton (轨道操作菜单,
+                                     showSaveToLibrary: true, 见下)
 ```
 
 ## 曲库页 LibraryScreen(本地 + 收藏曲库)
 
+无标题栏;最顶一行是 全部/收藏 选择器 + 搜索/更多按钮,搜索框以
+`AnimatedSize` 在头部下方展开。扫描/保存进度以 SnackBar 气泡通知;
+无 `_SyncStatus` 常驻条。
+
 ```
 LibraryScreen (曲库页 ConsumerStatefulWidget)
-└─ Scaffold (页面骨架)
-   ├─ AppBar (标题栏)
-   │  ├─ title: Text (「音乐曲库」)
-   │  ├─ actions
-   │  │  ├─ {支持本地曲库} _SortButton (排序弹窗按钮)
-   │  │  │  └─ PopupMenuButton<TrackSort> (标题/艺术家/专辑/最近添加)
-   │  │  └─ PopupMenuButton<_LibraryAction> (更多操作菜单)
-   │  │     ├─ {支持本地曲库} 添加文件夹 / 重新扫描 / 导入文件
-   │  │     └─ 浏览 B 站收藏夹 → 推入 BilibiliFavoritesScreen
-   │  └─ bottom: {支持本地曲库} PreferredSize
-   │     └─ TextField (库内搜索框 — 250ms 防抖)
-   ├─ body
-   │  ├─ {支持本地曲库}
-   │  │  └─ Column
-   │  │     ├─ _SyncStatus (同步状态条, 见下)
-   │  │     ├─ _FilterBar (筛选条)
-   │  │     │  └─ SegmentedButton<LibraryFilter> (全部 / 收藏)
-   │  │     └─ Expanded (列表主体, 见下)
-   │  └─ {iOS 等无本地曲库} _UnsupportedLibraryNotice (不支持提示)
-   └─ {无轨道时的浮层入口}
-      └─ SnackBar (提示条) / 对话框等
+└─ Scaffold (background: AppSurface.colorOf) + SafeArea(bottom: false)
+   └─ Column
+      ├─ _buildHeaderRow (单行头部 — 选择器 + 搜索 + 更多)
+      │  └─ Row
+      │     ├─ Expanded → _LibraryFilterSelector (全部/收藏 轮盘选择器)
+      │     │  └─ GestureDetector (点击标签切换 + 左右滑动手势轮换)
+      │     │     └─ AnimatedSwitcher (交叉淡化 + 位移 250ms)
+      │     │        └─ Row (选中标签加粗放大居左, 其余小号弱化)
+      │     ├─ {支持本地曲库} IconButton (搜索开关 — 展开/收起, 图标 搜索/关闭)
+      │     └─ PopupMenuButton<_LibraryAction> (更多操作菜单)
+      │        ├─ {支持本地曲库, 非同步中} 添加文件夹 (文件选择器)
+      │        ├─ {支持本地曲库, 非同步中} 重新扫描
+      │        ├─ {支持本地曲库} 导入文件
+      │        ├─ {支持本地曲库} 分隔线 + 排序项 × 4 (标题/艺术家/专辑/最近添加,
+      │        │                                  _SortRow 选中的打勾)
+      │        └─ 浏览 B 站收藏夹 → 推入 BilibiliFavoritesScreen
+      ├─ {支持本地曲库} _buildSearchField (内联搜索框)
+      │  └─ AnimatedSize (展开/收起 220ms)
+      │     └─ {_searchOpen} Padding → ValueListenableBuilder → TextField
+      │        (250ms 防抖搜索, 清空后缀按钮)
+      └─ Expanded
+         ├─ {支持本地曲库} _buildBody (见下)
+         └─ {iOS 等无本地曲库} _UnsupportedLibraryNotice (不支持提示)
 
 列表主体 (按 筛选/搜索/数据状态 分支):
-├─ 收藏模式 → favoritesProvider.when
+├─ 收藏模式 → favoritesProvider.when + 客户端排序 (同步相同比较器)
 │  ├─ loading → CircularProgressIndicator (加载圈)
 │  ├─ error   → _LibraryError (加载失败, 可重试)
 │  └─ data
 │     ├─ {空收藏} _EmptyFavourites (收藏为空空态)
-│     ├─ {命中查询} _trackDisplay(过滤后的收藏)
+│     ├─ {命中查询} 过滤后 → _trackDisplay (无匹配则 _NoFavouritesSearchResults)
 │     └─ _trackDisplay(全部收藏)
-├─ 搜索模式 → librarySearchProvider(query).when
+├─ 搜索模式 → librarySearchProvider(_query).when
 │  ├─ loading → CircularProgressIndicator
 │  ├─ error   → _LibraryError (搜索失败)
 │  └─ data
@@ -124,7 +152,7 @@ LibraryScreen (曲库页 ConsumerStatefulWidget)
    ├─ loading → CircularProgressIndicator
    ├─ error   → _LibraryError (加载失败)
    └─ data
-      ├─ {空曲库} _EmptyLibrary (添加文件夹 / 导入本地音乐按钮)
+      ├─ {空曲库} _EmptyLibrary (添加文件夹 + 导入本地音乐按钮)
       └─ _trackDisplay(全部曲目)
 
 _trackDisplay (按视口宽度切换列表/网格):
@@ -136,46 +164,51 @@ _trackDisplay (按视口宽度切换列表/网格):
    │        ├─ title: 曲名
    │        ├─ subtitle: 艺术家 + _SourceBadge (来源徽标: 本地/B站)
    │        └─ trailing: Row( 播放指示图标 + 时长 + TrackActionsButton )
-   └─ {宽屏} _trackGrid → GridView.builder
+   └─ {宽屏} _trackGrid → GridView.builder (maxCrossAxisExtent 220)
       └─ _TrackCard (曲目卡片)
          └─ Card → InkWell → Column
             ├─ Expanded → Stack
-            │  ├─ _TrackCover (通栏封面)
+            │  ├─ _TrackCover (通栏封面, 尺寸自适应)
             │  ├─ {正在播放} Positioned 播放指示角标
             │  └─ Positioned TrackActionsButton (右上角操作菜单)
             └─ Padding → Column( 曲名 + 艺术家 + _SourceBadge )
 
-_SyncStatus (同步状态条 — 扫描/保存/封面/完成/失败):
-└─ {非空闲} _SyncBanner (色调条)
-   ├─ Row (图标 + 文本)
-   └─ {进行中} LinearProgressIndicator (进度条)
+同步气泡通知 (ScaffoldMessenger SnackBar — 无常驻状态条):
+├─ {扫描/保存/封面} SnackBar(duration: 1天) — 文案 + LinearProgressIndicator 进度
+└─ {完成/失败}  SnackBar(3s) — 「新增 X · 删除 Y」总结 / 失败描述
 ```
 
 ## 设置页 SettingsScreen(设置)
 
+无标题栏;`ListView` 分区滚动。「通用」分区新增 **外观(主题模式)** 切换。
+
 ```
 SettingsScreen (设置页 ConsumerWidget)
-└─ Scaffold (页面骨架)
-   ├─ AppBar (标题栏, 标题「设置」)
+└─ Scaffold (background: AppSurface.colorOf)
    └─ body: ListView (滚动列表)
       ├─ _SectionHeader (「通用」)
       ├─ _GeneralSection (通用)
-      │  └─ ListTile (语言 — 弹出 SimpleDialog 选择 跟随系统/中文/英文)
+      │  ├─ ListTile (语言 → SimpleDialog: 跟随系统/中文/英文)
+      │  └─ ListTile (外观 → SimpleDialog: 自动/浅色/深色, 经 appThemeModeProvider 持久化)
       ├─ _SectionHeader (「播放」)
       ├─ _PlaybackSection (播放缓存)
-      │  ├─ ListTile (缓存位置 — _CacheLocationDialog: 路径+复制+清空)
-      │  └─ ListTile (缓存上限 — _CustomLimitDialog: 数值 + MB/GB 分段选择)
+      │  ├─ ListTile (缓存位置 → _CacheLocationDialog: 路径+复制+清空缓存)
+      │  └─ ListTile (缓存上限 — 音频与封面共享额度 → _CustomLimitDialog,
+      │                单一 MB 数值输入, 确认后强制执行限额)
       ├─ _SectionHeader (「曲库」)
       ├─ {支持本地曲库} _LibrarySection (曲库统计/扫描目录/重新扫描)
       │  ├─ ListTile (统计: 曲目数 + 已缓存数)
       │  ├─ _ScanRootHeader (扫描目录标题 + 添加入口)
-      │  ├─ {扫描目录} ListTile × N (删除按钮 → 确认对话框)
+      │  ├─ scanRootsProvider.when
+      │  │  ├─ loading → CircularProgressIndicator
+      │  │  ├─ error   → ListTile (失败 + 重试按钮)
+      │  │  └─ data    → {空} 无扫描目录提示 | ListTile × N (删除 → 确认对话框)
       │  ├─ ListTile (添加文件夹)
-      │  └─ ListTile (重新扫描, 带同步状态副标题)
+      │  └─ ListTile (重新扫描, 带同步状态副标题: 扫描中/保存中/封面缓存/完成/失败)
       ├─ {无本地曲库} _UnsupportedLibraryNotice (不支持提示)
       ├─ _SectionHeader (「关于」)
       └─ _AboutSection (关于)
-         ├─ ListTile (应用名 + 版本号)
+         ├─ ListTile (应用名 + 版本号, packageInfoProvider)
          ├─ ListTile (开源许可证 → showLicensePage)
          ├─ ListTile (项目主页)
          └─ Text (许可证说明)
@@ -187,120 +220,274 @@ SettingsScreen (设置页 ConsumerWidget)
 MiniPlayerBar (迷你播放条 ConsumerWidget)
 ├─ {无播放} SizedBox.shrink (隐藏)
 └─ {有播放}
-   └─ Material (表面色块)
+   └─ AppSurface (共享表面)
       └─ Column
          ├─ {时长>0} LinearProgressIndicator (顶部 2px 进度线)
          └─ InkWell (点击 → push PlayerScreen 全屏播放页)
             └─ Padding → Row
-               ├─ _MiniCover (小封面 40×40)
+               ├─ _MiniCover (小封面 40×40 — CoverImage 本地路径/网络 URL 皆可)
                ├─ Expanded → Column (曲名 + 艺术家)
                ├─ IconButton (播放/暂停)
-               └─ IconButton (下一首)
+               └─ IconButton (下一首, 无下一首时禁用)
 ```
 
 ## 全屏播放页 PlayerScreen(正在播放)
 
-由迷你播放条点击推入 `MaterialPageRoute`。
+由迷你播放条点击推入 `MaterialPageRoute`。整体重构为无 AppBar 的横竖屏
+自适应布局:标题/艺术家在共享 `_HeaderRow`,正文按方向分栏,底部停靠
+`MiniSettings` 控制条。
 
 ```
-PlayerScreen (播放页 ConsumerWidget)
-└─ Scaffold (页面骨架)
-   ├─ AppBar (向下箭头收起 + 标题「正在播放」)
-   └─ body: PlayerView (播放视图)
-      ├─ {无播放} _NothingPlaying (未播放空态)
-      └─ {有播放}
-         └─ LayoutBuilder (按窗口尺寸算封面大小 140–320px)
-            └─ SingleChildScrollView → Center → ConstrainedBox(maxWidth 520)
-               └─ Column
-                  ├─ _PlayerCover (大圆角封面 24px)
-                  ├─ Text (曲名 headlineSmall)
-                  ├─ Text (艺术家)
-                  ├─ _ProgressBar (进度条 — 拖动时本地跟手, 松手后 seek)
-                  │  ├─ Slider (进度滑条)
-                  │  └─ Row (当前时间 … 总时长)
-                  └─ _TransportControls (传输控制区)
-                     └─ ConstrainedBox(maxWidth 420) → FittedBox → Row
-                        ├─ _FavoriteButton (收藏心形)
-                        ├─ IconButton (上一首)
-                        ├─ IconButton.filled (播放/暂停)
-                        ├─ IconButton (下一首)
-                        └─ IconButton (播放模式: 顺序→列表循环→单曲循环→随机)
+PlayerScreen (播放页 StatelessWidget)
+└─ Scaffold
+   └─ AppSurface → SafeArea → PlayerView (播放视图 ConsumerStatefulWidget)
+      └─ LayoutBuilder (landscape = maxWidth > maxHeight)
+         ├─ body (正文分支):
+         │  ├─ {无播放} _NothingPlaying (未播放空态 — 图标 + 提示)
+         │  ├─ {横屏}   _LandscapeBody (左右分栏, 见下)
+         │  └─ {竖屏}   _PortraitBody (上下布局, 见下)
+         ├─ {竖屏} AnimatedSize → MiniSettings (底部停靠设置条, 见下)
+         │  └─ {歌词展开或无播放时} SizedBox (设置条让位)
+         └─ Stack 覆盖层
+            └─ Positioned.fill → AnimatedSwitcher (淡入 + 上滑 220ms)
+               └─ {音量浮层打开} Stack(key: volume_overlay)
+                  ├─ GestureDetector (全屏遮罩, 点击关闭)
+                  └─ Positioned (下方: 横屏左半宽 / 竖屏通栏, 高 56)
+                     └─ VolumeBar (音量条, 见下)
+
+_HeaderRow (共享头部行 — 取代原 AppBar)
+└─ Row
+   ├─ IconButton (keyboard_arrow_down 向下箭头 → maybePop 收起)
+   ├─ Expanded → Column (曲名 titleMedium w700 + 艺术家 bodySmall)
+   └─ SizedBox(width: 48) (右侧配重, 保持标题居中)
+
+_PortraitBody (竖屏正文)
+└─ Column
+   ├─ Expanded → AnimatedSwitcher (交叉淡化 + 位移 260ms)
+   │  ├─ {歌词展开} LyricsView (全屏歌词占位, 点击收起, 见下)
+   │  └─ {折叠} _PortraitNormal
+   │     └─ Column
+   │        ├─ Expanded → _CoverArt (自适应封面)
+   │        │  └─ LayoutBuilder (size = min(w×0.7, h×0.8).clamp(80, 320))
+   │        │     └─ ResponsiveCenter → Padding → _PlayerCover
+   │        └─ SizedBox (5 行歌词高度) → LyricsPreview (歌词 teaser 条, 点击展开)
+   ├─ _ProgressBar (进度条, 见下)
+   ├─ _TransportControls (传输控制区, 见下)
+   └─ SizedBox (歌词展开 24 / 折叠 16 — 与设置条分隔)
+
+_LandscapeBody (横屏正文 — 左右等宽双栏, 无分隔线)
+└─ Row
+   ├─ Expanded → MiniMain (左栏: 迷你主视图)
+   │  └─ Column
+   │     ├─ Expanded → LayoutBuilder (coverSize = min(w×0.7, h).clamp(80, 280))
+   │     │  └─ ResponsiveCenter → _PlayerCover (封面随窗口缩放)
+   │     ├─ _ProgressBar
+   │     ├─ _TransportControls
+   │     ├─ SizedBox(16)
+   │     └─ MiniSettings (设置条内嵌于左栏底部)
+   └─ Expanded → LyricsView (右栏: 全屏歌词占位)
+
+_PlayerCover (大圆角封面 24px — 本地路径/网络 URL 皆可)
+└─ ClipRRect → Container(尺寸见上)
+   └─ {有封面} CoverImage | {无封面} Icon (music_note 占位)
+
+_ProgressBar (可拖动进度条 ConsumerStatefulWidget — 拖动本地跟手, 松手 seek)
+└─ Padding → Row
+   ├─ Text (当前时间 m:ss — 拖动期间显示预览位置)
+   ├─ Expanded → SliderTheme (细轨道 2px + 小圆钮)
+   │  └─ Slider (value/max 由 duration 决定, 无时长时禁用)
+   └─ Text (总时长)
+
+_TransportControls (传输控制 — 居中成组而非平铺)
+└─ Row (mainAxisAlignment: center)
+   ├─ {无曲目} SizedBox.shrink | _FavoriteButton (收藏心形 — 已收藏恒为红色)
+   ├─ IconButton (上一首, 无则禁用)
+   ├─ IconButton.filled (播放/暂停 — 38px 图标, 44px 最小点击区)
+   ├─ IconButton (下一首, 无则禁用)
+   └─ IconButton (queue_music 播放队列 → showPlayerPanel(PlaylistPanel))
+```
+
+### MiniSettings(底部设置条)与 VolumeBar
+
+```
+MiniSettings (底部设置条 ConsumerWidget, 高 kMiniSettingsHeight=56)
+└─ AppSurface → SizedBox(56) → Row (5 等分)
+   ├─ Expanded → _barButton 更多 (more_vert → showPlayerPanel(EmptyPanel))
+   ├─ Expanded → _barButton 调节 (tune → showPlayerPanel(EmptyPanel, 竖屏高 0.8))
+   ├─ Expanded → _sleepTimerButton (定时关闭)
+   │  └─ InkWell → SizedBox(56) → Column
+   │     ├─ Icon (timer_outlined / 已启用 timer — 主色着色)
+   │     └─ {倒计时模式} Text (mm:ss 实时倒计时)
+   │        {播完本曲} Container (6px 圆点)
+   │        → showPlayerPanel(SleepTimerPanel, 竖/横屏均 0.5)
+   ├─ Expanded → _barButton 音量 (音量图标随增益变化 → onVolumeTap 打开浮层)
+   └─ Expanded → PlayModeButton (播放模式 — 顺序/列表循环/单曲循环/随机)
+      └─ IconButton (playlist_play/repeat/repeat_one/shuffle,
+                     非顺序时图标主色着色)
+
+VolumeBar (音量浮层 ConsumerWidget, 高 56)
+└─ AppSurface → SizedBox(56) → Row
+   ├─ Icon (volume_off/down/up 按增益分档)
+   ├─ Expanded → Slider (0.01–1.4, onChanged 直写 setVolume)
+   └─ Text (百分比)
+```
+
+### 面板系统 player_panels(播放器面板)
+
+```
+showPlayerPanel (面板助手 — 按窗口方向自适配)
+├─ {横屏} showGeneralDialog → Align(centerRight) → SizedBox(宽×0.34, 满高)
+│  └─ SafeArea → _PanelFrame(landscape: true) (左侧圆角 24, 右侧滑入)
+└─ {竖屏} showModalBottomSheet (isScrollControlled + useSafeArea)
+   └─ SizedBox(高×0.66) → _PanelFrame (顶部圆角 24 + 拖动手柄条)
+
+_PanelFrame (面板骨架) → Material(surfaceContainerHigh, 圆角裁剪) → Column
+├─ {竖屏} 拖动手柄 (36×4 圆角条)
+└─ Expanded → 面板内容
+
+_PanelHeader (面板标题行) → Row [ Text(标题) + IconButton(关闭 → maybePop) ]
+
+EmptyPanel (空面板 — 更多/调节 占位)
+└─ Column [ _PanelHeader + Center (Icon 48 + 「暂无内容」) ]
+
+SleepTimerPanel (睡眠定时面板 ConsumerWidget)
+└─ Column
+   ├─ _PanelHeader (「睡眠定时」)
+   └─ Expanded → ListView
+      ├─ {定时中} _ActiveBanner (primaryContainer 横幅: 剩余时间/播完本曲)
+      ├─ _OptionRow 关闭 (mode == off 高亮)
+      ├─ _OptionRow × 5 (10/20/30/45/60 分钟预设 — 计数归零即暂停)
+      └─ _OptionRow 播完本曲 (当前歌曲结束后暂停 — 会话级, 不持久化)
+
+PlaylistPanel (播放队列面板 ConsumerWidget)
+└─ Column
+   ├─ _PanelHeader (「播放队列」)
+   └─ Expanded → {空} 提示 Center | ListView.builder
+      └─ _QueueRow (InkWell → Container)
+         ├─ {当前曲目} Icon (graphic_eq) + 行背景高亮 + 标题主色加粗
+         ├─ _QueueCover (封面 40×40)
+         └─ Column (曲名 + 艺术家)
+         → 点击 playQueue(index) 跳转并关面板
+```
+
+### 歌词占位 LyricsView / LyricsPreview
+
+歌词源尚未适配前的占位(文案「词莫见,敬聆听」)。
+
+```
+LyricsView (全屏歌词占位 StatelessWidget)
+└─ GestureDetector (opaque, 点击回调 onTap — 收起竖屏歌词页)
+   └─ LayoutBuilder → SingleChildScrollView (短视口可滚动防溢出)
+      └─ ConstrainedBox(minHeight) → Center → Padding → Column
+         ├─ Icon (lyrics_outlined 48)
+         ├─ Text (歌词语种占位标题)
+         └─ Text (提示文案)
+
+LyricsPreview (歌词 teaser 条 — 竖屏封面下 5 行高)
+└─ AppSurface → GestureDetector (点击展开歌词页)
+   └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight)
+      └─ Center → Padding → Column [ Icon(20) + Text(单行省略) ]
 ```
 
 ## B 站收藏夹浏览页 BilibiliFavoritesScreen
 
-由曲库页「浏览 B 站收藏夹」菜单推入。
+由曲库页「浏览 B 站收藏夹」菜单推入。无 AppBar:返回/标题在页内头部行,
+UID 输入条仅文件夹页显示。
 
 ```
 BilibiliFavoritesScreen (收藏夹浏览页 ConsumerStatefulWidget)
-└─ Scaffold (页面骨架)
-   ├─ AppBar
-   │  ├─ leading: {已打开收藏夹} IconButton (返回收藏夹列表)
-   │  ├─ title: Text (「浏览 B 站公开收藏夹」或收藏夹名)
-   │  └─ bottom: {文件夹列表页} PreferredSize
-   │     └─ Row (UID 输入框 + FilledButton 加载)
-   └─ body
-      ├─ {加载中} Center ( CircularProgressIndicator )
-      ├─ {出错} _FavoritesError (失败面板 + 重试)
-      ├─ {文件夹列表}
-      │  ├─ {未输入} _FavoritesHint (引导空态)
-      │  ├─ {无公开收藏夹} _FavoritesHint (空态)
-      │  └─ ListView.builder
-      │     └─ ListTile (文件夹: 头像图标 + 名称 + 数量 + chevron)
-      └─ {曲目列表}
-         ├─ {无可播放视频} _FavoritesHint (空态)
-         └─ ListView.builder (曲目 + 1 个分页脚行)
-            ├─ _FavoriteTrackTile (收藏曲目行)
-            │  └─ ListTile (占位封面 + 标题 + UP 主 + 时长 + 存入曲库按钮)
-            └─ _TrackListFooter (分页脚: 加载圈 / 重试 / 加载更多 / 已全部加载)
+└─ Scaffold (background: AppSurface.colorOf) + SafeArea(bottom: false)
+   └─ Column
+      ├─ _buildHeader (页内头部行)
+      │  └─ Row
+      │     ├─ IconButton (arrow_back: {已打开收藏夹} 返回列表 | 否则 pop 路由)
+      │     └─ Expanded → Text (「浏览 B 站公开收藏夹」或收藏夹名)
+      ├─ {文件夹列表页} _buildUidBar
+      │  └─ Row [ Expanded TextField (UID, 数字键盘 + outline 边框)
+      │            + FilledButton 加载 ]
+      └─ Expanded → _buildBody
+         ├─ {加载中} Center ( CircularProgressIndicator )
+         ├─ {出错} _FavoritesError (失败面板 + 重试)
+         ├─ {文件夹列表}
+         │  ├─ {未输入 UID} _FavoritesHint (引导空态)
+         │  ├─ {无公开收藏夹} _FavoritesHint (空态)
+         │  └─ ListView.builder
+         │     └─ ListTile (CircleAvatar 文件夹图标 + 名称 + 数量 + chevron)
+         └─ {曲目列表}
+            ├─ {无可播放视频} _FavoritesHint (空态)
+            └─ ListView.builder (曲目 + 1 个分页脚行)
+               ├─ _FavoriteTrackTile (收藏曲目行)
+               │  └─ ListTile (占位封面 48 + 标题 + UP 主
+               │     + trailing: {正在播放} graphic_eq + 时长
+               │                 + IconButton 存入曲库)
+               └─ _TrackListFooter (分页脚: 加载圈 / 重试 / 加载更多 / 已全部加载)
 ```
 
 ## 通用组件
 
 ### TrackActionsButton(轨道操作菜单)
 
-曲库行/卡片、搜索结果行共用的弹出式操作菜单:
+曲库行/卡片、搜索结果行共用的弹出式操作菜单(取代原平铺按钮,避免 400px
+宽度溢出;菜单项按轨道来源/场景动态增删):
 
 ```
 TrackActionsButton (轨道操作菜单 ConsumerWidget)
-└─ PopupMenuButton<_TrackAction> (弹出菜单)
-   ├─ PopupMenuItem: {收藏/取消收藏} (心形 + 文案)
-   ├─ {非本地曲目} PopupMenuItem: 缓存到本地 (下载/已缓存/已固定)
-   └─ {搜索/收藏夹场景} PopupMenuItem: 存入曲库
+└─ PopupMenuButton<_TrackAction>
+   ├─ PopupMenuItem: {收藏/取消收藏} (心形 + 文案, 收藏者主色)
+   ├─ {非本地曲目} PopupMenuItem: 缓存到本地 (下载/已缓存/已固定 — 三态图标文案)
+   └─ {showSaveToLibrary: 搜索行} PopupMenuItem: 存入曲库
 ```
 
 ### 其他共享 widget
 
+- `AppSurface` (共享表面):见上「共享背景 AppSurface」。
 - `ResponsiveCenter` (响应式居中):`LayoutBuilder` → `SingleChildScrollView` →
   `ConstrainedBox(minHeight)` → `Center`,空间不够时转为纵向滚动,避免
   RenderFlex overflow。
-- `CoverImage` (封面图):按显示尺寸解码(`cacheWidth = size × DPR`),
-  `double.infinity` 时用 `LayoutBuilder` 推导边缘。
+- `CoverImage` (封面图):`path`(本地缓存)优先,`url`(网络)兜底;按显示尺寸解码
+  (`cacheWidth = size × DPR`),`double.infinity` 时用 `LayoutBuilder` 推导
+  边缘。文件失效时自动回退到网络 URL。
+- `PlayModeButton` (播放模式按钮):顺序/列表循环/单曲循环/随机四态循环,
+  由 `playbackStateProvider` 推导当前态(随机优先),切换时先设 shuffle
+  再设 repeat。
 - `CacheActionButton` (缓存操作按钮):定义了下载/进度环/已缓存图标三态,
   **当前未在任何页面挂载**(已被 TrackActionsButton 弹出菜单取代)。
+- 非 UI 提供者:`sleepTimerProvider`(睡眠定时 — 会话级,倒计时/播完本曲,
+  触发时仅暂停播放)。
 
 ## 主题与断点
 
-- `AppTheme.light` / `AppTheme.dark` / `ThemeMode.system`(跟随系统)。
+- `AppTheme.light` / `AppTheme.dark`(Material 3),外加 `appThemeModeProvider`
+  驱动的 **自动/浅色/深色** 三态外观切换(持久化于设置仓)。
+- `AppSurface`(shared/app_surface.dart)统一全部背景为
+  `colorScheme.surfaceContainerHigh`,未来切入透明/玻璃质感只改一处。
 - `AppBreakpoints` (app_theme.dart):
   - `compact` 断点 = **600** 逻辑像素宽;窗口更窄或竖屏(`height >= width`)
     一律按紧凑布局处理,桌面端拉窄窗口也会切换为手机式底部导航。
-  - `NavigationRail` 标签在窗口高度 < 420 时收起为仅选中项显示。
+  - 宽屏 `NavigationRail` 与紧凑 `NavigationBar` 均采用 **仅选中项显示标签**
+    (`labelType: selected` / `onlyShowSelected`),不再依赖窗口高度收起。
 
 ## 文件索引
 
 | 文件 | 内容 |
 | --- | --- |
 | `lib/main.dart` | 入口:音频服务初始化、会话恢复、缓存一致性、runApp |
-| `lib/app/app.dart` | `FlindApp` 根组件(MaterialApp + 国际化 + 主题) |
+| `lib/app/app.dart` | `FlindApp` 根组件(MaterialApp + 国际化 + 语言/主题模式) |
+| `lib/app/theme_mode.dart` | `appThemeModeProvider` 外观切换(自动/浅色/深色) |
 | `lib/features/home/home_shell.dart` | `HomeShell` 自适应导航壳 |
-| `lib/features/search/search_screen.dart` | B 站搜索页 |
-| `lib/features/library/library_screen.dart` | 曲库页(搜索/收藏/列表/网格) |
+| `lib/shared/app_surface.dart` | 统一共享背景表面 + `colorOf` |
+| `lib/features/search/search_screen.dart` | B 站搜索页(无标题栏) |
+| `lib/features/library/library_screen.dart` | 曲库页(选择器/搜索/收藏/列表/网格) |
 | `lib/features/library/widgets/track_actions_button.dart` | 轨道操作弹出菜单 |
 | `lib/features/library/widgets/cache_action_button.dart` | 缓存按钮(未挂载) |
 | `lib/features/settings/settings_screen.dart` | 设置页(通用/播放/曲库/关于) |
 | `lib/features/player/mini_player_bar.dart` | 迷你播放条 |
-| `lib/features/player/player_screen.dart` | 全屏播放页 |
-| `lib/features/playlists/bilibili_favorites_screen.dart` | B 站公开收藏夹浏览 |
+| `lib/features/player/player_screen.dart` | 全屏播放页(横竖屏 + 传输控制) |
+| `lib/features/player/mini_settings.dart` | 底部设置条(更多/调节/定时/音量/模式) + VolumeBar |
+| `lib/features/player/lyrics_view.dart` | 歌词占位 `LyricsView` / `LyricsPreview` |
+| `lib/features/player/player_panels.dart` | 面板系统 `showPlayerPanel` + 空/睡眠/队列面板 |
+| `lib/features/player/play_mode_button.dart` | 播放模式四态循环按钮 |
+| `lib/features/player/sleep_timer.dart` | 睡眠定时提供者(非 UI) |
+| `lib/features/playlists/bilibili_favorites_screen.dart` | B 站公开收藏夹浏览(无标题栏) |
 | `lib/shared/responsive_center.dart` | 防溢出居中容器 |
-| `lib/shared/cover_image.dart` | 封面图(按需解码) |
+| `lib/shared/cover_image.dart` | 封面图(按需解码, 本地/网络兜底) |
