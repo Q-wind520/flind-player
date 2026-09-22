@@ -105,6 +105,9 @@ class PlayModeButton extends ConsumerWidget {
       },
       icon: Icon(mode.icon),
       color: mode.isActive ? scheme.primary : null,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
     );
   }
 }

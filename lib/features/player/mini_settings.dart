@@ -123,52 +123,53 @@ class MiniSettings extends ConsumerWidget {
 
   /// The sleep-timer button: tinted when armed, with a live countdown label
   /// (or a dot for end-of-track mode) under the icon.
+  ///
+  /// Uses the same compact [IconButton] metrics as [_barButton] so its tap
+  /// target, spacing and ripple match the other slots exactly.
   Widget _sleepTimerButton(BuildContext context, SleepTimerState state) {
     final scheme = Theme.of(context).colorScheme;
     final active = state.isActive;
     final color = active ? scheme.primary : null;
 
-    return InkWell(
+    return IconButton(
       key: MiniSettings.sleepTimerKey,
-      onTap: () => _openPanel(
+      onPressed: () => _openPanel(
         context,
         const SleepTimerPanel(),
         portraitFraction: 0.5,
         landscapeFraction: 0.5,
       ),
-      borderRadius: BorderRadius.circular(24),
-      child: SizedBox(
-        width: 56,
-        height: kMiniSettingsHeight,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              active ? Icons.timer : Icons.timer_outlined,
-              size: 24,
-              color: color,
-            ),
-            if (state.mode == SleepTimerMode.duration &&
-                state.remaining != null)
-              Text(
-                formatSleepTimerCountdown(state.remaining!),
-                style: TextStyle(
-                  fontSize: 10,
-                  height: 1.0,
-                  color: color ?? scheme.onSurfaceVariant,
-                ),
-              )
-            else if (state.isEndOfTrack)
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: color ?? scheme.onSurfaceVariant,
-                  shape: BoxShape.circle,
-                ),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      icon: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            active ? Icons.timer : Icons.timer_outlined,
+            size: 24,
+            color: color,
+          ),
+          if (state.mode == SleepTimerMode.duration &&
+              state.remaining != null)
+            Text(
+              formatSleepTimerCountdown(state.remaining!),
+              style: TextStyle(
+                fontSize: 10,
+                height: 1.0,
+                color: color ?? scheme.onSurfaceVariant,
               ),
-          ],
-        ),
+            )
+          else if (state.isEndOfTrack)
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: color ?? scheme.onSurfaceVariant,
+                shape: BoxShape.circle,
+              ),
+            ),
+        ],
       ),
     );
   }

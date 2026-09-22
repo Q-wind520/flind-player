@@ -328,9 +328,9 @@ class _PortraitNormal extends StatelessWidget {
     final theme = Theme.of(context);
     // Five lines of the lyrics text style, so the strip reads as a teaser of
     // the lyrics page rather than an arbitrary fraction of the viewport.
-    final lyricsStyle = theme.textTheme.bodyMedium;
+    final lyricsStyle = theme.textTheme.titleMedium;
     final lineHeight =
-        (lyricsStyle?.fontSize ?? 14) * (lyricsStyle?.height ?? 1.4);
+        (lyricsStyle?.fontSize ?? 16) * (lyricsStyle?.height ?? 1.4);
     final lyricsStripHeight = lineHeight * 5;
     return Column(
       children: [
@@ -590,7 +590,7 @@ class _TransportControls extends ConsumerWidget {
         IconButton(
           onPressed: state.hasPrevious ? controller.previous : null,
           icon: const Icon(Icons.skip_previous),
-          iconSize: 36,
+          iconSize: 40,
           visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -599,7 +599,7 @@ class _TransportControls extends ConsumerWidget {
         IconButton.filled(
           onPressed: controller.togglePlayPause,
           icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-          iconSize: 36,
+          iconSize: 40,
           visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -608,7 +608,7 @@ class _TransportControls extends ConsumerWidget {
         IconButton(
           onPressed: state.hasNext ? controller.next : null,
           icon: const Icon(Icons.skip_next),
-          iconSize: 36,
+          iconSize: 40,
           visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -620,6 +620,7 @@ class _TransportControls extends ConsumerWidget {
             builder: (_) => const PlaylistPanel(),
           ),
           icon: const Icon(Icons.queue_music),
+          iconSize: 40,
           visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -663,6 +664,7 @@ class _FavoriteButton extends ConsumerWidget {
         }
       },
       icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
+      iconSize: 40,
       color: isFavourite ? Colors.red : null,
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,

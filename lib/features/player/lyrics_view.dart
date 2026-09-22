@@ -50,13 +50,13 @@ class LyricsView extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.lyrics_outlined,
-                        size: 48,
+                        size: 56,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         l10n.lyricsUnavailable,
-                        style: theme.textTheme.titleMedium,
+                        style: theme.textTheme.titleLarge,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
@@ -117,7 +117,7 @@ class LyricsPreview extends StatelessWidget {
                       children: [
                         Icon(
                           Icons.lyrics_outlined,
-                          size: 20,
+                          size: 22,
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(height: 4),
@@ -125,7 +125,7 @@ class LyricsPreview extends StatelessWidget {
                           l10n.lyricsUnavailable,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
+                          style: theme.textTheme.titleMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
