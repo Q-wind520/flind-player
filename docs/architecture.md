@@ -236,17 +236,24 @@ class PlaybackQueue {
 
 ### 7.1 统一曲库
 
-主键使用 **provider 命名空间的 uri**，避免跨源 id 冲突：
+`tracks` 表是**唯一的曲库池**：在线与本地曲目都只在这里存一份，收藏与歌单都是它之上的引用视图（见 §7.3）。主键使用 **provider 命名空间的 uri**，避免跨源 id 冲突：
 
 | 源 | uri 示例 |
 |---|---|
 | Bilibili | `bilibili:BV1GJ411x7h7:137649199`（bvid + cid） |
 | 本地 | `local:/home/user/Music/song.flac` |
 
-字段（详见 `local-library.md` §5）：`title / artist / album / album_artist / track_no / disc_no / year / duration_ms / bitrate / sample_rate / genre / cover_hash / last_seen_at`。
+`uri` 是规范键（upsert 冲突目标），**主键保持自增 `id` 不变**，原因：
+
+- **cid 是多分 P 的必需区分项**：`bvid` 单独会合并分 P，`bilibili:<bvid>:<cid>` 才能定位到具体分 P；
+- **本地播放靠路径**：`local:` 前缀与 `LocalTrackId.path` 解析，路径即身份；
+- **`audio_cache` 磁盘命名** = `sha1("$source:$sourceTrackId")`，键一变所有已缓存歌曲失联；
+- **`tracks_fts` 是外部内容表**（`content='tracks'`，`content_rowid='id'`），改主键会连带触发器与 FTS 一起坏。
+
+字段（详见 `local-library.md` §5）：`title / artist / album / album_artist / track_no / disc_no / year / duration_ms / bitrate / sample_rate / genre / cover_path / cover_url / content_hash / last_seen_at / size_bytes / mtime_ms / scan_root / missing_at`。其中 `content_hash`（v8）**只建列未填充**，为后续去重 / 稳定标识预留，`uri` 仍是规范键。
 
 - **FTS5 虚拟表**覆盖 title / artist / album，供搜索。
-- **封面**：内容哈希 → `covers/<sha1>.webp`（应用私有目录，256–512px）。
+- **封面**：本地内嵌封面内容哈希 → `covers/<sha1>.webp`；远程封面走 `cover_cache`（见 `local-library.md` §3）。
 - **在线元数据**激进缓存；**流地址**视为易失（120 分钟过期，403 时刷新）。
 
 ### 7.2 离线音频缓存
@@ -256,6 +263,13 @@ class PlaybackQueue {
 - 淘汰：按 `last_accessed_at` LRU；**手动下载（pinned）条目不参与淘汰**
 - 播放时 `resolveStream` 优先命中缓存 → 返回 `file://`，无需 headers
 - 详见 `local-library.md` §4
+
+### 7.3 歌单与收藏
+
+- **收藏 = 内置歌单行**：`playlists` 表 `kind='favorites'` 的行，id 固定为 1，不可删除 / 改名 / 换封面，显示名走 l10n；自建歌单为 `kind='custom'`。
+- **成员 = 引用池 + 元数据快照**：`playlist_tracks` 每行以 `uri` 引用池，同时存一份元数据副本；读取时 `LEFT JOIN tracks` 并 `COALESCE`（池优先、快照回落）。因此歌曲离开曲库（删除扫描根 / 软删除 / B 站条目离线）后，收藏与歌单成员依然可解析、可播放。
+- **歌单封面读取时派生**：自定义封面 → 最新成员的封面（池优先、快照回落）→ 默认占位，从不物化，不会过期。
+- 成员排序：`added_at DESC, id DESC`（收藏即加入时间倒序）；`position` 列预留未用（自建歌单手动排序待后续）。
 
 ---
 
@@ -314,7 +328,7 @@ Track → PlaybackController.playQueue(queue)
 
 - **队列快照包含 `originalOrder`**：洗牌后的顺序无法反推洗牌前顺序，缺了它恢复后"取消随机"会错乱。快照以 `{tracks, originalOrder}` 形式存储。
 - **恢复为暂停态**：`PlaybackController.playQueue` 新增 `autoPlay` 参数（默认 true），持久化服务以 `autoPlay: false` 恢复，避免启动瞬间出声。
-- **收藏是去规范化快照**：收藏表存曲目字段副本，曲目离开曲库后收藏依然有效。
+- **收藏是内置歌单**：收藏 = `playlists` 表 `kind='favorites'` 的内置行（id 固定 1，不可删除/改名）；收藏与自建歌单的成员都存 `playlist_tracks`，每行是 `uri` 引用 + 元数据快照，读取时 LEFT JOIN 池并 COALESCE（池优先、快照回落），曲目离开曲库后收藏/歌单依然有效（见 §7.3）。
 - **Bilibili 收藏夹仅公开**：按 UID 浏览他人公开收藏夹；个人收藏夹需要 QR 登录，按用户决定留到 v1.1。
 
 ---

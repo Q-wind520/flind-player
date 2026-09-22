@@ -14,7 +14,7 @@
 <img src="https://img.shields.io/badge/license-GPL--3.0-red" />
 <img src="https://img.shields.io/badge/Flutter-3.13%2B-02569B?logo=flutter&logoColor=white" />
 <img src="https://img.shields.io/badge/platform-Android%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20iOS-purple" />
-<img src="https://img.shields.io/badge/tests-371%20passing-brightgreen" />
+<img src="https://img.shields.io/badge/tests-581%20passing-brightgreen" />
 <img src="https://img.shields.io/badge/Made%20with-Dart-0175C2?logo=dart&logoColor=white" />
 
 </div>
@@ -47,7 +47,7 @@
   <tr>
     <td width="50%" valign="top">
       <h4>🔁 队列与收藏</h4>
-      <p>播放队列（含洗牌前顺序）自动持久化，重启后恢复（默认暂停，不打扰）；本地收藏 + 浏览 Bilibili 公开收藏夹。</p>
+      <p>播放队列（含洗牌前顺序）自动持久化，重启后恢复（默认暂停，不打扰）；本地收藏 + 自建歌单（创建 / 改名 / 封面 / 简介 / 增删歌曲）+ 浏览 Bilibili 公开收藏夹。曲库页分成 全部 / 收藏 / 歌单 三段。</p>
     </td>
     <td width="50%" valign="top">
       <h4>🖥️ 自适应 Material 3</h4>
@@ -267,6 +267,7 @@ git push origin v0.2.1
         <li>离线缓存（1 GiB 默认 · LRU · pinned）</li>
         <li>系统集成（通知栏 / MPRIS / SMTC / 托盘）</li>
         <li>队列持久化与收藏</li>
+        <li>歌单（内置收藏 + 自建歌单 · 三段式曲库页）</li>
         <li>CI 与发布流水线实测跑通</li>
       </ul>
     </td>
@@ -284,7 +285,7 @@ git push origin v0.2.1
 
 <h4 id="🧪-验证基线">🧪 验证基线</h4>
 
-`flutter analyze` 零问题 · **371** 个单元 / 组件测试通过 · **6** 个集成测试通过 ·
+`flutter analyze` 零问题 · **581** 个单元 / 组件测试通过 · **6** 个集成测试通过 ·
 Linux / Android release 构建通过 · CI 与 release 工作流均实测跑通。
 
 <br />

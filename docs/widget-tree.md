@@ -16,11 +16,19 @@ main (入口)
             ├─ locale / localizationsDelegates / supportedLocales (国际化)
             ├─ theme / darkTheme (亮色/暗色主题)
             ├─ themeMode ← appThemeModeProvider (外观: 自动/浅色/深色, 持久化)
+            ├─ scrollBehavior: AppScrollBehavior (放开 mouse/trackpad 拖拽 — 桌面端可拖动分页器)
             └─ home: HomeShell (主界面壳)
 ```
 
 > `FlindApp` 同时 watch `coverPrefetchCoordinatorProvider`,让队列封面预取
 > 协调器在整个会话期间保持存活。
+>
+> **桌面端滑动**:Flutter 默认的 `MaterialScrollBehavior` 把 `PointerDeviceKind.mouse`
+> 排除在 `dragDevices` 之外,所以桌面端的水平 `PageView`(如曲库三段分页器)鼠标拖不动,
+> 只能滚轮 / 触控板。`lib/app/app_scroll_behavior.dart` 的 `AppScrollBehavior` 把
+> mouse / trackpad 等指针类型加回 `dragDevices`,在 `MaterialApp.scrollBehavior` 上全局生效;
+> 触摸设备不受影响(不会产生这些指针事件)。对照实现见 `test/app_scroll_behavior_test.dart`
+> (含「默认行为下鼠标拖拽无效」的反向断言)。
 
 ## 主壳 HomeShell(自适应布局)
 
@@ -102,22 +110,24 @@ SearchScreen (搜索页 ConsumerStatefulWidget)
                                      showSaveToLibrary: true, 见下)
 ```
 
-## 曲库页 LibraryScreen(本地 + 收藏曲库)
+## 曲库页 LibraryScreen(全部 / 收藏 / 歌单)
 
-无标题栏;最顶一行是 全部/收藏 选择器 + 搜索/更多按钮,搜索框以
-`AnimatedSize` 在头部下方展开。扫描/保存进度以 SnackBar 气泡通知;
-无 `_SyncStatus` 常驻条。
+无标题栏;最顶一行是四槽固定布局: 更多(最左) / 三段轮盘选择器(屏幕居中) / 搜索 / 新建歌单「+」(最右)。
+搜索框以 `AnimatedSize` 在头部下方展开。三段主体位于环形无缝 `PageView` 中(右划前进: 全部 → 收藏 → 歌单 → 全部,两端皆可循环);
+「+」新建歌单在三段皆可见。
+扫描/保存进度以 SnackBar 气泡通知;无 `_SyncStatus` 常驻条。
 
 ```
 LibraryScreen (曲库页 ConsumerStatefulWidget)
 └─ Scaffold (background: AppSurface.colorOf) + SafeArea(bottom: false)
    └─ Column
-      ├─ _buildHeaderRow (单行头部 — 选择器 + 搜索 + 更多)
-      │  └─ Row
-      │     ├─ Expanded → _LibraryFilterSelector (全部/收藏 轮盘选择器)
-      │     │  └─ GestureDetector (点击标签切换 + 左右滑动手势轮换)
+      ├─ _buildHeaderRow (单行头部 — 更多 · 选择器 · 搜索 · 新建)
+      │  └─ Stack (三向对齐: 更多最左 · 选择器居中 · 搜索/新建最右)
+      │     ├─ Center(居中) → _LibraryFilterSelector (三段轮盘: 左=下一段, 中=选中, 右=上一段)
+      │     │  └─ GestureDetector (点标签切换 + 横向拖拽: 右拖前进 / 左拖后退)
       │     │     └─ AnimatedSwitcher (交叉淡化 + 位移 250ms)
-      │     │        └─ Row (选中标签加粗放大居左, 其余小号弱化)
+      │     │        └─ Row (中=选中项加粗放大; 左右为减弱候选项)
+      │     ├─ IconButton (「+」新建歌单 → PlaylistEditorDialog, 三段皆可见)
       │     ├─ {支持本地曲库} IconButton (搜索开关 — 展开/收起, 图标 搜索/关闭)
       │     └─ PopupMenuButton<_LibraryAction> (更多操作菜单)
       │        ├─ {支持本地曲库, 非同步中} 添加文件夹 (文件选择器)
@@ -129,49 +139,89 @@ LibraryScreen (曲库页 ConsumerStatefulWidget)
       ├─ {支持本地曲库} _buildSearchField (内联搜索框)
       │  └─ AnimatedSize (展开/收起 220ms)
       │     └─ {_searchOpen} Padding → ValueListenableBuilder → TextField
-      │        (250ms 防抖搜索, 清空后缀按钮)
+      │        (250ms 防抖搜索, 清空后缀按钮, 提示文案随段变化)
       └─ Expanded
-         ├─ {支持本地曲库} _buildBody (见下)
+         ├─ {支持本地曲库} _buildBody (环形 PageView: 右划前进 / 左划后退)
          └─ {iOS 等无本地曲库} _UnsupportedLibraryNotice (不支持提示)
 
-列表主体 (按 筛选/搜索/数据状态 分支):
-├─ 收藏模式 → favoritesProvider.when + 客户端排序 (同步相同比较器)
+列表主体 (按 三段式 section 分支):
+├─ {歌单段} PlaylistsSection (歌单区, 见下)
+├─ {收藏段} favoritesProvider.when + 客户端排序 (同步相同比较器)
 │  ├─ loading → CircularProgressIndicator (加载圈)
 │  ├─ error   → _LibraryError (加载失败, 可重试)
 │  └─ data
 │     ├─ {空收藏} _EmptyFavourites (收藏为空空态)
 │     ├─ {命中查询} 过滤后 → _trackDisplay (无匹配则 _NoFavouritesSearchResults)
 │     └─ _trackDisplay(全部收藏)
-├─ 搜索模式 → librarySearchProvider(_query).when
-│  ├─ loading → CircularProgressIndicator
-│  ├─ error   → _LibraryError (搜索失败)
-│  └─ data
-│     ├─ {空结果} _NoSearchResults (无匹配空态)
-│     └─ _trackDisplay(结果)
-└─ 全部曲目 → libraryTracksProvider.when
-   ├─ loading → CircularProgressIndicator
-   ├─ error   → _LibraryError (加载失败)
-   └─ data
-      ├─ {空曲库} _EmptyLibrary (添加文件夹 + 导入本地音乐按钮)
-      └─ _trackDisplay(全部曲目)
+└─ {全部段} 搜索 / 全部曲目
+   ├─ {有查询} librarySearchProvider(_query).when
+   │  ├─ loading → CircularProgressIndicator
+   │  ├─ error   → _LibraryError (搜索失败)
+   │  └─ data
+   │     ├─ {空结果} _NoSearchResults (无匹配空态)
+   │     └─ _trackDisplay(结果)
+   └─ {无查询} libraryTracksProvider.when
+      ├─ loading → CircularProgressIndicator
+      ├─ error   → _LibraryError (加载失败)
+      └─ data
+         ├─ {空曲库} _EmptyLibrary (添加文件夹 + 导入本地音乐按钮)
+         └─ _trackDisplay(全部曲目)
 
-_trackDisplay (按视口宽度切换列表/网格):
+_trackDisplay (按视口宽度切换列表/网格 — 全部/收藏/歌单详情共用):
 └─ LayoutBuilder
    ├─ {紧凑} _trackList → ListView.builder
-   │  └─ _TrackTile (曲目行)
+   │  └─ TrackTile (曲目行, track_list_items.dart)
    │     └─ ListTile
-   │        ├─ leading: _TrackCover (圆角封面 48)
+   │        ├─ leading: TrackCover (圆角封面 48)
    │        ├─ title: 曲名
-   │        ├─ subtitle: 艺术家 + _SourceBadge (来源徽标: 本地/B站)
+   │        ├─ subtitle: 艺术家 + SourceBadge (来源徽标: 本地/B站)
    │        └─ trailing: Row( 播放指示图标 + 时长 + TrackActionsButton )
    └─ {宽屏} _trackGrid → GridView.builder (maxCrossAxisExtent 220)
-      └─ _TrackCard (曲目卡片)
+      └─ TrackCard (曲目卡片, track_list_items.dart)
          └─ Card → InkWell → Column
             ├─ Expanded → Stack
-            │  ├─ _TrackCover (通栏封面, 尺寸自适应)
+            │  ├─ TrackCover (通栏封面, 尺寸自适应)
             │  ├─ {正在播放} Positioned 播放指示角标
             │  └─ Positioned TrackActionsButton (右上角操作菜单)
-            └─ Padding → Column( 曲名 + 艺术家 + _SourceBadge )
+            └─ Padding → Column( 曲名 + 艺术家 + SourceBadge )
+
+PlaylistsSection (歌单区 ConsumerWidget, 收藏置顶 + 自建歌单列表):
+└─ ListView
+   ├─ _FavoritesRow (置顶收藏行, primary 强调色, 不可删除, 点击切到收藏段)
+   │  └─ ListTile (派生封面 + 「收藏」 + 曲目数)
+   ├─ {无自建歌单} _EmptyPlaylists (空态提示)
+   └─ {有自建歌单}
+      ├─ Padding → Text (「我的歌单」标题)
+      └─ _PlaylistRow × N (自建歌单行)
+         └─ ListTile (派生封面 + 名称 + 曲目数)
+            → 点击推入 PlaylistDetailScreen
+
+PlaylistDetailScreen (歌单详情页 ConsumerWidget)
+└─ Scaffold (background: AppSurface.colorOf)
+   ├─ AppBar (歌单名 + {自建} 编辑/删除按钮)
+   └─ playlistTracksProvider(id).when
+      ├─ loading → CircularProgressIndicator
+      ├─ error   → 重试按钮
+      └─ data
+         ├─ _PlaylistHeader (封面 + 名称 + 简介 + 曲目数, 点击封面可换)
+         └─ Expanded → {空} _EmptyPlaylist | 成员列表 (TrackTile/TrackCard,
+            playlistId 传入, 失联曲目 unavailable 置灰)
+
+PlaylistEditorDialog (歌单编辑器对话框 ConsumerStatefulWidget, 创建/编辑)
+└─ AlertDialog
+   ├─ title: 新建歌单 / 编辑歌单
+   └─ content: Column
+      ├─ TextField (名称, 必填, 空名报错)
+      ├─ TextField (简介, 可选)
+      └─ 封面区 (56×56 预览 + 选择图片 + 移除封面)
+
+PlaylistPickerSheet (加入歌单底部选择器 ConsumerStatefulWidget)
+└─ showModalBottomSheet (showDragHandle)
+   └─ SafeArea → Column
+      ├─ Text (「选择歌单」)
+      └─ ListView
+         ├─ _PlaylistPickerRow × N (封面 + 名称, 已含该曲时打勾禁用)
+         └─ ListTile (「新建歌单」→ PlaylistEditorDialog → 创建后直接加入)
 
 同步气泡通知 (ScaffoldMessenger SnackBar — 无常驻状态条):
 ├─ {扫描/保存/封面} SnackBar(duration: 1天) — 文案 + LinearProgressIndicator 进度
@@ -435,7 +485,9 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 └─ PopupMenuButton<_TrackAction>
    ├─ PopupMenuItem: {收藏/取消收藏} (心形 + 文案, 收藏者主色)
    ├─ {非本地曲目} PopupMenuItem: 缓存到本地 (下载/已缓存/已固定 — 三态图标文案)
-   └─ {showSaveToLibrary: 搜索行} PopupMenuItem: 存入曲库
+   ├─ {showSaveToLibrary: 搜索行} PopupMenuItem: 存入曲库
+   ├─ PopupMenuItem: 加入歌单 → PlaylistPickerSheet (底部选择器)
+   └─ {playlistId 非空: 歌单详情内} PopupMenuItem: 移出歌单
 ```
 
 ### 其他共享 widget
@@ -473,12 +525,18 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | --- | --- |
 | `lib/main.dart` | 入口:音频服务初始化、会话恢复、缓存一致性、runApp |
 | `lib/app/app.dart` | `FlindApp` 根组件(MaterialApp + 国际化 + 语言/主题模式) |
+| `lib/app/app_scroll_behavior.dart` | `AppScrollBehavior` — 放开鼠标/触控板拖拽(桌面端分页可拖) |
 | `lib/app/theme_mode.dart` | `appThemeModeProvider` 外观切换(自动/浅色/深色) |
 | `lib/features/home/home_shell.dart` | `HomeShell` 自适应导航壳 |
 | `lib/shared/app_surface.dart` | 统一共享背景表面 + `colorOf` |
 | `lib/features/search/search_screen.dart` | B 站搜索页(无标题栏) |
-| `lib/features/library/library_screen.dart` | 曲库页(选择器/搜索/收藏/列表/网格) |
-| `lib/features/library/widgets/track_actions_button.dart` | 轨道操作弹出菜单 |
+| `lib/features/library/library_screen.dart` | 曲库页(三段式选择器/搜索/收藏/歌单/列表/网格) |
+| `lib/features/library/playlist_detail_screen.dart` | 歌单详情页(头部 + 成员列表) |
+| `lib/features/library/widgets/playlists_section.dart` | 歌单区(置顶收藏行 + 自建歌单列表) |
+| `lib/features/library/widgets/playlist_editor_dialog.dart` | 歌单创建/编辑对话框 |
+| `lib/features/library/widgets/playlist_picker_sheet.dart` | 加入歌单底部选择器 |
+| `lib/features/library/widgets/track_list_items.dart` | 共享曲目行/卡片/来源徽标/封面 |
+| `lib/features/library/widgets/track_actions_button.dart` | 轨道操作弹出菜单(收藏/缓存/存入曲库/加入歌单/移出歌单) |
 | `lib/features/library/widgets/cache_action_button.dart` | 缓存按钮(未挂载) |
 | `lib/features/settings/settings_screen.dart` | 设置页(通用/播放/曲库/关于) |
 | `lib/features/player/mini_player_bar.dart` | 迷你播放条 |
