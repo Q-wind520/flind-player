@@ -28,15 +28,15 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
-import 'package:flind_player/features/library/widgets/track_actions_button.dart';
+import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
+import 'package:flind_player/features/library/widgets/playlists_section.dart';
+import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/shared/app_surface.dart';
-import 'package:flind_player/shared/cover_image.dart';
-import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/platform_support.dart';
@@ -62,8 +62,8 @@ enum _LibraryAction {
   final TrackSort? sort;
 }
 
-/// Library list mode: all tracks vs. favourites only.
-enum LibraryFilter { all, favourites }
+/// Library sections: all tracks, favourites, and user playlists.
+enum LibrarySection { all, favorites, playlists }
 
 /// The music library: a searchable, mixed local + online track browser with
 /// folder scanning, import, tap-to-play and a favourites filter.
@@ -76,9 +76,25 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
+
+  /// Controller for the cyclic section [PageView] in [_buildBody].
+  final PageController _pageController = PageController(
+    initialPage: _initialPageIndex,
+  );
+
+  /// Deep starting index for the section pager, so both swipe directions can
+  /// keep cycling through `index % 3` essentially forever without ever
+  /// reaching a scroll-extent edge (a bounded `itemCount: 3` pager cannot
+  /// wrap without a visible jump).
+  static const int _initialPageIndex = 1 << 20;
+
   Timer? _debounce;
   String _query = '';
-  LibraryFilter _filter = LibraryFilter.all;
+  LibrarySection _section = LibrarySection.all;
+
+  /// The pager's current virtual page; kept in sync with [_section] so a
+  /// selector tap can compute the adjacent page to glide to.
+  int _pageIndex = _initialPageIndex;
 
   /// Whether the inline search field is expanded under the header row.
   bool _searchOpen = false;
@@ -95,6 +111,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -145,6 +162,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           await ref.read(librarySortProvider.notifier).setSort(sort);
         }
     }
+  }
+
+  /// Opens the create-playlist dialog from the header "+" button.
+  void _createPlaylist() {
+    unawaited(showPlaylistEditorDialog(context));
   }
 
   /// Pushes the anonymous Bilibili public-favourites browser.
@@ -255,6 +277,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return ref.read(playbackControllerProvider).playQueue(queue, index: index);
   }
 
+  /// The section shown by the page at virtual [pageIndex].
+  ///
+  /// The mapping is anchored at [_initialPageIndex] (全部) and negated so a
+  /// *rightward* swipe — which lowers the page index — advances
+  /// 全部 → 收藏 → 歌单 → 全部, while a leftward swipe retreats, matching the
+  /// selector ring. Because it is pure modulo arithmetic over an unbounded
+  /// index range, the wrap-around is seamless in both directions.
+  static LibrarySection _sectionAt(int pageIndex) {
+    final values = LibrarySection.values;
+    return values[(_initialPageIndex - pageIndex) % values.length];
+  }
+
+  /// Switches sections from the selector (tap or drag) and glides the body
+  /// [PageView] to the adjacent page, keeping selector and pager in sync.
+  void _selectSection(LibrarySection target) {
+    if (target == _section) return;
+    final values = LibrarySection.values;
+    final from = values.indexOf(_section);
+    final to = values.indexOf(target);
+    setState(() => _section = target);
+
+    // Steps along the ring: 1 = advance (a rightward-swipe equivalent, which
+    // lowers the page index), 2 = retreat one step backwards.
+    final steps = (to - from) % values.length;
+    final targetPage = switch (steps) {
+      1 => _pageIndex - 1,
+      2 => _pageIndex + 1,
+      _ => _pageIndex,
+    };
+    _pageIndex = targetPage;
+    if (_pageController.hasClients) {
+      unawaited(
+        _pageController.animateToPage(
+          targetPage,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+  }
+
+  /// PageView callback: mirrors the visible page into [_section] so the
+  /// selector ring follows a finger-driven swipe.
+  void _onPageChanged(int pageIndex) {
+    _pageIndex = pageIndex;
+    final section = _sectionAt(pageIndex);
+    if (section == _section) return;
+    setState(() => _section = section);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasLocalLibrary = supportsLocalLibrary;
@@ -283,8 +355,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  /// The single top row: the 全部/收藏 selector on the left, then the search
-  /// and overflow-menu icons.
+  /// The single top row: the overflow menu on the far left, the section
+  /// selector centred *on screen*, and search + new-playlist on the right
+  /// (＋ rightmost, visible in every section).
+  ///
+  /// A [Stack] (rather than a [Row]) is used so the selector's centring is
+  /// independent of the unequal edge-button widths; a width reservation keeps
+  /// the ring from ever colliding with the buttons at 400 px.
   Widget _buildHeaderRow({required bool hasLocalLibrary}) {
     final l10n = AppLocalizations.of(context);
     final currentSort = ref.watch(librarySortProvider).value ?? TrackSort.title;
@@ -298,65 +375,108 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: _LibraryFilterSelector(
-              filter: _filter,
-              onFilterChanged: (filter) => setState(() => _filter = filter),
-            ),
-          ),
-          if (hasLocalLibrary)
-            IconButton(
-              key: const Key('library_search_button'),
-              icon: Icon(_searchOpen ? Icons.close : Icons.search),
-              onPressed: _toggleSearch,
-            ),
-          PopupMenuButton<_LibraryAction>(
-            key: const Key('library_more_menu'),
-            // Empty message suppresses the default "Show menu" hover bubble.
-            tooltip: '',
-            onSelected: _onAction,
-            itemBuilder: (context) => <PopupMenuEntry<_LibraryAction>>[
-              if (hasLocalLibrary) ...[
-                PopupMenuItem(
-                  value: _LibraryAction.addFolder,
-                  enabled: !isSyncing,
-                  child: _MenuRow(
-                    icon: Icons.create_new_folder_outlined,
-                    label: l10n.addFolder,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+      child: SizedBox(
+        height: 48,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Reserve the outer gutters (more-menu on the left, search + ＋
+            // on the right) so the centred ring is capped to the space that
+            // actually remains, even on the narrowest supported viewport.
+            final reserved = 48.0 + (hasLocalLibrary ? 96.0 : 48.0) + 8.0;
+            final maxSelectorWidth = (constraints.maxWidth - reserved).clamp(
+              0.0,
+              double.infinity,
+            );
+            return Stack(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: PopupMenuButton<_LibraryAction>(
+                    key: const Key('library_more_menu'),
+                    // Empty message suppresses the default "Show menu" hover bubble.
+                    tooltip: '',
+                    onSelected: _onAction,
+                    itemBuilder: (context) => <PopupMenuEntry<_LibraryAction>>[
+                      if (hasLocalLibrary) ...[
+                        PopupMenuItem(
+                          value: _LibraryAction.addFolder,
+                          enabled: !isSyncing,
+                          child: _MenuRow(
+                            icon: Icons.create_new_folder_outlined,
+                            label: l10n.addFolder,
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _LibraryAction.rescan,
+                          enabled: !isSyncing,
+                          child: _MenuRow(icon: Icons.refresh, label: l10n.rescan),
+                        ),
+                        PopupMenuItem(
+                          value: _LibraryAction.importFiles,
+                          child: _MenuRow(icon: Icons.add, label: l10n.importFiles),
+                        ),
+                        const PopupMenuDivider(),
+                        for (final sort in TrackSort.values)
+                          PopupMenuItem<_LibraryAction>(
+                            value: _sortAction(sort),
+                            child: _SortRow(
+                              label: _sortLabel(l10n, sort),
+                              selected: sort == currentSort,
+                            ),
+                          ),
+                      ],
+                      PopupMenuItem(
+                        value: _LibraryAction.bilibiliFavorites,
+                        child: _MenuRow(
+                          icon: Icons.cloud_outlined,
+                          label: l10n.browseBiliFavorites,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                PopupMenuItem(
-                  value: _LibraryAction.rescan,
-                  enabled: !isSyncing,
-                  child: _MenuRow(icon: Icons.refresh, label: l10n.rescan),
-                ),
-                PopupMenuItem(
-                  value: _LibraryAction.importFiles,
-                  child: _MenuRow(icon: Icons.add, label: l10n.importFiles),
-                ),
-                const PopupMenuDivider(),
-                for (final sort in TrackSort.values)
-                  PopupMenuItem<_LibraryAction>(
-                    value: _sortAction(sort),
-                    child: _SortRow(
-                      label: _sortLabel(l10n, sort),
-                      selected: sort == currentSort,
+                Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: maxSelectorWidth.toDouble(),
+                    ),
+                    // Scales the ring down uniformly if a longer (e.g. English)
+                    // label set ever exceeds the reserved middle gap: the three
+                    // labels stay legible and never collide or overflow.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _LibraryFilterSelector(
+                        section: _section,
+                        onSectionChanged: _selectSection,
+                      ),
                     ),
                   ),
-              ],
-              PopupMenuItem(
-                value: _LibraryAction.bilibiliFavorites,
-                child: _MenuRow(
-                  icon: Icons.cloud_outlined,
-                  label: l10n.browseBiliFavorites,
                 ),
-              ),
-            ],
-          ),
-        ],
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (hasLocalLibrary)
+                        IconButton(
+                          key: const Key('library_search_button'),
+                          icon: Icon(_searchOpen ? Icons.close : Icons.search),
+                          onPressed: _toggleSearch,
+                        ),
+                      IconButton(
+                        key: const Key('library_add_playlist'),
+                        tooltip: '',
+                        icon: const Icon(Icons.add),
+                        onPressed: _createPlaylist,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -379,9 +499,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     textInputAction: TextInputAction.search,
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
-                      hintText: _filter == LibraryFilter.favourites
-                          ? l10n.searchFavorites
-                          : l10n.searchLibrary,
+                      hintText: switch (_section) {
+                        LibrarySection.all => l10n.searchLibrary,
+                        LibrarySection.favorites => l10n.searchFavorites,
+                        LibrarySection.playlists => l10n.searchPlaylists,
+                      },
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: value.text.isEmpty
                           ? null
@@ -492,13 +614,43 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     _ => null,
   };
 
+  /// The three section bodies live inside a cyclic [PageView].
+  ///
+  /// The pager runs over a deep virtual index range mapped with
+  /// [_sectionAt] (`index % 3`), so swipes wrap seamlessly in both
+  /// directions — a plain `itemCount: 3` pager would dead-end at the first
+  /// and last page. The axis stays horizontal, so vertical drags belong to
+  /// the track list/grid inside each page. [onPageChanged] mirrors the
+  /// visible page back into the header selector.
   Widget _buildBody() {
+    return PageView.builder(
+      controller: _pageController,
+      onPageChanged: _onPageChanged,
+      itemBuilder: (context, pageIndex) =>
+          _buildSectionBody(_sectionAt(pageIndex)),
+    );
+  }
+
+  /// The body of a single library section.
+  ///
+  /// [section] is derived from the pager index (not read from [_section])
+  /// so neighbour pages built mid-swipe render the right content. Providers,
+  /// sorting, search filtering and the empty/error/loading states are
+  /// unchanged from the previous per-section branches.
+  Widget _buildSectionBody(LibrarySection section) {
     final l10n = AppLocalizations.of(context);
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
 
-    if (_filter == LibraryFilter.favourites) {
+    if (section == LibrarySection.playlists) {
+      return PlaylistsSection(
+        query: _query,
+        onOpenFavorites: () => _selectSection(LibrarySection.favorites),
+      );
+    }
+
+    if (section == LibrarySection.favorites) {
       return _buildFavouritesBody(currentUri, isPlaying);
     }
 
@@ -596,7 +748,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       itemBuilder: (context, index) {
         final track = tracks[index];
         final isCurrent = currentUri != null && track.uri == currentUri;
-        return _TrackTile(
+        return TrackTile(
           track: track,
           isCurrent: isCurrent,
           isPlaying: isCurrent && isPlaying,
@@ -619,7 +771,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       itemBuilder: (context, index) {
         final track = tracks[index];
         final isCurrent = currentUri != null && track.uri == currentUri;
-        return _TrackCard(
+        return TrackCard(
           track: track,
           isCurrent: isCurrent,
           isPlaying: isCurrent && isPlaying,
@@ -661,28 +813,44 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-/// The 全部/收藏 selector.
+/// The 全部/收藏/歌单 section selector, rendered as a centred ring.
 ///
-/// The selected filter is rendered bold and enlarged at the far left, acting
-/// as the page title; the remaining filters sit to its right, smaller and
-/// muted. Tapping a label selects it, and a horizontal swipe cycles through
-/// the filters like a wheel (advancing or retreating, wrapping around).
+/// The labels are ordered `[previous] [selected] [next]` with the enum
+/// indices wrapped modulo 3 (e.g. 全部 → left 歌单, middle 全部, right 收藏).
+/// The selected middle label is emphasised with the headline text style; the
+/// flanking candidates use the muted body style. Tapping a candidate selects
+/// it, and a horizontal swipe on the selector cycles through the sections
+/// like a wheel (advancing or retreating, wrapping around) — synced with the
+/// body pager through `onSectionChanged`.
 class _LibraryFilterSelector extends StatelessWidget {
   const _LibraryFilterSelector({
-    required this.filter,
-    required this.onFilterChanged,
+    required this.section,
+    required this.onSectionChanged,
   });
 
-  final LibraryFilter filter;
-  final ValueChanged<LibraryFilter> onFilterChanged;
+  final LibrarySection section;
+  final ValueChanged<LibrarySection> onSectionChanged;
 
   static const Duration _animation = Duration(milliseconds: 250);
 
-  /// The filters ordered with the selected one first.
-  List<LibraryFilter> get _ordered => <LibraryFilter>[
-    filter,
-    ...LibraryFilter.values.where((f) => f != filter),
-  ];
+  /// The ring laid out as `[next, selected, previous]`, wrapping modulo the
+  /// enum length so it stays continuous in both directions.
+  ///
+  /// _next_ is deliberately drawn on the **left**: the body pager advances on a
+  /// rightward swipe, which slides the page physically sitting on the left into
+  /// the middle. Mirroring the ring to match the pager keeps "the label on that
+  /// side" and "the page arriving from that side" the same, so the gesture
+  /// reads as one continuous wheel instead of flipping direction mid-way.
+  List<LibrarySection> get _ring {
+    final values = LibrarySection.values;
+    final index = values.indexOf(section);
+    final count = values.length;
+    return <LibrarySection>[
+      values[(index + 1) % count],
+      section,
+      values[(index - 1 + count) % count],
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -694,22 +862,24 @@ class _LibraryFilterSelector extends StatelessWidget {
     final unselectedStyle = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    final labels = _ordered;
+    final labels = _ring;
 
     return GestureDetector(
       key: const Key('library_filter_selector'),
       behavior: HitTestBehavior.opaque,
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
-        if (velocity < -200) {
-          onFilterChanged(_advance());
-        } else if (velocity > 200) {
-          onFilterChanged(_retreat());
+        // A rightward drag pulls the left-hand (_next_) candidate into the
+        // middle — the same direction the body pager advances on.
+        if (velocity > 200) {
+          onSectionChanged(_advance());
+        } else if (velocity < -200) {
+          onSectionChanged(_retreat());
         }
       },
-      // The whole row cross-fades between the two orderings. The text styles
-      // are fixed per state, so only opacity/offset animate — never the font
-      // size, which would force a font re-resolution every frame.
+      // The whole row cross-fades between the two ring orderings. The text
+      // styles are fixed per state, so only opacity/offset animate — never the
+      // font size, which would force a font re-resolution every frame.
       child: AnimatedSwitcher(
         duration: _animation,
         switchInCurve: Curves.easeOutCubic,
@@ -725,18 +895,19 @@ class _LibraryFilterSelector extends StatelessWidget {
           ),
         ),
         child: Row(
-          key: ValueKey(filter),
+          key: ValueKey(section),
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var i = 0; i < labels.length; i++) ...[
               if (i > 0) const SizedBox(width: 12),
               DefaultTextStyle(
+                // i == 1 is the selected label in the middle of the ring.
                 style:
-                    (i == 0 ? selectedStyle : unselectedStyle) ??
+                    (i == 1 ? selectedStyle : unselectedStyle) ??
                     const TextStyle(),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: i == 0 ? null : () => onFilterChanged(labels[i]),
+                  onTap: i == 1 ? null : () => onSectionChanged(labels[i]),
                   child: Text(_label(l10n, labels[i]), maxLines: 1),
                 ),
               ),
@@ -747,20 +918,24 @@ class _LibraryFilterSelector extends StatelessWidget {
     );
   }
 
-  /// The next filter, wrapping around.
-  LibraryFilter _advance() {
-    final values = LibraryFilter.values;
-    return values[(values.indexOf(filter) + 1) % values.length];
+  /// The next section, wrapping around.
+  LibrarySection _advance() {
+    final values = LibrarySection.values;
+    return values[(values.indexOf(section) + 1) % values.length];
   }
 
-  /// The previous filter, wrapping around.
-  LibraryFilter _retreat() {
-    final values = LibraryFilter.values;
-    return values[(values.indexOf(filter) - 1 + values.length) % values.length];
+  /// The previous section, wrapping around.
+  LibrarySection _retreat() {
+    final values = LibrarySection.values;
+    return values[(values.indexOf(section) - 1 + values.length) % values.length];
   }
 
-  static String _label(AppLocalizations l10n, LibraryFilter filter) =>
-      filter == LibraryFilter.all ? l10n.tabAll : l10n.tabFavorites;
+  static String _label(AppLocalizations l10n, LibrarySection section) =>
+      switch (section) {
+        LibrarySection.all => l10n.tabAll,
+        LibrarySection.favorites => l10n.tabFavorites,
+        LibrarySection.playlists => l10n.tabPlaylists,
+      };
 }
 
 /// A sort option row inside the overflow menu, check-marked when active.
@@ -805,244 +980,6 @@ class _MenuRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(children: [Icon(icon), const SizedBox(width: 12), Text(label)]);
   }
-}
-
-/// A single library row with cover, title, artist, source badge, duration and
-/// a consolidated actions popup menu.
-class _TrackTile extends StatelessWidget {
-  const _TrackTile({
-    required this.track,
-    required this.isCurrent,
-    required this.isPlaying,
-    required this.onTap,
-  });
-
-  final Track track;
-  final bool isCurrent;
-  final bool isPlaying;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final l10n = AppLocalizations.of(context);
-
-    return ListTile(
-      onTap: onTap,
-      selected: isCurrent,
-      leading: _TrackCover(track: track, size: 48),
-      title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Row(
-        children: [
-          Expanded(
-            child: Text(
-              track.artist ?? l10n.unknownArtist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          _SourceBadge(source: track.source),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isPlaying) ...[
-            Icon(Icons.graphic_eq, size: 20, color: scheme.primary),
-            const SizedBox(width: 8),
-          ],
-          Text(
-            formatTrackDuration(track.duration),
-            style: theme.textTheme.labelMedium,
-          ),
-          TrackActionsButton(track: track),
-        ],
-      ),
-    );
-  }
-}
-
-/// A card tile for the wide-screen grid layout.
-///
-/// Shows a square cover, title, artist, source badge, playing indicator, and
-/// a trailing actions button overlaid in the top-right corner.
-class _TrackCard extends StatelessWidget {
-  const _TrackCard({
-    required this.track,
-    required this.isCurrent,
-    required this.isPlaying,
-    required this.onTap,
-  });
-
-  final Track track;
-  final bool isCurrent;
-  final bool isPlaying;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final l10n = AppLocalizations.of(context);
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  _TrackCover(track: track, size: double.infinity),
-                  if (isPlaying)
-                    Positioned(
-                      bottom: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: scheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          Icons.graphic_eq,
-                          size: 14,
-                          color: scheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: TrackActionsButton(track: track),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    track.artist ?? l10n.unknownArtist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  _SourceBadge(source: track.source),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Small tonal chip naming the track's source.
-class _SourceBadge extends StatelessWidget {
-  const _SourceBadge({required this.source});
-
-  final String source;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final l10n = AppLocalizations.of(context);
-    final label = switch (source) {
-      'local' => l10n.sourceLocal,
-      'bilibili' => l10n.sourceBilibili,
-      _ => source,
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: scheme.onSecondaryContainer,
-        ),
-      ),
-    );
-  }
-}
-
-/// Rounded cover art, falling back to a tonal music-note placeholder.
-class _TrackCover extends StatelessWidget {
-  const _TrackCover({required this.track, required this.size});
-
-  final Track track;
-
-  /// Fixed size in pixels, or `double.infinity` when the cover should fill its
-  /// parent (used inside the grid card's [Expanded] wrapper).
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final coverPath = track.coverPath;
-    final coverUrl = track.coverUrl;
-    final hasCover =
-        (coverPath != null && coverPath.isNotEmpty) ||
-        (coverUrl != null && coverUrl.isNotEmpty);
-    final useFixedSize = !size.isInfinite;
-    final borderRadius = useFixedSize ? size * 0.16 : 4.0;
-
-    Widget child = Container(
-      width: useFixedSize ? size : null,
-      height: useFixedSize ? size : null,
-      color: scheme.surfaceContainerHighest,
-      child: hasCover
-          ? CoverImage(
-              path: coverPath,
-              url: coverUrl,
-              size: size,
-              errorBuilder: (context, error, stackTrace) =>
-                  _placeholder(scheme),
-            )
-          : _placeholder(scheme),
-    );
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: child,
-    );
-  }
-
-  Widget _placeholder(ColorScheme scheme) => Center(
-    child: Icon(
-      Icons.music_note,
-      size: size.isInfinite ? 40 : size * 0.5,
-      color: scheme.onSurfaceVariant,
-    ),
-  );
 }
 
 /// Shown when the platform offers no local library (iOS): explains the

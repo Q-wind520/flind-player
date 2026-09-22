@@ -20,8 +20,11 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
+import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/playlist_picker_sheet.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/shared/error_snack_bar.dart';
 
 /// Consolidated row actions for library and search track rows.
 ///
@@ -36,7 +39,9 @@ import 'package:flind_player/l10n/app_localizations.dart';
 /// - 收藏 / 取消收藏  (always)
 /// - 缓存到本地 / 已缓存 (online tracks only)
 /// - 存入曲库          (when [showSaveToLibrary] is true)
-enum _TrackAction { favorite, cache, saveToLibrary }
+/// - 加入歌单          (always)
+/// - 移出歌单          (when [playlistId] is non-null)
+enum _TrackAction { favorite, cache, saveToLibrary, addToPlaylist, removeFromPlaylist }
 
 class TrackActionsButton extends ConsumerWidget {
   const TrackActionsButton({
@@ -44,6 +49,7 @@ class TrackActionsButton extends ConsumerWidget {
     required this.track,
     this.showSaveToLibrary = false,
     this.onSaveToLibrary,
+    this.playlistId,
   });
 
   final Track track;
@@ -53,6 +59,10 @@ class TrackActionsButton extends ConsumerWidget {
 
   /// Called when the user selects "存入曲库".
   final VoidCallback? onSaveToLibrary;
+
+  /// The playlist this button is rendered inside, when non-null. Adds a
+  /// "移出歌单" item to the menu.
+  final int? playlistId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,6 +116,27 @@ class TrackActionsButton extends ConsumerWidget {
               ],
             ),
           ),
+        PopupMenuItem<_TrackAction>(
+          value: _TrackAction.addToPlaylist,
+          child: Row(
+            children: [
+              const Icon(Icons.playlist_add, size: 20),
+              const SizedBox(width: 12),
+              Text(l10n.addToPlaylist),
+            ],
+          ),
+        ),
+        if (playlistId != null)
+          PopupMenuItem<_TrackAction>(
+            value: _TrackAction.removeFromPlaylist,
+            child: Row(
+              children: [
+                const Icon(Icons.playlist_remove, size: 20),
+                const SizedBox(width: 12),
+                Text(l10n.removeFromPlaylist),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -123,6 +154,26 @@ class TrackActionsButton extends ConsumerWidget {
         _cacheTrack(ref, cacheEntry);
       case _TrackAction.saveToLibrary:
         onSaveToLibrary?.call();
+      case _TrackAction.addToPlaylist:
+        _addToPlaylist(context);
+      case _TrackAction.removeFromPlaylist:
+        _removeFromPlaylist(context, ref);
+    }
+  }
+
+  Future<void> _addToPlaylist(BuildContext context) async {
+    await showPlaylistPickerSheet(context, track: track);
+  }
+
+  Future<void> _removeFromPlaylist(BuildContext context, WidgetRef ref) async {
+    final id = playlistId;
+    if (id == null) return;
+    try {
+      await ref.read(playlistRepositoryProvider).removeTrack(id, track.uri);
+    } catch (error) {
+      if (context.mounted) {
+        showErrorSnackBar(context, error);
+      }
     }
   }
 

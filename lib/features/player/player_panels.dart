@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/features/library/widgets/playlist_picker_sheet.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -138,7 +139,6 @@ class _PanelHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
       child: Row(
@@ -352,6 +352,15 @@ class PlaylistPanel extends ConsumerWidget {
     return Column(
       children: [
         _PanelHeader(title: l10n.playerPlaylist),
+        if (!queue.isEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _saveCurrentTrack(context, ref),
+              icon: const Icon(Icons.playlist_add, size: 18),
+              label: Text(l10n.addToPlaylist),
+            ),
+          ),
         Expanded(
           child: queue.isEmpty
               ? Center(
@@ -384,6 +393,16 @@ class PlaylistPanel extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// Opens the playlist picker for the currently playing track.
+  Future<void> _saveCurrentTrack(BuildContext context, WidgetRef ref) async {
+    final queue = ref.read(playbackControllerProvider).queue;
+    final index = queue.currentIndex;
+    if (queue.tracks.isEmpty || index < 0 || index >= queue.tracks.length) {
+      return;
+    }
+    await showPlaylistPickerSheet(context, track: queue.tracks[index]);
   }
 }
 

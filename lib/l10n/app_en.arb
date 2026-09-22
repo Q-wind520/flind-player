@@ -176,6 +176,44 @@
       }
     }
   },
+  "tabPlaylists": "Playlists",
+  "myPlaylists": "My playlists",
+  "newPlaylist": "New playlist",
+  "editPlaylist": "Edit playlist",
+  "playlistName": "Playlist name",
+  "playlistNameRequired": "Playlist name is required",
+  "playlistDescription": "Description",
+  "playlistCover": "Cover",
+  "chooseCover": "Choose cover",
+  "removeCover": "Remove cover",
+  "deletePlaylistTitle": "Delete playlist?",
+  "deletePlaylistBody": "The playlist and its members will be removed; songs stay in your library.",
+  "addToPlaylist": "Add to playlist",
+  "selectPlaylist": "Select a playlist",
+  "addedToPlaylist": "Added to \"{name}\"",
+  "@addedToPlaylist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "removeFromPlaylist": "Remove from playlist",
+  "playlistAlreadyContains": "Already in this playlist",
+  "playlistTrackCount": "{count} songs",
+  "@playlistTrackCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "emptyPlaylist": "This playlist is empty",
+  "emptyPlaylistHint": "Add songs from your library or search results",
+  "noPlaylists": "No playlists yet",
+  "noPlaylistsHint": "Tap + to create your first playlist",
+  "searchPlaylists": "Search playlists",
+  "trackUnavailable": "Unavailable",
   "sectionPlayback": "Playback",
   "sectionLibrary": "Library",
   "cacheLimit": "Cache limit",

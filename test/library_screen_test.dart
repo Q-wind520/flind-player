@@ -524,7 +524,7 @@ void main() {
 
     await tester.fling(
       find.byKey(const Key('library_filter_selector')),
-      const Offset(-120, 0),
+      const Offset(120, 0),
       800,
     );
     await tester.pumpAndSettle();
