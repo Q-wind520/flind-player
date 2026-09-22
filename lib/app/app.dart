@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/app_scroll_behavior.dart';
 import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
@@ -47,6 +48,9 @@ class FlindApp extends ConsumerWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeModeForAppThemeMode(themeMode),
+      // Lets the mouse/trackpad drag scrollables (e.g. the library's section
+      // pager) on desktop, where Flutter's default behaviour excludes them.
+      scrollBehavior: const AppScrollBehavior(),
       debugShowCheckedModeBanner: false,
       home: const HomeShell(),
     );
