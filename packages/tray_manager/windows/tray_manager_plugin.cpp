@@ -53,6 +53,10 @@ class TrayManagerPlugin : public flutter::Plugin {
   bool tray_icon_setted = false;
   UINT windows_taskbar_created_message_id = 0;
 
+  // LOCAL PATCH (upstream PR #93): tick of the last context-menu close, used to
+  // suppress the tray-icon click that dismissed the menu so it does not reopen.
+  ULONGLONG menu_close_tick = 0;
+
   // The ID of the WindowProc delegate registration.
   int window_proc_id = -1;
 
@@ -198,6 +202,12 @@ std::optional<LRESULT> TrayManagerPlugin::HandleWindowProc(HWND hWnd,
   } else if (message == WM_MYMESSAGE) {
     switch (lParam) {
       case WM_LBUTTONUP:
+        // LOCAL PATCH (upstream PR #93): ignore the click that just closed the
+        // context menu (within 200ms) so it does not immediately reopen.
+        if (menu_close_tick > 0 && (GetTickCount64() - menu_close_tick) < 200) {
+          menu_close_tick = 0;
+          break;
+        }
         channel->InvokeMethod("onTrayIconMouseDown",
                               std::make_unique<flutter::EncodableValue>());
         break;
@@ -335,32 +345,32 @@ void TrayManagerPlugin::SetContextMenu(
 void TrayManagerPlugin::PopUpContextMenu(
     const flutter::MethodCall<flutter::EncodableValue>& method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-  const flutter::EncodableMap& args =
-      std::get<flutter::EncodableMap>(*method_call.arguments());
-
-  bool bringAppToFront =
-      std::get<bool>(args.at(flutter::EncodableValue("bringAppToFront")));
+  // LOCAL PATCH (upstream PR #93): `bringAppToFront` is intentionally ignored.
+  // Per the TrackPopupMenu docs, the owning window MUST be foreground before the
+  // call, otherwise the menu does not dismiss when clicking outside. This is
+  // required for notification-icon menus, so SetForegroundWindow is always
+  // called here.
+  (void)method_call.arguments();
 
   HWND hWnd = GetMainWindow();
 
   double x, y;
-
-  // RECT rect;
-  // Shell_NotifyIconGetRect(&niif, &rect);
-
-  // x = rect.left + ((rect.right - rect.left) / 2);
-  // y = rect.top + ((rect.bottom - rect.top) / 2);
 
   POINT cursorPos;
   GetCursorPos(&cursorPos);
   x = cursorPos.x;
   y = cursorPos.y;
 
-  if (bringAppToFront) {
-    SetForegroundWindow(hWnd);
-  }
+  SetForegroundWindow(hWnd);
   TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, static_cast<int>(x),
                  static_cast<int>(y), 0, hWnd, NULL);
+
+  // Record the close tick so the dismissing click on the tray icon is ignored.
+  menu_close_tick = GetTickCount64();
+
+  // LOCAL PATCH (upstream PR #93): post a benign message so Windows resets the
+  // menu's activation; without it the menu stays open when clicking outside.
+  PostMessage(hWnd, WM_NULL, 0, 0);
   result->Success(flutter::EncodableValue(true));
 }
 
