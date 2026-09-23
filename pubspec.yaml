@@ -86,3 +86,13 @@ flutter_launcher_icons:
   macos:
     generate: true
     image_path: "assets/icon/app_icon.png"
+
+# -----------------------------------------------------------------------------
+# Local patch: tray_manager's Windows plugin does not dismiss the tray context
+# menu when clicking outside (leanflutter/tray_manager#63). The vendored copy in
+# packages/tray_manager applies the upstream fix (PR #93) until a release ships
+# it. Remove this override when upgrading past a fixed tray_manager version.
+# -----------------------------------------------------------------------------
+dependency_overrides:
+  tray_manager:
+    path: packages/tray_manager
