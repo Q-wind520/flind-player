@@ -204,6 +204,7 @@ class _FakeCacheStore implements AudioCacheStore {
     required bool pinned,
     String? contentHash,
     String? coverPath,
+    int coverBytes = 0,
   }) async => throw UnimplementedError();
 
   @override

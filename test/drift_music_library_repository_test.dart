@@ -1527,16 +1527,17 @@ CREATE TABLE playlist_tracks (
       expect(names, contains('idx_cover_cache_content_hash'));
       expect(names, contains('idx_cover_cache_file_path'));
 
-      // Re-running the migration is safe.
+      // Re-running the migration is safe: force the version back to 9 so the
+      // `from < 10` block actually executes again on the third open.
+      await after.customStatement('PRAGMA user_version = 9');
       await after.close();
       final again = AppDatabase(NativeDatabase(file));
       addTearDown(again.close);
-      expect(
-        await again
-            .customSelect('SELECT COUNT(*) AS n FROM audio_cache')
-            .getSingle(),
-        isNotNull,
-      );
+      final rerun = await again
+          .customSelect('SELECT COUNT(*) AS n FROM audio_cache')
+          .getSingle();
+      expect(rerun, isNotNull);
+      expect(rerun.data['n'], 1);
     });
   });
 }

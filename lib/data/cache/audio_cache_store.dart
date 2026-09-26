@@ -262,7 +262,11 @@ class AudioCacheStore {
   /// different path, the freshly written duplicate is deleted and this row is
   /// pointed at the existing physical file instead, so identical audio is
   /// stored and counted once. [coverPath], when given, is recorded verbatim as
-  /// the row's companion cover.
+  /// the row's companion cover and [coverBytes] is its size for the layer-1
+  /// quota; when [coverPath] is omitted, the row's existing cover (and its
+  /// counted bytes) is left untouched. Callers attaching a cover after the
+  /// fact must use `setCoverPath(id, path, bytes: file.lengthSync())` so its
+  /// bytes are counted.
   Future<CachedAudio> insert({
     required String source,
     required String sourceTrackId,
@@ -272,6 +276,7 @@ class AudioCacheStore {
     required bool pinned,
     String? contentHash,
     String? coverPath,
+    int coverBytes = 0,
   }) async {
     await _resolveDir();
     final resolvedHash = contentHash ?? await _hashFile(filePath);
@@ -300,7 +305,10 @@ class AudioCacheStore {
       cachedAt: now,
       lastAccessedAt: now,
       contentHash: Value(resolvedHash),
-      coverPath: Value(coverPath),
+      // Absent when no cover is given, so an upsert never nulls an existing
+      // companion cover (or resets its counted bytes).
+      coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
+      coverBytes: coverPath == null ? const Value.absent() : Value(coverBytes),
     );
     final row = await _db
         .into(_db.audioCache)

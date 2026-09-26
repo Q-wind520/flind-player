@@ -219,6 +219,52 @@ void main() {
       await store.setCoverPath(entry.id, cover.path, bytes: 2);
       expect(await store.totalBytes(), 5);
     });
+
+    test('insert counts cover bytes and keeps the cover on upsert', () async {
+      final file = store.fileFor(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        extension: 'm4a',
+      );
+      file.parent.createSync(recursive: true);
+      file.writeAsBytesSync(const [1, 2, 3]);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [9, 9, 9, 9]);
+
+      final entry = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        filePath: file.path,
+        bytes: 3,
+        qualityId: '30280',
+        pinned: false,
+        coverPath: cover.path,
+        coverBytes: 4,
+      );
+
+      expect(entry.coverPath, cover.path);
+      // 3 audio bytes + 4 companion-cover bytes.
+      expect(await store.totalBytes(), 7);
+
+      // Re-inserting the same track without a cover must not null the
+      // existing one (the upsert would orphan the cover file otherwise).
+      final refreshed = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        filePath: file.path,
+        bytes: 3,
+        qualityId: '30280',
+        pinned: true,
+      );
+
+      expect(refreshed.coverPath, cover.path);
+      expect(refreshed.pinned, isTrue);
+      expect((await store.lookup('bilibili', 'BV1:1'))!.coverPath, cover.path);
+      expect(await store.totalBytes(), 7);
+    });
   });
 
   group('setPinned', () {
