@@ -125,6 +125,9 @@ class _FakeMusicLibraryRepository implements MusicLibraryRepository {
   Future<int> upsertTrack(Track track) async => 0;
 
   @override
+  Future<int> promoteTrack(Track track) async => 0;
+
+  @override
   Future<void> upsertTracks(List<Track> tracks) async {}
 
   @override

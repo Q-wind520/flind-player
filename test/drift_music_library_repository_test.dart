@@ -157,6 +157,76 @@ void main() {
     });
   });
 
+  /// Inserts a row straight into the `tracks` pool, bypassing the repository,
+  /// so a test can arrange pre-existing state (e.g. a soft-deleted row).
+  Future<int> insertPoolTrack({
+    required String uri,
+    required String title,
+  }) {
+    final path = uri.startsWith('local:') ? uri.substring('local:'.length) : uri;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return db
+        .into(db.tracks)
+        .insert(
+          TracksCompanion.insert(
+            source: 'local',
+            sourceTrackId: path,
+            uri: uri,
+            title: title,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+  }
+
+  group('promoteTrack', () {
+    test('inserts a new track into the pool', () async {
+      final id = await repository.promoteTrack(
+        const Track(
+          source: 'bilibili',
+          sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 7),
+          uri: 'bilibili:BV1:7',
+          title: 'Online',
+        ),
+      );
+      expect(id, greaterThan(0));
+      final stored = await repository.findByUri('bilibili:BV1:7');
+      expect(stored!.title, 'Online');
+    });
+
+    test('does not overwrite an existing row (pool wins)', () async {
+      await insertPoolTrack(uri: 'local:/m/a.flac', title: 'Original');
+      await repository.promoteTrack(
+        const Track(
+          source: 'local',
+          sourceTrackId: LocalTrackId('/m/a.flac'),
+          uri: 'local:/m/a.flac',
+          title: 'Incoming',
+        ),
+      );
+      expect(
+        (await repository.findByUri('local:/m/a.flac'))!.title,
+        'Original',
+      );
+    });
+
+    test('does not resurrect a soft-deleted row', () async {
+      await insertPoolTrack(uri: 'local:/m/b.flac', title: 'Gone');
+      // A non-empty scan that does not see `/m/b.flac` marks it missing; the
+      // row has no `scanRoot`, so it stays eligible for the sweep.
+      await repository.markMissingExcept('local', {'local:/m/other.flac'});
+      await repository.promoteTrack(
+        const Track(
+          source: 'local',
+          sourceTrackId: LocalTrackId('/m/b.flac'),
+          uri: 'local:/m/b.flac',
+          title: 'Gone',
+        ),
+      );
+      expect(await repository.allTracks(), isEmpty); // still missing
+    });
+  });
+
   group('findByUri', () {
     test('round-trips every mapped field', () async {
       final insertedId = await repository.upsertTrack(sampleTrack());

@@ -40,6 +40,14 @@ abstract interface class MusicLibraryRepository {
   /// Inserts or updates [track], returning its row id.
   Future<int> upsertTrack(Track track);
 
+  /// Promotes [track] into the pool without touching an existing row.
+  ///
+  /// `INSERT OR IGNORE` keyed on `uri`: an existing row keeps its metadata and
+  /// its `missingAt` (a soft-deleted track stays soft-deleted). This is the
+  /// write path used when a track is favourited or added to a playlist, so the
+  /// pool is the single source of truth for every referenced track.
+  Future<int> promoteTrack(Track track);
+
   /// Inserts or updates every track in [tracks] within a single transaction.
   ///
   /// Intended for library scanning; conflicts are resolved on `uri` with the

@@ -143,6 +143,21 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }
 
   @override
+  Future<int> promoteTrack(Track track) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db
+        .into(_db.tracks)
+        .insert(
+          _toCompanion(track, createdAt: now, updatedAt: now),
+          mode: InsertMode.insertOrIgnore,
+        );
+    final row = await (_db.select(
+      _db.tracks,
+    )..where((t) => t.uri.equals(track.uri))).getSingle();
+    return row.id;
+  }
+
+  @override
   Future<void> upsertTracks(List<Track> tracks) async {
     if (tracks.isEmpty) return;
 
