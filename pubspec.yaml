@@ -1,7 +1,7 @@
 name: flind_player
 description: "Flind Player - a cross-platform music player."
 publish_to: 'none'
-version: 0.3.0+7
+version: 0.4.0+8
 
 environment:
   sdk: ^3.13.3
