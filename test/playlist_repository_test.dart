@@ -22,6 +22,7 @@ import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
+import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
 import 'package:flind_player/data/repositories/drift_playlist_repository.dart';
 
 /// Polls until [condition] is true, failing after [timeout].
@@ -284,9 +285,8 @@ void main() {
   });
 
   group('updateTrackCover', () {
-    test('updates the cached cover pointer without reordering', () async {
+    test('a pool cover update is read back without reordering', () async {
       final playlist = await repository.createPlaylist(name: 'P');
-      // No pool cover, so the member snapshot is the fallback the update targets.
       await repository.addTrack(
         playlist.id,
         localTrack(path: '/m/a.flac', coverPath: null),
@@ -296,8 +296,8 @@ void main() {
         localTrack(path: '/m/b.flac', coverPath: null),
       );
 
-      await repository.updateTrackCover(
-        playlist.id,
+      // Members read covers from the pool only, so the update targets the pool.
+      await DriftMusicLibraryRepository(db).updateTrackCover(
         'local:/m/a.flac',
         coverPath: '/covers/new.webp',
         coverUrl: 'https://example.com/new.webp',
@@ -396,6 +396,27 @@ void main() {
 
       final members = await repository.playlistTracks(playlist.id);
       expect(members.single.title, 'Pool');
+    });
+  });
+
+  group('member availability', () {
+    test('member id is the pool id when present and not missing', () async {
+      final playlist = await repository.createPlaylist(name: 'P');
+      await repository.addTrack(playlist.id, localTrack());
+      final member = (await repository.playlistTracks(playlist.id)).single;
+      expect(member.id, isNotNull);
+    });
+
+    test('member id is null when the pool row is soft-deleted', () async {
+      final playlist = await repository.createPlaylist(name: 'P');
+      await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
+      // A non-empty seen set marks the member's pool row missing without
+      // deleting it, so the member must still resolve but as unavailable.
+      await DriftMusicLibraryRepository(db).markMissingExcept('local', const {
+        'local:/m/other.flac',
+      });
+      final member = (await repository.playlistTracks(playlist.id)).single;
+      expect(member.id, isNull);
     });
   });
 

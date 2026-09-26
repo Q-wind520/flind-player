@@ -23,7 +23,12 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 /// (`local:/abs/path` or `bilibili:BV...:cid`).
 @immutable
 class Track {
-  /// Database row id, `null` before the track is inserted.
+  /// Database row id of the pool (`tracks`) row.
+  ///
+  /// `null` means the track is **unavailable**: either not persisted, or its
+  /// pool row is soft-deleted (`missingAt` set). Playlist/favourite members are
+  /// resolved through the pool, so `null` here is what the UI renders as
+  /// "不可用".
   final int? id;
 
   /// Source identifier, `local` or `bilibili`.

@@ -631,6 +631,40 @@ void main() {
     });
   });
 
+  group('member availability', () {
+    testWidgets('playlist detail renders members as playable when id is set',
+        (tester) async {
+      _setSize(tester, 400, 800);
+      final playable = Track(
+        id: 42,
+        source: 'local',
+        sourceTrackId: const LocalTrackId('/m/a.mp3'),
+        uri: 'local:/m/a.mp3',
+        title: 'Playable',
+      );
+      final repo = _FakePlaylistRepository(
+        playlists: [_playlist(2, 'Mix', PlaylistKind.custom)],
+        tracks: {
+          2: [playable],
+        },
+      );
+      await tester.pumpWidget(_app(playlistRepo: repo));
+      await tester.pumpAndSettle();
+      await _openPlaylists(tester);
+      await tester.tap(find.text('Mix'));
+      await tester.pumpAndSettle();
+
+      final tile = tester.widget<ListTile>(
+        find.ancestor(
+          of: find.text('Playable'),
+          matching: find.byType(ListTile),
+        ),
+      );
+      expect(tile.enabled, isTrue);
+      expect(find.text(testL10n().trackUnavailable), findsNothing);
+    });
+  });
+
   group('covers', () {
     testWidgets('a playlist cover falls back to the newest member cover',
         (tester) async {

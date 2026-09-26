@@ -229,21 +229,17 @@ class DriftPlaylistRepository implements PlaylistRepository {
     });
   }
 
-  /// The pool-joined member query from the plan: pool metadata wins via
-  /// `COALESCE`, the snapshot is the fallback, and ordering is
-  /// `added_at DESC, id DESC`.
+  /// The pool-joined member query: members are pure references, so every field
+  /// is read from the pool (`tracks`) and `missing_at` decides availability.
+  /// Ordering is `added_at DESC, id DESC`.
   Selectable<QueryRow> _memberQuery(int playlistId) {
     return _db.customSelect(
       '''
-SELECT pt.uri, pt.source, pt.source_track_id,
-       COALESCE(t.title,       pt.title)       AS title,
-       COALESCE(t.artist,      pt.artist)      AS artist,
-       COALESCE(t.album,       pt.album)       AS album,
-       COALESCE(t.duration_ms, pt.duration_ms) AS duration_ms,
-       COALESCE(t.cover_path,  pt.cover_path)  AS cover_path,
-       COALESCE(t.cover_url,   pt.cover_url)   AS cover_url
+SELECT t.id AS pool_id, pt.uri AS uri, t.source, t.source_track_id,
+       t.title, t.artist, t.album, t.duration_ms,
+       t.cover_path, t.cover_url, t.missing_at
 FROM playlist_tracks pt
-LEFT JOIN tracks t ON t.uri = pt.uri
+JOIN tracks t ON t.uri = pt.uri
 WHERE pt.playlist_id = ?1
 ORDER BY pt.added_at DESC, pt.id DESC
 ''',
@@ -290,11 +286,14 @@ LIMIT 1
   }
 
   Track _toDomain(QueryRow row) {
+    final poolId = row.read<int>('pool_id');
+    final missingAt = row.read<int?>('missing_at');
     final source = row.read<String>('source');
     final sourceTrackId = row.read<String>('source_track_id');
     final uri = row.read<String>('uri');
     final durationMs = row.read<int?>('duration_ms');
     return Track(
+      id: missingAt == null ? poolId : null,
       source: source,
       sourceTrackId: _decodeSourceTrackId(source, sourceTrackId, uri),
       uri: uri,
