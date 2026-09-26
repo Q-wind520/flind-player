@@ -402,6 +402,11 @@ class _OfflineCacheSection extends ConsumerWidget {
     await ref.read(offlineCacheMaintenanceProvider).onRemove(entry.id);
     ref.invalidate(offlineCacheEntriesProvider);
     ref.invalidate(offlineCacheUsageProvider);
+    // The removal frees layer-1 bytes, so the top-of-screen usage line and
+    // the library's cached-count must refresh too.
+    ref.invalidate(combinedCacheUsageProvider);
+    ref.invalidate(audioCacheUsageProvider);
+    ref.invalidate(audioCacheEntryCountProvider);
   }
 
   /// Confirms, then removes every pinned download.
@@ -435,6 +440,11 @@ class _OfflineCacheSection extends ConsumerWidget {
     await ref.read(offlineCacheMaintenanceProvider).onClearAll();
     ref.invalidate(offlineCacheEntriesProvider);
     ref.invalidate(offlineCacheUsageProvider);
+    // Clearing frees layer-1 bytes; keep the top-of-screen usage line and the
+    // library's cached-count in sync with the empty list.
+    ref.invalidate(combinedCacheUsageProvider);
+    ref.invalidate(audioCacheUsageProvider);
+    ref.invalidate(audioCacheEntryCountProvider);
     messenger.showSnackBar(
       SnackBar(content: Text(l10n.offlineCacheCleared(formatMegabytes(freed)))),
     );

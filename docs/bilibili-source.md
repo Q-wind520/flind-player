@@ -229,8 +229,10 @@ BV1uv411q7Mv  audio=[(30216,67268),(30232,132803),(30280,315098)]  dolby=null fl
   `/x/web-interface/view?bvid=` 兜底。
 - **归一化**：`normalizeCoverUrl` 处理 `//` 协议相对、`http://` 升级，并剥掉 CDN
   处理后缀（`@672w_378h_1c.webp`）后再缓存。图片 CDN 为 `*.hdslb.com`。
-- **缓存**：见 [`local-library.md`](local-library.md) §3.1 与 §4（与音频缓存共享配额、
-  内容寻址、LRU 让路）。
+- **缓存**：见 [`local-library.md`](local-library.md) §3.1 与 §4，走**两层模型**——歌曲已在
+  音频缓存中时封面写入**层 1 随行封面**（`cache/audio/...`，与该歌音频共享 `limitBytes`
+  配额、随行同删）；歌曲未缓存时写入**层 2** `cache/cover/<sha1(字节)>.jpg`（独立固定
+  256 MiB、每次启动整体清空）。内容寻址、LRU 让路。
 - **多 P**：`pic` 为视频级，各分 P 共用同一封面。
 - **合规**：整个抓取受 B 站音源启用开关约束；音源可远程禁用时封面同步禁用。
 

@@ -351,6 +351,12 @@ class _FakeFilePickerPlatform extends FilePickerPlatform {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Counts builds of the overridden combined-usage provider, so a test can
+/// tell whether the screen invalidated it after a destructive action.
+class _UsageLog {
+  int combinedBuilds = 0;
+}
+
 /// Records the cross-cache maintenance actions the settings screen triggers.
 class _MaintenanceLog {
   int enforceCalls = 0;
@@ -371,6 +377,7 @@ Widget _app({
   required _FakeSettingsRepository settings,
   required _FakeCacheStore store,
   int usageBytes = 0,
+  _UsageLog? usageLog,
   _MaintenanceLog? maintenance,
   bool useRealMaintenance = false,
   CoverCacheStore? coverStore,
@@ -391,7 +398,10 @@ Widget _app({
         coverCacheStoreProvider.overrideWithValue(coverStore),
       // Audio and covers share one quota; the screen reads the combined figure
       // and routes maintenance through the cache-maintenance seam.
-      combinedCacheUsageProvider.overrideWith((ref) async => usageBytes),
+      combinedCacheUsageProvider.overrideWith((ref) async {
+        usageLog?.combinedBuilds++;
+        return usageBytes;
+      }),
       coverCacheUsageProvider.overrideWith((ref) async => 0),
       if (!useRealMaintenance)
         cacheMaintenanceProvider.overrideWith(
@@ -450,6 +460,7 @@ CachedAudio _cachedRow(
   int id, {
   required bool pinned,
   int bytes = 5 * 1024 * 1024,
+  int coverBytes = 0,
 }) => CachedAudio(
   id: id,
   source: 'bilibili',
@@ -460,6 +471,7 @@ CachedAudio _cachedRow(
   pinned: pinned,
   cachedAt: DateTime.fromMillisecondsSinceEpoch(id),
   lastAccessedAt: DateTime.fromMillisecondsSinceEpoch(id),
+  coverBytes: coverBytes,
 );
 
 /// Scrolls the settings list until the 离线缓存 section is on screen.
@@ -866,6 +878,48 @@ void main() {
     expect(find.text('BV1'), findsNothing);
     expect(find.text('BV2'), findsOneWidget);
     expect(find.text('1 首 · 已用 5 MB'), findsOneWidget);
+  });
+
+  testWidgets('removing a download refreshes the top-of-screen usage', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()
+      ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
+    final usageLog = _UsageLog();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        settings: settings,
+        store: store,
+        usageBytes: 300 * 1024 * 1024,
+        usageLog: usageLog,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    // The 播放 section watches the combined usage provider, so it has already
+    // been built once before anything is removed.
+    final buildsBefore = usageLog.combinedBuilds;
+    expect(buildsBefore, greaterThan(0));
+
+    final tile = find.ancestor(
+      of: find.text('BV1'),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(
+      find.descendant(of: tile, matching: find.byIcon(Icons.delete_outline)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(store.removedIds, [1]);
+    // The removal invalidated the combined usage provider, so its override
+    // ran again instead of serving the stale figure.
+    expect(usageLog.combinedBuilds, greaterThan(buildsBefore));
   });
 
   testWidgets('clearing the offline cache asks for confirmation first', (

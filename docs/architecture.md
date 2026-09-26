@@ -258,9 +258,10 @@ class PlaybackQueue {
 
 ### 7.2 离线音频缓存
 
-- 位置：`<app support>/audio_cache/<source>/<hash>.<ext>`
-- 默认上限 **1 GiB**，可在设置中调整（D9）
-- 淘汰：按 `last_accessed_at` LRU；**手动下载（pinned）条目不参与淘汰**
+- 位置：单一缓存根 `<app support>/cache/`，分两层（详见 `local-library.md` §4.2）：
+  - **层 1（已缓存歌曲的音频 + 随行封面）**：`cache/audio/<source>/<sha1(source:trackId)>[.cover].<ext>`。音频与其随行封面同住一个子树、随行同删；配额按歌计——`cache.limitBytes`（默认 **1 GiB**，可在设置中调整，D9）覆盖「去重后的音频字节 + 每行随行封面字节」，**手动下载（pinned）条目不参与淘汰**
+  - **层 2（未缓存歌曲的临时封面）**：`cache/cover/<sha1(图片字节)>.jpg`。内容寻址，独立固定 **256 MiB**，每次启动整体清空，不计入层 1 上限
+- 层 1 淘汰：按 `last_accessed_at` LRU
 - 播放时 `resolveStream` 优先命中缓存 → 返回 `file://`，无需 headers
 - 详见 `local-library.md` §4
 
