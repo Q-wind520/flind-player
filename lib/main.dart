@@ -20,14 +20,18 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:flind_player/app/app.dart';
 import 'package:flind_player/app/di/application_overrides.dart';
 import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/app/language.dart';
+import 'package:flind_player/data/cache/cache_relocator.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
+import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
@@ -101,6 +105,22 @@ Future<void> main() async {
     );
   }
 
+  // One-time move of pre-v10 cache files into the unified cache/ root. Best-
+  // effort startup healing: a failed relocation keeps the legacy path working
+  // (`file_path` is authoritative) and retries on the next start.
+  try {
+    final support = await getApplicationSupportDirectory();
+    await CacheRelocator(
+      database: container.read(appDatabaseProvider),
+      audioStore: container.read(audioCacheStoreProvider),
+      coverStore: container.read(coverCacheStoreProvider),
+      legacyAudioRoot: Directory(p.join(support.path, 'audio_cache')),
+      legacyCoverRoot: Directory(p.join(support.path, 'cover_cache')),
+    ).relocate();
+  } catch (error) {
+    debugPrint('Flind Player: cache relocation failed: $error');
+  }
+
   // Reconcile the offline cache with the filesystem, then collapse identical
   // audio content left behind by pre-hash builds. Both run fire-and-forget so
   // they never block or break startup.
@@ -122,14 +142,13 @@ Future<void> main() async {
     ),
   );
 
-  // Same reconciliation for the remote-cover cache: a row whose file vanished
-  // would otherwise keep consuming the shared quota against phantom bytes.
+  // Layer 2 (covers for un-cached songs) is session-scoped: wipe it on start.
   final coverCacheStore = container.read(coverCacheStoreProvider);
   unawaited(
-    coverCacheStore.checkIntegrity().then<void>(
+    coverCacheStore.clear().then<void>(
       (_) {},
       onError: (Object error) {
-        debugPrint('Flind Player: cover cache integrity check failed: $error');
+        debugPrint('Flind Player: cover cache wipe failed: $error');
       },
     ),
   );

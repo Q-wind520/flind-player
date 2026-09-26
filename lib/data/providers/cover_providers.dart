@@ -29,7 +29,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/cover_prefetch_coordinator.dart';
 import 'package:flind_player/data/services/cover_service.dart';
 
-/// Content-addressed remote-cover cache rooted at `<app support>/cover_cache`.
+/// Content-addressed remote-cover cache rooted at `<app support>/cache/cover`.
 ///
 /// Layer 2 of the cache: session-scoped covers for un-cached songs, capped by
 /// the store's own fixed [CoverCacheStore.ephemeralLimitBytes] and wiped on
@@ -40,7 +40,7 @@ final coverCacheStoreProvider = Provider<CoverCacheStore>((ref) {
     database: ref.watch(appDatabaseProvider),
     resolveBaseDir: () async {
       final support = await getApplicationSupportDirectory();
-      return Directory(p.join(support.path, 'cover_cache'));
+      return Directory(p.join(support.path, 'cache', 'cover'));
     },
   );
 });

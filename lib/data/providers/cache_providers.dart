@@ -38,17 +38,18 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return repository;
 });
 
-/// Offline audio cache index rooted at `<app support>/audio_cache`.
+/// Offline audio cache index rooted at `<app support>/cache/audio`.
 ///
-/// The directory is resolved lazily through `path_provider`, so this provider
-/// stays synchronous.
+/// Layer 1 of the cache: audio files plus their companion covers, in a subtree
+/// that never overlaps layer 2's `cache/cover`. The directory is resolved
+/// lazily through `path_provider`, so this provider stays synchronous.
 final audioCacheStoreProvider = Provider<AudioCacheStore>((ref) {
   return AudioCacheStore.lazy(
     database: ref.watch(appDatabaseProvider),
     settings: ref.watch(settingsRepositoryProvider),
     resolveBaseDir: () async {
       final support = await getApplicationSupportDirectory();
-      return Directory(p.join(support.path, 'audio_cache'));
+      return Directory(p.join(support.path, 'cache', 'audio'));
     },
   );
 });
