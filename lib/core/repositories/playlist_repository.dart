@@ -79,9 +79,8 @@ class Playlist {
 /// A playlist's derived cover.
 ///
 /// Never materialised: it is computed on read from the explicit playlist cover
-/// or the newest member's cover (pool first, snapshot fallback), so it can
-/// never go stale. `null` means "no cover available" (the UI shows a default
-/// placeholder).
+/// or the newest member's pool cover, so it can never go stale. `null` means
+/// "no cover available" (the UI shows a default placeholder).
 class PlaylistCover {
   const PlaylistCover({this.coverPath, this.coverUrl});
 
@@ -91,11 +90,11 @@ class PlaylistCover {
 
 /// Persistence for playlists and their members.
 ///
-/// Members are a **denormalised snapshot** of the track: each row carries its
-/// own copy of the metadata so it survives the track leaving the library (a
-/// removed scan root, a soft-deleted row, or an offline Bilibili item). Reads
-/// LEFT JOIN the pool and COALESCE, so pool metadata wins while the snapshot
-/// keeps the member resolvable when the pool row is absent.
+/// Members are pure references into the `tracks` pool, keyed by
+/// `(playlistId, Track.uri)`. Adding a member promotes the track into the pool
+/// first; reads `JOIN` the pool, so pool metadata is always current and the
+/// pool is the single source of truth. Soft-deleted pool rows are retained, so
+/// a member survives its track leaving the library.
 abstract interface class PlaylistRepository {
   /// Emits every playlist, favourites first, whenever the set changes.
   Stream<List<Playlist>> watchPlaylists();
@@ -143,8 +142,8 @@ abstract interface class PlaylistRepository {
   /// Every member of the playlist with [id], newest first.
   Future<List<Track>> playlistTracks(int id);
 
-  /// Adds [track] to the playlist, refreshing the snapshot if the
-  /// `(playlistId, uri)` pair already exists.
+  /// Adds [track] to the playlist, promoting it into the pool first; a no-op
+  /// when the `(playlistId, uri)` pair already exists.
   Future<void> addTrack(int playlistId, Track track);
 
   /// Removes the member with [uri] from the playlist; a no-op when absent.
@@ -155,7 +154,7 @@ abstract interface class PlaylistRepository {
 
   /// Emits the playlist's derived cover whenever it could change.
   ///
-  /// Fallback chain: explicit playlist cover, then the newest member's cover
-  /// (pool first, snapshot fallback), then `null` (default placeholder).
+  /// Fallback chain: explicit playlist cover, then the newest member's pool
+  /// cover, then `null` (default placeholder).
   Stream<PlaylistCover?> watchPlaylistCover(int id);
 }

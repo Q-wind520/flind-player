@@ -64,6 +64,11 @@ enum _LibraryAction {
 }
 
 /// Library sections: all tracks, favourites, and user playlists.
+///
+/// Order matters: the cyclic section pager maps a virtual page index with
+/// `(_initialPageIndex - pageIndex) % values.length`, anchoring the deep initial
+/// page to enum index 0. Keep [all] first, or the pager's initial page will no
+/// longer land on 全部.
 enum LibrarySection { all, favorites, playlists }
 
 /// The music library: a searchable, mixed local + online track browser with

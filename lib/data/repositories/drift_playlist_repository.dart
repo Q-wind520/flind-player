@@ -200,7 +200,7 @@ class DriftPlaylistRepository implements PlaylistRepository {
       if (playlistPath != null || playlistUrl != null) {
         return PlaylistCover(coverPath: playlistPath, coverUrl: playlistUrl);
       }
-      // Newest member's cover (pool first, snapshot fallback).
+      // Newest member's pool cover.
       final memberPath = row.read<String?>('member_cover_path');
       final memberUrl = row.read<String?>('member_cover_url');
       if (memberPath != null || memberUrl != null) {

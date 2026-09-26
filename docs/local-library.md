@@ -124,9 +124,9 @@
   相同图片在不同 URL 下只占一份磁盘。
 - **共享配额**：封面字节与音频缓存共用一个上限（见 §4）。
 - **触发**：`CoverPrefetchCoordinator` 监听播放队列，**进队即拉**；命中本地文件即跳过，
-  失败按 10 分钟退避重试，最多 4 个并发。解析成功后写回 `tracks.cover_url` /
-  `tracks.cover_path` 与收藏/歌单成员的 `playlist_tracks.cover_url` /
-  `playlist_tracks.cover_path`（经 `updateTrackCover`，不触碰 `added_at`，不会重排）。
+  失败按 10 分钟退避重试，最多 4 个并发。解析成功后只写回池行 `tracks.cover_url` /
+  `tracks.cover_path`（经 `updateTrackCover`，不触碰 `added_at`，不会重排）；歌单成员是池的
+  纯引用，封面随池行自动更新，无需另写成员列。
 - **多 P 视频**：`pic` 是视频级封面，各分 P 共用同一张（预期行为）。
 
 ---
@@ -196,7 +196,7 @@ ALTER TABLE tracks ADD COLUMN cover_url TEXT;
 
 > **v8 变更**：`favorites` 表已移除。收藏改为内置歌单（`playlists` 行 `kind='favorites'`，id=1），
 > 旧收藏数据在 v7→v8 迁移中并入 `playlist_tracks`（`favorited_at` → `added_at`），随后删除
-> `favorites` 表；封面 URL 随成员快照保存在 `playlist_tracks.cover_url`。见 §5。
+> `favorites` 表；v9 再把 `playlist_tracks` 收敛为对池的纯引用（见 §5）。
 
 设置项（`SettingsRepository`）：缓存只有一个可配置项——上限。
 
@@ -304,7 +304,6 @@ CREATE TABLE tracks (
   genre           TEXT,
   cover_path      TEXT,                    -- 本地封面文件路径
   cover_url       TEXT,                    -- v7: 远程封面 URL
-  content_hash    TEXT,                    -- v8: 内容 SHA-1，只建列未填充（预留去重/稳定标识）
   last_seen_at    INTEGER,
   size_bytes      INTEGER,                 -- v5: (mtime, size) 新鲜度键
   mtime_ms        INTEGER,                 -- v5
@@ -327,12 +326,6 @@ CREATE TABLE scan_roots (
   added_at INTEGER NOT NULL
 );
 
--- 扫描状态（增量）
-CREATE TABLE scan_state (
-  key   TEXT PRIMARY KEY,
-  value TEXT
-);
-
 -- v8：歌单（内置收藏 + 自建）
 CREATE TABLE playlists (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -345,21 +338,12 @@ CREATE TABLE playlists (
   updated_at  INTEGER NOT NULL
 );
 
--- v8：歌单成员（引用池 + 元数据快照）
+-- v9：歌单成员（对 `tracks` 池的纯引用，不复制元数据）
 CREATE TABLE playlist_tracks (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  playlist_id     INTEGER NOT NULL,
-  uri             TEXT    NOT NULL,        -- 规范池键（local:<path> / bilibili:<bvid>:<cid>）
-  source          TEXT    NOT NULL,
-  source_track_id TEXT    NOT NULL,
-  title           TEXT    NOT NULL,
-  artist          TEXT,
-  album           TEXT,
-  duration_ms     INTEGER,
-  cover_path      TEXT,
-  cover_url       TEXT,
-  added_at        INTEGER NOT NULL,        -- 加入时间（= 旧收藏 favorited_at），排序键
-  position        INTEGER,                 -- 预留：自建歌单手动排序，未用
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  uri         TEXT    NOT NULL,            -- 规范池键（local:<path> / bilibili:<bvid>:<cid>）
+  added_at    INTEGER NOT NULL,            -- 加入时间（= 旧收藏 favorited_at），排序键
   UNIQUE(playlist_id, uri)                 -- 同一首歌可进多个歌单
 );
 CREATE INDEX idx_playlist_tracks_order
@@ -369,9 +353,14 @@ CREATE INDEX idx_playlist_tracks_order
 **迁移策略**：drift 的 schema 版本 + 迁移测试；主键用 provider 命名空间的 `uri`，绝不用裸 id。
 
 > **v8 迁移**：新增 `playlists` / `playlist_tracks` 两表与 `idx_playlist_tracks_order` 索引；
-> `tracks` 追加 `content_hash` 列（**只建列未填充**，不拖慢扫描）；内置收藏歌单以
-> `INSERT OR IGNORE` 播种（id=1）；旧 `favorites` 表存在时，其行并入 `playlist_tracks`
-> （`favorited_at` → `added_at`），随后 `DROP TABLE favorites`。`favorites` 表自此移除。
+> 内置收藏歌单以 `INSERT OR IGNORE` 播种（id=1）；旧 `favorites` 表存在时，其行并入
+> `playlist_tracks`（`favorited_at` → `added_at`），随后 `DROP TABLE favorites`。
+> `favorites` 表自此移除。
+>
+> **v9 迁移**：`playlist_tracks` 由「引用 + 元数据快照」收敛为对池的纯引用。先把每个成员的
+> 快照回填（`INSERT OR IGNORE`）进 `tracks` 池（v9 前的收藏是快照，不回填会丢元数据），再重建
+> 表为上面的引用形态并重建排序索引；同时删除 `tracks.content_hash`（v8 只建列未填充）与未用
+> 的 `scan_state` 表。每步都按物理列存在性守卫，可重复执行。
 
 ---
 

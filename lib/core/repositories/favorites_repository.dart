@@ -17,10 +17,11 @@ import 'package:flind_player/core/models/track.dart';
 
 /// Persistence for the user's favourite tracks.
 ///
-/// Favourites are a **denormalised snapshot** of the track: each row carries
-/// its own copy of the metadata so it survives the track leaving the library
-/// (a removed scan root, a soft-deleted row, or an offline Bilibili item). The
-/// canonical [Track.uri] is the unique key.
+/// Favourites are the built-in playlist: members are pure references into the
+/// `tracks` pool, keyed by the canonical [Track.uri]. Adding a favourite first
+/// promotes the track into the pool, so the pool is the single source of truth
+/// for metadata. Soft-deleted pool rows are retained, keeping a favourite
+/// resolvable after its track leaves the library.
 abstract interface class FavoritesRepository {
   /// Emits every favourite, newest first, whenever the set changes.
   Stream<List<Track>> watchFavorites();
@@ -31,8 +32,8 @@ abstract interface class FavoritesRepository {
   /// Whether [uri] is currently favourited.
   Future<bool> isFavorite(String uri);
 
-  /// Adds [track] to the favourites, refreshing the snapshot if [Track.uri]
-  /// already exists.
+  /// Adds [track] to the favourites, promoting it into the pool first; already
+  /// favourited [Track.uri]s are left in place.
   Future<void> addFavorite(Track track);
 
   /// Removes the favourite with [uri]; a no-op when absent.

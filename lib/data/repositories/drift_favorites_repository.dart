@@ -23,9 +23,9 @@ import 'package:flind_player/data/repositories/drift_playlist_repository.dart';
 ///
 /// Favourites are the built-in playlist (row id pinned to
 /// [favoritesPlaylistId]) inside the playlist system: every method is a thin
-/// adapter over [DriftPlaylistRepository] scoped to that id. Members keep the
-/// old denormalised-snapshot semantics, so a favourite survives the track
-/// leaving the library exactly as before.
+/// adapter over [DriftPlaylistRepository] scoped to that id. Members are pool
+/// references, so a favourite survives the track leaving the library exactly as
+/// before.
 class DriftFavoritesRepository implements FavoritesRepository {
   DriftFavoritesRepository(AppDatabase db)
     : _playlists = DriftPlaylistRepository(db);
