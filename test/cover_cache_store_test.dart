@@ -24,7 +24,6 @@ import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
-import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
 
@@ -73,7 +72,7 @@ void main() {
     root = Directory.systemTemp.createTempSync('flind_cover_cache');
     db = AppDatabase(NativeDatabase.memory());
     settings = _FakeSettingsRepository();
-    store = CoverCacheStore(database: db, baseDir: root, settings: settings);
+    store = CoverCacheStore(database: db, baseDir: root);
   });
 
   tearDown(() async {
@@ -100,34 +99,6 @@ void main() {
           .write(CoverCacheCompanion(lastAccessedAt: Value(lastAccessedAt)));
     }
     return path;
-  }
-
-  /// Registers a real cached audio file of [bytes] bytes in [db].
-  Future<CachedAudio> addAudio({
-    required Directory audioRoot,
-    required String trackId,
-    required int bytes,
-  }) async {
-    final audio = AudioCacheStore(
-      database: db,
-      baseDir: audioRoot,
-      settings: settings,
-    );
-    final file = audio.fileFor(
-      source: 'bilibili',
-      sourceTrackId: trackId,
-      extension: 'm4a',
-    );
-    file.parent.createSync(recursive: true);
-    file.writeAsBytesSync(List<int>.filled(bytes, trackId.hashCode & 0xFF));
-    return audio.insert(
-      source: 'bilibili',
-      sourceTrackId: trackId,
-      filePath: file.path,
-      bytes: bytes,
-      qualityId: '30280',
-      pinned: false,
-    );
   }
 
   group('insert / lookup', () {
@@ -222,52 +193,29 @@ void main() {
   });
 
   group('ensureSpace', () {
-    test('evicts the oldest cover but never audio when both fit', () async {
-      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
-      final audioRoot = Directory('${root.path}/audio')..createSync();
-      await addAudio(audioRoot: audioRoot, trackId: 'track', bytes: 400);
+    test('evicts the oldest cover to make room', () async {
       await addCover('old', 'hash-old', bytes: 100, lastAccessedAt: 1000);
       await addCover('new', 'hash-new', bytes: 100, lastAccessedAt: 2000);
 
-      final result = await store.ensureSpace(500);
+      final result = await store.ensureSpace(
+        CoverCacheStore.ephemeralLimitBytes - 100,
+      );
 
       expect(result.hasSpace, isTrue);
       expect(result.evictedCount, 1);
-      expect(result.freedBytes, 100);
       expect(await store.lookup('old'), isNull);
       expect(await store.lookup('new'), isNotNull);
-
-      final audio = AudioCacheStore(
-        database: db,
-        baseDir: audioRoot,
-        settings: settings,
-      );
-      expect(await audio.lookup('bilibili', 'track'), isNotNull);
-      expect(await audio.totalBytes(), 400);
     });
 
-    test('reports no space when audio alone exceeds the limit', () async {
-      settings.current = CacheSettings.defaults.copyWith(limitBytes: 100);
-      final audioRoot = Directory('${root.path}/audio')..createSync();
-      await addAudio(audioRoot: audioRoot, trackId: 'track', bytes: 200);
-      await addCover('c1', 'hash-c1', bytes: 50, lastAccessedAt: 1000);
+    test('does not read the user cache limit', () async {
+      // A tiny user limit must not evict layer-2 covers.
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1);
+      await addCover('a', 'hash-a', bytes: 100);
 
       final result = await store.ensureSpace(0);
 
-      expect(result.hasSpace, isFalse);
-      expect(result.evictedCount, 1);
-      expect(await store.entries(), isEmpty);
-    });
-
-    test('is a no-op when there is already room', () async {
-      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
-      await addCover('a', 'hash-a', bytes: 100);
-
-      final result = await store.ensureSpace(100);
-
-      expect(result.evictedCount, 0);
-      expect(result.freedBytes, 0);
       expect(result.hasSpace, isTrue);
+      expect(result.evictedCount, 0);
       expect(await store.lookup('a'), isNotNull);
     });
   });

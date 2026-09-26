@@ -31,12 +31,13 @@ import 'package:flind_player/data/services/cover_service.dart';
 
 /// Content-addressed remote-cover cache rooted at `<app support>/cover_cache`.
 ///
-/// Shares the offline cache byte quota with the audio cache; the directory is
-/// resolved lazily through `path_provider`, so this provider stays synchronous.
+/// Layer 2 of the cache: session-scoped covers for un-cached songs, capped by
+/// the store's own fixed [CoverCacheStore.ephemeralLimitBytes] and wiped on
+/// start. The directory is resolved lazily through `path_provider`, so this
+/// provider stays synchronous.
 final coverCacheStoreProvider = Provider<CoverCacheStore>((ref) {
   return CoverCacheStore.lazy(
     database: ref.watch(appDatabaseProvider),
-    settings: ref.watch(settingsRepositoryProvider),
     resolveBaseDir: () async {
       final support = await getApplicationSupportDirectory();
       return Directory(p.join(support.path, 'cover_cache'));
@@ -71,8 +72,8 @@ final coverCacheUsageProvider = FutureProvider<int>(
 
 /// Bytes occupied by the audio cache plus the cover cache.
 ///
-/// The two share one user-configured cap, so the settings screen reports the
-/// combined figure.
+/// The audio side counts against the user's cap and the cover side against the
+/// fixed layer-2 cap; the settings screen still reports the combined figure.
 final combinedCacheUsageProvider = FutureProvider<int>((ref) async {
   final audio = await ref.watch(audioCacheStoreProvider).totalBytes();
   final covers = await ref.watch(coverCacheStoreProvider).totalBytes();

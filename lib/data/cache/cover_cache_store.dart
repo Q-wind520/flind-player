@@ -20,7 +20,6 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart'
     show EvictionResult, IntegrityReport;
 import 'package:flind_player/data/database/app_database.dart';
@@ -60,27 +59,30 @@ class CachedCover {
   final DateTime lastAccessedAt;
 }
 
-/// Offline remote-cover cache index (docs/local-library.md §3).
+/// Layer-2 remote-cover cache: covers for un-cached songs only; wiped on
+/// every app start (docs/local-library.md §3).
 ///
 /// Owns the `cover_cache` rows, the cached files, LRU eviction and the startup
 /// integrity pass. Files are content-addressed at
 /// `<baseDir>/<sha1(bytes)>.jpg`, so identical images fetched under different
 /// URLs share one physical file and are counted once.
 ///
-/// Cover bytes share the offline cache quota with [AudioCacheStore]; this store
-/// only ever evicts covers, never audio. For a lazily-initialised store
+/// The quota is the fixed [ephemeralLimitBytes] constant — independent of the
+/// user's audio-cache limit — and this store only ever reads its own bytes,
+/// never `audio_cache`. For a lazily-initialised store
 /// ([CoverCacheStore.lazy]) any async method resolves the base directory; the
 /// lazy constructor starts that resolution eagerly.
 class CoverCacheStore {
+  /// Fixed byte cap for the session-scoped cover cache (256 MiB).
+  ///
+  /// Not user-configurable; the cache is wiped on every app start.
+  static const int ephemeralLimitBytes = 256 * 1024 * 1024;
+
   /// Creates a store rooted at [baseDir] (tests use a temp directory).
-  CoverCacheStore({
-    required AppDatabase database,
-    required SettingsRepository settings,
-    required Directory baseDir,
-  }) : _db = database,
-       _settings = settings, // ignore: prefer_initializing_formals
-       _baseDir = baseDir, // ignore: prefer_initializing_formals
-       _resolveBaseDir = null;
+  CoverCacheStore({required AppDatabase database, required Directory baseDir})
+    : _db = database,
+      _baseDir = baseDir, // ignore: prefer_initializing_formals
+      _resolveBaseDir = null;
 
   /// Creates a store whose root is resolved through `path_provider` on first
   /// use.
@@ -92,10 +94,8 @@ class CoverCacheStore {
   /// construction.
   CoverCacheStore.lazy({
     required AppDatabase database,
-    required SettingsRepository settings,
     required Future<Directory> Function() resolveBaseDir,
   }) : _db = database,
-       _settings = settings, // ignore: prefer_initializing_formals
        _baseDir = null,
        // ignore: prefer_initializing_formals
        _resolveBaseDir = resolveBaseDir {
@@ -122,7 +122,6 @@ class CoverCacheStore {
   }
 
   final AppDatabase _db;
-  final SettingsRepository _settings;
   final Future<Directory> Function()? _resolveBaseDir;
 
   Directory? _baseDir;
@@ -279,13 +278,13 @@ class CoverCacheStore {
   }
 
   /// Evicts cover rows (oldest `lastAccessedAt` first) until
-  /// `used + incomingBytes <= limitBytes`, where `used` is the combined audio
-  /// and cover footprint.
+  /// `used + incomingBytes <= ephemeralLimitBytes`, where `used` is this
+  /// store's own byte footprint.
   ///
-  /// Covers are never pinned and are always evicted before audio. Reads the
-  /// current [CacheSettings] on every call, so a settings change applies
-  /// immediately. [EvictionResult.hasSpace] is `false` when even evicting every
-  /// cover still does not fit (i.e. audio alone exceeds the limit).
+  /// The layer-2 quota is fixed and independent of the user's audio-cache
+  /// limit; this method never reads settings nor `audio_cache`.
+  /// [EvictionResult.hasSpace] is `false` when even evicting every cover still
+  /// does not fit.
   ///
   /// Never throws; a failure is logged and reported as no space.
   Future<EvictionResult> ensureSpace(int incomingBytes) async {
@@ -295,10 +294,9 @@ class CoverCacheStore {
       // Resolve the root first so `_deleteFile`'s containment guard is active
       // even if the lazy warm-up has not completed yet.
       await _resolveDir();
-      final settings = await _settings.cacheSettings();
-      final used = await _combinedBytes();
+      final used = await totalBytes();
 
-      if (used + incomingBytes <= settings.limitBytes) {
+      if (used + incomingBytes <= ephemeralLimitBytes) {
         return const EvictionResult(
           evictedCount: 0,
           freedBytes: 0,
@@ -314,7 +312,7 @@ class CoverCacheStore {
               .get();
 
       for (final candidate in candidates) {
-        if (used - freedBytes + incomingBytes <= settings.limitBytes) break;
+        if (used - freedBytes + incomingBytes <= ephemeralLimitBytes) break;
         await (_db.delete(
           _db.coverCache,
         )..where((t) => t.id.equals(candidate.id))).go();
@@ -331,7 +329,7 @@ class CoverCacheStore {
       return EvictionResult(
         evictedCount: evictedCount,
         freedBytes: freedBytes,
-        hasSpace: used - freedBytes + incomingBytes <= settings.limitBytes,
+        hasSpace: used - freedBytes + incomingBytes <= ephemeralLimitBytes,
       );
     } catch (error) {
       debugPrint('CoverCacheStore: ensureSpace failed: $error');
@@ -343,10 +341,8 @@ class CoverCacheStore {
     }
   }
 
-  /// Evicts covers oldest-first until usage fits the configured cap.
-  ///
-  /// Used when the user lowers the cap; equivalent to [ensureSpace] with no
-  /// incoming bytes.
+  /// Evicts covers oldest-first until usage fits [ephemeralLimitBytes];
+  /// equivalent to [ensureSpace] with no incoming bytes.
   Future<EvictionResult> enforceLimit() => ensureSpace(0);
 
   /// Absolute path of the resolved cover cache root directory.
@@ -466,24 +462,6 @@ class CoverCacheStore {
       if (File(row.filePath).existsSync()) return row.filePath;
     }
     return null;
-  }
-
-  /// Combined distinct audio and cover bytes, each physical file counted once.
-  Future<int> _combinedBytes() async {
-    final audio = await _audioCacheBytes();
-    final covers = await totalBytes();
-    return audio + covers;
-  }
-
-  /// Distinct audio bytes, mirroring [AudioCacheStore.totalBytes].
-  Future<int> _audioCacheBytes() async {
-    final query = _db.customSelect(
-      'SELECT COALESCE(SUM(bytes), 0) AS total FROM ('
-      'SELECT DISTINCT file_path, bytes FROM audio_cache)',
-      readsFrom: {_db.audioCache},
-    );
-    final row = await query.getSingle();
-    return row.read<int>('total');
   }
 
   bool _isUnderBaseDir(String path, Directory base) {

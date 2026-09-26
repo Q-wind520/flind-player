@@ -39,6 +39,11 @@ import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 // ---------------------------------------------------------------------------
 
 /// In-memory [SettingsRepository] with the default cache quota.
+///
+/// Kept even though batch 1 dropped the `settings` argument from every
+/// `CoverCacheStore(...)` call here: the cache-refactor Task 4 setUp builds an
+/// `AudioCacheStore` with this fake again.
+// ignore: unused_element
 class _FakeSettingsRepository implements SettingsRepository {
   @override
   Future<AppLanguage> appLanguage() async => AppLanguage.system;
@@ -212,11 +217,7 @@ void main() {
     library = _FakeMusicLibraryRepository();
     resolvedBvids = <String>[];
     service = CoverService(
-      store: CoverCacheStore(
-        database: db,
-        settings: _FakeSettingsRepository(),
-        baseDir: root,
-      ),
+      store: CoverCacheStore(database: db, baseDir: root),
       downloader: downloader,
       library: library,
       resolveRemoteUrl: (bvid) async {
@@ -299,11 +300,7 @@ void main() {
       Uint8List.fromList(utf8.encode('<html>not an image</html>')),
     );
     final service = CoverService(
-      store: CoverCacheStore(
-        database: db,
-        settings: _FakeSettingsRepository(),
-        baseDir: root,
-      ),
+      store: CoverCacheStore(database: db, baseDir: root),
       downloader: bad,
       library: library,
       resolveRemoteUrl: (bvid) async => '//i0.hdslb.com/bfs/resolved.jpg',
