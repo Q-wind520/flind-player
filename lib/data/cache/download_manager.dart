@@ -109,13 +109,20 @@ class DownloadManager {
     required AudioCacheStore store,
     required AudioDownloader downloader,
     required StreamResolver resolver,
+    Future<void> Function(Track track)? ensureCover,
   }) : _store = store, // ignore: prefer_initializing_formals
        _downloader = downloader, // ignore: prefer_initializing_formals
-       _resolver = resolver; // ignore: prefer_initializing_formals
+       _resolver = resolver, // ignore: prefer_initializing_formals
+       // ignore: prefer_initializing_formals
+       _ensureCover = ensureCover;
 
   final AudioCacheStore _store;
   final AudioDownloader _downloader;
   final StreamResolver _resolver;
+
+  /// Materialises the companion cover for a pinned download (layer 1), or
+  /// `null` when the app did not wire one. Best-effort by contract.
+  final Future<void> Function(Track track)? _ensureCover;
 
   final StreamController<DownloadProgress> _progress =
       StreamController<DownloadProgress>.broadcast();
@@ -326,6 +333,17 @@ class DownloadManager {
     } catch (error) {
       _emit(task, DownloadPhase.failed, error: error);
       return;
+    }
+
+    if (task.pinned) {
+      // Offline downloads must carry their cover into layer 1, or the song
+      // loses its artwork once layer 2 is wiped on the next start. Best-effort:
+      // a missing cover never fails the download.
+      try {
+        await _ensureCover?.call(track);
+      } catch (error) {
+        debugPrint('DownloadManager: companion cover failed: $error');
+      }
     }
 
     _emit(task, DownloadPhase.done, received: bytes, total: bytes);

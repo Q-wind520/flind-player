@@ -25,6 +25,7 @@ import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
 import 'package:flind_player/data/sources/composite_stream_resolver.dart';
@@ -81,11 +82,16 @@ final audioDownloaderProvider = Provider<AudioDownloader>(
 );
 
 /// Serialises and indexes offline audio downloads.
+///
+/// Pinned downloads ask [CoverService.ensureCover] to materialise their
+/// companion cover into layer 1; the callback reads the service lazily, so
+/// there is no build-time dependency on `coverServiceProvider`.
 final downloadManagerProvider = Provider<DownloadManager>((ref) {
   final manager = DownloadManager(
     store: ref.watch(audioCacheStoreProvider),
     downloader: ref.watch(audioDownloaderProvider),
     resolver: ref.watch(innerStreamResolverProvider),
+    ensureCover: (track) => ref.read(coverServiceProvider).ensureCover(track),
   );
   ref.onDispose(manager.dispose);
   return manager;
