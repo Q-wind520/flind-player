@@ -52,3 +52,9 @@ final playbackPersistenceServiceProvider = Provider<PlaybackPersistenceService>(
 final favoritesProvider = StreamProvider<List<Track>>(
   (ref) => ref.watch(favoritesRepositoryProvider).watchFavorites(),
 );
+
+/// Whether [uri] is currently favourited. Retries disabled so errors surface.
+final isFavoriteProvider = FutureProvider.family<bool, String>((ref, uri) {
+  ref.watch(favoritesProvider);
+  return ref.watch(favoritesRepositoryProvider).isFavorite(uri);
+}, retry: (_, _) => null);

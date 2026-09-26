@@ -643,7 +643,7 @@ class _FavoriteButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isFavourite =
-        ref.watch(_playerFavoriteProvider(track.uri)).value ?? false;
+        ref.watch(isFavoriteProvider(track.uri)).value ?? false;
     final l10n = AppLocalizations.of(context);
 
     return IconButton(
@@ -673,12 +673,6 @@ class _FavoriteButton extends ConsumerWidget {
   }
 }
 
-/// Whether the track is favourited. Retries are disabled so errors surface
-/// immediately.
-final _playerFavoriteProvider = FutureProvider.family<bool, String>((ref, uri) {
-  ref.watch(favoritesProvider);
-  return ref.watch(favoritesRepositoryProvider).isFavorite(uri);
-}, retry: (_, _) => null);
 
 /// Shown when nothing is loaded.
 class _NothingPlaying extends StatelessWidget {

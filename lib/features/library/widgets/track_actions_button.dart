@@ -67,7 +67,7 @@ class TrackActionsButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isFavourite =
-        ref.watch(_isFavouriteProvider(track.uri)).value ?? false;
+        ref.watch(isFavoriteProvider(track.uri)).value ?? false;
     final cacheEntry = ref.watch(audioCacheEntryProvider(track)).value;
     final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
@@ -77,8 +77,7 @@ class TrackActionsButton extends ConsumerWidget {
     return PopupMenuButton<_TrackAction>(
       // Empty message suppresses PopupMenuButton's default "Show menu" bubble.
       tooltip: '',
-      onSelected: (action) =>
-          _onSelected(context, ref, action, cacheEntry: cacheEntry),
+      onSelected: (action) => _onSelected(context, ref, action),
       itemBuilder: (context) => [
         PopupMenuItem<_TrackAction>(
           value: _TrackAction.favorite,
@@ -141,17 +140,12 @@ class TrackActionsButton extends ConsumerWidget {
     );
   }
 
-  void _onSelected(
-    BuildContext context,
-    WidgetRef ref,
-    _TrackAction action, {
-    CachedAudio? cacheEntry,
-  }) {
+  void _onSelected(BuildContext context, WidgetRef ref, _TrackAction action) {
     switch (action) {
       case _TrackAction.favorite:
         _toggleFavorite(context, ref);
       case _TrackAction.cache:
-        _cacheTrack(ref, cacheEntry);
+        _cacheTrack(ref);
       case _TrackAction.saveToLibrary:
         onSaveToLibrary?.call();
       case _TrackAction.addToPlaylist:
@@ -193,17 +187,8 @@ class TrackActionsButton extends ConsumerWidget {
     }
   }
 
-  void _cacheTrack(WidgetRef ref, CachedAudio? cacheEntry) {
-    final manager = ref.read(downloadManagerProvider);
-    if (cacheEntry != null && cacheEntry.pinned) {
-      // Already cached and pinned — unpin via removing the entry.
-      // The existing CacheActionButton pattern removes the entry via the store.
-      // We mirror that: removing unpin-then-re-cache would be a no-op for LRU,
-      // so we just re-cache as pinned (the DownloadManager handles the skip).
-      manager.cacheTrack(track, pinned: true);
-    } else {
-      manager.cacheTrack(track, pinned: true);
-    }
+  void _cacheTrack(WidgetRef ref) {
+    ref.read(downloadManagerProvider).cacheTrack(track, pinned: true);
   }
 
   static IconData _cacheIcon(CachedAudio? entry) {
@@ -219,9 +204,3 @@ class TrackActionsButton extends ConsumerWidget {
   }
 }
 
-/// Whether [uri] is currently favourited.  Automatic retries are disabled so
-/// a transient DB error surfaces immediately instead of hiding the state.
-final _isFavouriteProvider = FutureProvider.family<bool, String>((ref, uri) {
-  ref.watch(favoritesProvider);
-  return ref.watch(favoritesRepositoryProvider).isFavorite(uri);
-}, retry: (_, _) => null);
