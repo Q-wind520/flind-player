@@ -28,6 +28,7 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
+import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
@@ -711,7 +712,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         if (favourites.isEmpty) {
           return const _EmptyFavourites();
         }
-        final sorted = _sortTracks(favourites, sort);
+        final sorted = sortFavouriteTracks(favourites, sort);
         if (_query.isNotEmpty) {
           final lowerQuery = _query.toLowerCase();
           final filtered = sorted
@@ -752,6 +753,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           track: track,
           isCurrent: isCurrent,
           isPlaying: isCurrent && isPlaying,
+          unavailable: track.id == null,
           onTap: () => _play(tracks, index),
         );
       },
@@ -775,41 +777,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           track: track,
           isCurrent: isCurrent,
           isPlaying: isCurrent && isPlaying,
+          unavailable: track.id == null,
           onTap: () => _play(tracks, index),
         );
       },
     );
-  }
-
-  /// Client-side sort matching the server-side [TrackSort] comparators.
-  ///
-  /// Used for the favourites list, which is too small to warrant a DB round-trip.
-  static List<Track> _sortTracks(List<Track> tracks, TrackSort sort) {
-    final sorted = List<Track>.from(tracks);
-    sorted.sort((a, b) {
-      return switch (sort) {
-        TrackSort.title => a.title.toLowerCase().compareTo(
-          b.title.toLowerCase(),
-        ),
-        TrackSort.artist => _compareNullable(
-          a.artist?.toLowerCase(),
-          b.artist?.toLowerCase(),
-        ),
-        TrackSort.album => _compareNullable(
-          a.album?.toLowerCase(),
-          b.album?.toLowerCase(),
-        ),
-        TrackSort.recentlyAdded => b.id?.compareTo(a.id ?? 0) ?? 0,
-      };
-    });
-    return sorted;
-  }
-
-  static int _compareNullable(String? a, String? b) {
-    if (a == null && b == null) return 0;
-    if (a == null) return 1; // nulls last
-    if (b == null) return -1;
-    return a.compareTo(b);
   }
 }
 

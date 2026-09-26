@@ -301,6 +301,17 @@ void main() {
       expect(find.text('没有找到匹配的收藏'), findsOneWidget);
     });
 
+    testWidgets('a favourite without a pool id renders as unavailable', (
+      tester,
+    ) async {
+      // `_track('Gone')` has no id, i.e. the pool row is missing.
+      await tester.pumpWidget(_libraryApp(favourites: [_track('Gone')]));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('收藏').last); // switch to the 收藏 section
+      await tester.pumpAndSettle();
+      expect(find.text('不可用'), findsWidgets); // l10n.trackUnavailable (zh)
+    });
+
     testWidgets('currently playing highlight works in favourites mode', (
       tester,
     ) async {

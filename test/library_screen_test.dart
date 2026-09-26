@@ -38,9 +38,10 @@ import 'package:flind_player/features/library/widgets/track_actions_button.dart'
 
 import 'support/l10n.dart';
 
-Track _track(String title, {String? artist, Duration? duration}) {
+Track _track(String title, {String? artist, Duration? duration, int? id}) {
   final path = '/music/$title.mp3';
   return Track(
+    id: id,
     source: 'local',
     sourceTrackId: LocalTrackId(path),
     uri: 'local:$path',
@@ -50,9 +51,15 @@ Track _track(String title, {String? artist, Duration? duration}) {
   );
 }
 
-Track _biliTrack(String title, {String? artist, Duration? duration}) {
+Track _biliTrack(
+  String title, {
+  String? artist,
+  Duration? duration,
+  int? id,
+}) {
   final bvid = 'BV_$title';
   return Track(
+    id: id,
     source: 'bilibili',
     sourceTrackId: BiliTrackId(bvid: bvid, cid: -1),
     uri: 'bilibili:$bvid:-1',
@@ -200,8 +207,13 @@ void main() {
             'Alpha',
             artist: 'Artist A',
             duration: const Duration(seconds: 65),
+            id: 1,
           ),
-          _track('Beta', duration: const Duration(seconds: 125)),
+          _track(
+            'Beta',
+            duration: const Duration(seconds: 125),
+            id: 2,
+          ),
         ],
       ),
     );

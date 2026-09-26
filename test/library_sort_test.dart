@@ -35,6 +35,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
+import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 
 import 'support/l10n.dart';
@@ -235,6 +236,25 @@ void main() {
       final alphaTop = tester.getTopLeft(find.text('Alpha')).dy;
       expect(betaTop < alphaTop, isTrue);
     });
+
+    test('recentlyAdded preserves the incoming (SQL added_at) order', () {
+      final newer = Track(
+        id: 1,
+        source: 'local',
+        sourceTrackId: const LocalTrackId('/m/b.mp3'),
+        uri: 'local:/m/b.mp3',
+        title: 'B',
+      );
+      final older = Track(
+        id: 99,
+        source: 'local',
+        sourceTrackId: const LocalTrackId('/m/a.mp3'),
+        uri: 'local:/m/a.mp3',
+        title: 'A',
+      );
+      final sorted = sortFavouriteTracks([newer, older], TrackSort.recentlyAdded);
+      expect(sorted.map((t) => t.title), ['B', 'A']); // NOT id order
+    });
   });
 
   group('Wide-screen grid', () {
@@ -278,7 +298,10 @@ void main() {
         ProviderScope(
           overrides: [
             libraryTracksProvider.overrideWith(
-              (ref) => Stream.value([_track('Alpha'), _track('Beta')]),
+              (ref) => Stream.value([
+                _track('Alpha', id: 1),
+                _track('Beta', id: 2),
+              ]),
             ),
             playbackStateProvider.overrideWith(
               (ref) => Stream.value(PlaybackState.idle),
