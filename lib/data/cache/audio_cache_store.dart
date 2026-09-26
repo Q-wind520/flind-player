@@ -210,10 +210,14 @@ class AudioCacheStore {
     return File(p.join(base.path, source, '$digest.cover.$normalized'));
   }
 
-  /// Records the companion cover path for the row [id].
-  Future<void> setCoverPath(int id, String? path) async {
+  /// Records the companion cover path for the row [id], counting [bytes]
+  /// toward the layer-1 quota; clearing [path] resets the counted bytes to 0.
+  Future<void> setCoverPath(int id, String? path, {int bytes = 0}) async {
     await (_db.update(_db.audioCache)..where((t) => t.id.equals(id))).write(
-      AudioCacheCompanion(coverPath: Value(path)),
+      AudioCacheCompanion(
+        coverPath: Value(path),
+        coverBytes: Value(path == null ? 0 : bytes),
+      ),
     );
   }
 
@@ -346,14 +350,18 @@ class AudioCacheStore {
     }
   }
 
-  /// Total bytes occupied on disk, counting each physical file once.
+  /// Total bytes under the layer-1 quota: distinct audio files plus the
+  /// companion-cover bytes of every row that still has a cover.
   ///
   /// Rows that share a [CachedAudio.filePath] (identical content deduplicated
-  /// across logical keys) contribute their size a single time.
+  /// across logical keys) contribute their audio size a single time; each
+  /// row's cover bytes count once while its [CachedAudio.coverPath] is set.
   Future<int> totalBytes() async {
     final query = _db.customSelect(
-      'SELECT COALESCE(SUM(bytes), 0) AS total FROM ('
-      'SELECT DISTINCT file_path, bytes FROM audio_cache)',
+      'SELECT (SELECT COALESCE(SUM(bytes),0) FROM '
+      '(SELECT DISTINCT file_path, bytes FROM audio_cache)) + '
+      '(SELECT COALESCE(SUM(cover_bytes),0) FROM audio_cache '
+      'WHERE cover_path IS NOT NULL) AS total',
       readsFrom: {_db.audioCache},
     );
     final row = await query.getSingle();
@@ -372,10 +380,12 @@ class AudioCacheStore {
   }
 
   /// Evicts cache entries until `used + incomingBytes <= limitBytes`, where
-  /// `used` is the layer-1 audio footprint.
+  /// `used` is the layer-1 footprint: audio bytes plus companion-cover bytes
+  /// (see [totalBytes]).
   ///
   /// Eviction is row-based: a non-pinned row is removed oldest-first together
-  /// with its companion cover. Reads the current [CacheSettings] on every
+  /// with its companion cover, and both the audio and cover bytes it freed
+  /// count toward the quota. Reads the current [CacheSettings] on every
   /// call, so a settings change applies immediately. Pinned entries are never
   /// evicted; when they alone exceed the limit,
   /// [EvictionResult.hasSpace] is `false`.
@@ -422,7 +432,12 @@ class AudioCacheStore {
           _deleteFile(candidate.filePath);
           freedBytes += candidate.bytes;
         }
-        _deleteCoverFile(candidate.coverPath);
+        // The companion cover is per-row; its bytes leave the quota with it.
+        final coverPath = candidate.coverPath;
+        if (coverPath != null) {
+          _deleteCoverFile(coverPath);
+          freedBytes += candidate.coverBytes;
+        }
       }
 
       return EvictionResult(

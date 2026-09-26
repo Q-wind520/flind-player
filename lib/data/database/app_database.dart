@@ -189,10 +189,11 @@ WHERE uri NOT IN (SELECT uri FROM tracks)
         await customStatement('DROP TABLE IF EXISTS scan_state');
       }
       if (from < 10) {
-        // v9 had no companion-cover column nor the cache lookup indexes. The
-        // column is guarded (addColumn is not idempotent); createIndex emits
-        // IF NOT EXISTS.
+        // v9 had no companion-cover column/bytes nor the cache lookup indexes.
+        // The columns are guarded (addColumn is not idempotent); createIndex
+        // emits IF NOT EXISTS.
         await _addColumnIfMissing(m, audioCache, audioCache.coverPath);
+        await _addColumnIfMissing(m, audioCache, audioCache.coverBytes);
         await m.createIndex(idxAudioCacheContentHash);
         await m.createIndex(idxAudioCacheFilePath);
         await m.createIndex(idxCoverCacheContentHash);

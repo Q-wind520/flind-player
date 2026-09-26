@@ -1490,6 +1490,9 @@ CREATE TABLE playlist_tracks (
         'ALTER TABLE audio_cache DROP COLUMN cover_path',
       );
       await before.customStatement(
+        'ALTER TABLE audio_cache DROP COLUMN cover_bytes',
+      );
+      await before.customStatement(
         'DROP INDEX IF EXISTS idx_audio_cache_content_hash',
       );
       await before.customStatement(
@@ -1507,12 +1510,13 @@ CREATE TABLE playlist_tracks (
       final after = AppDatabase(NativeDatabase(file));
       addTearDown(after.close);
 
-      // The existing row survives, defaults to a null cover, and the new
-      // indexes exist.
+      // The existing row survives, defaults to a null cover with zero cover
+      // bytes, and the new indexes exist.
       final row = await after
-          .customSelect('SELECT cover_path FROM audio_cache')
+          .customSelect('SELECT cover_path, cover_bytes FROM audio_cache')
           .getSingle();
       expect(row.data['cover_path'], isNull);
+      expect(row.data['cover_bytes'], 0);
 
       final indexes = await after
           .customSelect("SELECT name FROM sqlite_master WHERE type='index'")

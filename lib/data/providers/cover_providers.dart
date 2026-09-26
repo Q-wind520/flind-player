@@ -95,8 +95,8 @@ final coverPrefetchCoordinatorProvider = Provider<CoverPrefetchCoordinator>((
   return coordinator;
 });
 
-/// Maintenance actions the settings screen applies across every cache that
-/// shares the user's byte quota.
+/// Maintenance actions the settings screen applies across both caches: audio
+/// against the user's byte quota, covers against the fixed layer-2 cap.
 ///
 /// A plain callback holder rather than a store reference, so widget tests can
 /// substitute recording callbacks without constructing a database or a
@@ -109,7 +109,8 @@ class CacheMaintenance {
     required this.onClearAll,
   });
 
-  /// Shrinks every cache to the current limit (audio then covers).
+  /// Shrinks each cache to its own cap (audio to the user's limit, covers to
+  /// the fixed layer-2 cap).
   final Future<void> Function() onEnforceLimits;
 
   /// Removes every cached file and index row from every cache.

@@ -157,7 +157,7 @@ class _FakeCacheStore implements AudioCacheStore {
   }) => throw UnimplementedError();
 
   @override
-  Future<void> setCoverPath(int id, String? path) async {}
+  Future<void> setCoverPath(int id, String? path, {int bytes = 0}) async {}
 }
 
 /// Records calls so the player route never constructs the real controller.

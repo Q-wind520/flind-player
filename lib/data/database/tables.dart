@@ -148,6 +148,9 @@ class AudioCache extends Table {
   /// Absolute path of the song's companion cover, or `null` when none.
   TextColumn get coverPath => text().nullable()();
 
+  /// Bytes of the companion cover, counted in the layer-1 quota.
+  IntColumn get coverBytes => integer().withDefault(const Constant(0))();
+
   @override
   List<Set<Column>> get uniqueKeys => [
     {source, sourceTrackId},
@@ -244,7 +247,8 @@ class PlaylistTracks extends Table {
 /// One row per cached remote cover. `url_hash` is `sha1(normalized url)` and is
 /// the lookup key; the file on disk is named after `content_hash`, so identical
 /// images fetched under different URLs share a single physical file. Cover
-/// bytes share the offline cache quota with [AudioCache]; audio is never
+/// bytes form layer 2 of the cache: they count against the fixed 256 MiB
+/// layer-2 cap, never against the user's audio quota, and audio is never
 /// evicted on a cover's behalf.
 @DataClassName('CoverCacheRow')
 @TableIndex.sql(

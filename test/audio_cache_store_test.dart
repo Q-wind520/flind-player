@@ -214,6 +214,10 @@ void main() {
 
       expect(entry.coverPath, cover.path);
       expect((await store.lookup('bilibili', 'BV1:1'))!.coverPath, cover.path);
+
+      // The companion cover's bytes count toward the layer-1 quota.
+      await store.setCoverPath(entry.id, cover.path, bytes: 2);
+      expect(await store.totalBytes(), 5);
     });
   });
 
@@ -370,6 +374,31 @@ void main() {
       expect(result.hasSpace, isTrue);
       expect(File(cover.path).existsSync(), isFalse);
       expect(await store.lookup('bilibili', 'a'), isNull);
+    });
+
+    test('companion cover bytes count toward the layer-1 quota', () async {
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
+      // 'a' = 400 audio + 300 cover, 'b' = 900 audio; 1600 total.
+      final a = await addEntry('a', bytes: 400, lastAccessedAt: 1000);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(List<int>.filled(300, 7));
+      await store.setCoverPath(a.id, cover.path, bytes: 300);
+      await addEntry('b', bytes: 900, lastAccessedAt: 2000);
+
+      expect(await store.totalBytes(), 1600);
+
+      final result = await store.ensureSpace(0);
+
+      // Evicting 'a' frees 700 (audio + cover), which fits; 'b' survives.
+      expect(result.evictedCount, 1);
+      expect(result.freedBytes, 700);
+      expect(result.hasSpace, isTrue);
+      expect(await store.lookup('bilibili', 'a'), isNull);
+      expect(await store.lookup('bilibili', 'b'), isNotNull);
+      expect(await store.totalBytes(), 900);
     });
   });
 

@@ -181,7 +181,7 @@ class _FakeCacheStore implements AudioCacheStore {
   }) => throw UnimplementedError();
 
   @override
-  Future<void> setCoverPath(int id, String? path) async {}
+  Future<void> setCoverPath(int id, String? path, {int bytes = 0}) async {}
 }
 
 /// Minimal [MusicLibraryRepository] that records scan-root mutations.
