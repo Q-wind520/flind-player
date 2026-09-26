@@ -58,20 +58,6 @@ class DriftFavoritesRepository implements FavoritesRepository {
   }
 
   @override
-  Future<void> updateFavoriteCover(
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  }) {
-    return _playlists.updateTrackCover(
-      favoritesPlaylistId,
-      uri,
-      coverPath: coverPath,
-      coverUrl: coverUrl,
-    );
-  }
-
-  @override
   Future<bool> toggleFavorite(Track track) async {
     if (await isFavorite(track.uri)) {
       await removeFavorite(track.uri);

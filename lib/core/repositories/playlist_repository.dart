@@ -153,18 +153,6 @@ abstract interface class PlaylistRepository {
   /// Whether the playlist with [playlistId] contains [uri].
   Future<bool> containsTrack(int playlistId, String uri);
 
-  /// Updates the cached cover pointer of an existing member, identified by its
-  /// canonical [uri].
-  ///
-  /// A no-op when the member is absent, and it never touches `addedAt`, so
-  /// refreshing a cover cannot reorder the playlist.
-  Future<void> updateTrackCover(
-    int playlistId,
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  });
-
   /// Emits the playlist's derived cover whenever it could change.
   ///
   /// Fallback chain: explicit playlist cover, then the newest member's cover

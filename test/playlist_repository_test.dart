@@ -304,43 +304,6 @@ void main() {
     });
   });
 
-  group('updateTrackCover', () {
-    test('a pool cover update is read back without reordering', () async {
-      final playlist = await repository.createPlaylist(name: 'P');
-      await repository.addTrack(
-        playlist.id,
-        localTrack(path: '/m/a.flac', coverPath: null),
-      );
-      await repository.addTrack(
-        playlist.id,
-        localTrack(path: '/m/b.flac', coverPath: null),
-      );
-
-      // Members read covers from the pool only, so the update targets the pool.
-      await DriftMusicLibraryRepository(db).updateTrackCover(
-        'local:/m/a.flac',
-        coverPath: '/covers/new.webp',
-        coverUrl: 'https://example.com/new.webp',
-      );
-
-      final members = await repository.playlistTracks(playlist.id);
-      expect(members.map((t) => t.uri), ['local:/m/b.flac', 'local:/m/a.flac']);
-      final updated = members.last;
-      expect(updated.coverPath, '/covers/new.webp');
-      expect(updated.coverUrl, 'https://example.com/new.webp');
-    });
-
-    test('a missing member is a no-op', () async {
-      final playlist = await repository.createPlaylist(name: 'P');
-
-      await repository.updateTrackCover(
-        playlist.id,
-        'local:/nope.flac',
-        coverPath: '/covers/x.webp',
-      );
-    });
-  });
-
   group('watchPlaylists', () {
     test('emits favourites first, then custom playlists newest first',
         () async {

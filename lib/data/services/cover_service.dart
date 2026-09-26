@@ -22,7 +22,6 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
@@ -60,8 +59,8 @@ typedef CoverUrlResolver = Future<String?> Function(String bvid);
 /// 3. a cache hit on the URL is served without a network round-trip;
 /// 4. a miss downloads the bytes, decode-validates them off the UI isolate and
 ///    stores them verbatim via [CoverCacheStore];
-/// 5. the resulting local path and URL are written back to the library row and
-///    the favourite snapshot, when either exists.
+/// 5. the resulting local path and URL are written back to the pool row, when
+///    it exists.
 ///
 /// Every failure is non-fatal: [ensureCover] returns `null` instead of throwing,
 /// so a missing cover can never break playback or a library scan.
@@ -71,19 +70,16 @@ class CoverService {
     required CoverCacheStore store,
     required CoverDownloader downloader,
     required MusicLibraryRepository library,
-    required FavoritesRepository favorites,
     required CoverUrlResolver resolveRemoteUrl,
   }) : _store = store, // ignore: prefer_initializing_formals
        _downloader = downloader, // ignore: prefer_initializing_formals
        _library = library, // ignore: prefer_initializing_formals
-       _favorites = favorites, // ignore: prefer_initializing_formals
        // ignore: prefer_initializing_formals
        _resolveRemoteUrl = resolveRemoteUrl;
 
   final CoverCacheStore _store;
   final CoverDownloader _downloader;
   final MusicLibraryRepository _library;
-  final FavoritesRepository _favorites;
   final CoverUrlResolver _resolveRemoteUrl;
 
   /// In-flight resolutions keyed by track URI, so concurrent callers (queue
@@ -208,8 +204,8 @@ class CoverService {
     }
   }
 
-  /// Writes the resolved cover back to the persisted rows that reference
-  /// [track], when any. Both writes are best-effort and never throw.
+  /// Writes the resolved cover back to the pool row that references [track],
+  /// when it exists. Best-effort and never throws.
   Future<void> _persist(Track track, String coverPath, String coverUrl) async {
     try {
       await _library.updateTrackCover(
@@ -219,15 +215,6 @@ class CoverService {
       );
     } catch (error) {
       debugPrint('CoverService: library cover write failed: $error');
-    }
-    try {
-      await _favorites.updateFavoriteCover(
-        track.uri,
-        coverPath: coverPath,
-        coverUrl: coverUrl,
-      );
-    } catch (error) {
-      debugPrint('CoverService: favourite cover write failed: $error');
     }
   }
 

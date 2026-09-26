@@ -223,13 +223,6 @@ class _FakeFavoritesRepository implements FavoritesRepository {
   Future<void> removeFavorite(String uri) async {}
 
   @override
-  Future<void> updateFavoriteCover(
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  }) async {}
-
-  @override
   Future<bool> toggleFavorite(Track track) async => false;
 }
 

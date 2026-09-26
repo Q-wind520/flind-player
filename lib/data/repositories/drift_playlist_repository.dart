@@ -197,27 +197,6 @@ class DriftPlaylistRepository implements PlaylistRepository {
   }
 
   @override
-  Future<void> updateTrackCover(
-    int playlistId,
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  }) async {
-    // `addedAt` is deliberately untouched: refreshing a cover must not reorder
-    // the playlist. A missing member is a no-op.
-    await (_db.update(_db.playlistTracks)
-          ..where(
-            (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
-          ))
-        .write(
-      PlaylistTracksCompanion(
-        coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
-        coverUrl: coverUrl == null ? const Value.absent() : Value(coverUrl),
-      ),
-    );
-  }
-
-  @override
   Stream<PlaylistCover?> watchPlaylistCover(int id) {
     return _coverQuery(id).watch().map((rows) {
       if (rows.isEmpty) return null; // Unknown playlist.

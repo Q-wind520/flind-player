@@ -115,13 +115,6 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
   }
 
   @override
-  Future<void> updateFavoriteCover(
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  }) async {}
-
-  @override
   Future<bool> toggleFavorite(Track track) async {
     if (_favourites.containsKey(track.uri)) {
       _favourites.remove(track.uri);
@@ -328,16 +321,6 @@ class _FakePlaylistRepository implements PlaylistRepository {
     final members = _tracks[playlistId];
     if (members == null) return false;
     return members.any((member) => member.uri == uri);
-  }
-
-  @override
-  Future<void> updateTrackCover(
-    int playlistId,
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  }) async {
-    _coverController(playlistId).add(_deriveCover(playlistId));
   }
 
   @override

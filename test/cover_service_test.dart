@@ -25,7 +25,6 @@ import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
-import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
@@ -164,40 +163,6 @@ class _FakeMusicLibraryRepository implements MusicLibraryRepository {
   Future<void> removeScanRoot(String path) async {}
 }
 
-/// Minimal [FavoritesRepository] that records cover write-backs.
-class _FakeFavoritesRepository implements FavoritesRepository {
-  final List<_CoverWrite> coverWrites = <_CoverWrite>[];
-
-  @override
-  Future<void> updateFavoriteCover(
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  }) async {
-    coverWrites.add((uri: uri, coverPath: coverPath, coverUrl: coverUrl));
-  }
-
-  // -- Stubs for methods not exercised by the cover service --
-
-  @override
-  Stream<List<Track>> watchFavorites() => const Stream<List<Track>>.empty();
-
-  @override
-  Future<List<Track>> allFavorites() async => const <Track>[];
-
-  @override
-  Future<bool> isFavorite(String uri) async => false;
-
-  @override
-  Future<void> addFavorite(Track track) async {}
-
-  @override
-  Future<void> removeFavorite(String uri) async {}
-
-  @override
-  Future<bool> toggleFavorite(Track track) async => false;
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -237,7 +202,6 @@ void main() {
   late AppDatabase db;
   late _FakeCoverDownloader downloader;
   late _FakeMusicLibraryRepository library;
-  late _FakeFavoritesRepository favorites;
   late List<String> resolvedBvids;
   late CoverService service;
 
@@ -246,7 +210,6 @@ void main() {
     db = AppDatabase(NativeDatabase.memory());
     downloader = _FakeCoverDownloader(_jpegBytes());
     library = _FakeMusicLibraryRepository();
-    favorites = _FakeFavoritesRepository();
     resolvedBvids = <String>[];
     service = CoverService(
       store: CoverCacheStore(
@@ -256,7 +219,6 @@ void main() {
       ),
       downloader: downloader,
       library: library,
-      favorites: favorites,
       resolveRemoteUrl: (bvid) async {
         resolvedBvids.add(bvid);
         return '//i0.hdslb.com/bfs/resolved.jpg';
@@ -291,14 +253,6 @@ void main() {
       expect(library.coverWrites.single.coverPath, path);
       expect(
         library.coverWrites.single.coverUrl,
-        'https://i0.hdslb.com/bfs/a.jpg',
-      );
-
-      expect(favorites.coverWrites, hasLength(1));
-      expect(favorites.coverWrites.single.uri, track.uri);
-      expect(favorites.coverWrites.single.coverPath, path);
-      expect(
-        favorites.coverWrites.single.coverUrl,
         'https://i0.hdslb.com/bfs/a.jpg',
       );
     },
@@ -338,7 +292,6 @@ void main() {
 
     expect(path, isNull);
     expect(library.coverWrites, isEmpty);
-    expect(favorites.coverWrites, isEmpty);
   });
 
   test('rejects a non-decodable payload without storing anything', () async {
@@ -353,7 +306,6 @@ void main() {
       ),
       downloader: bad,
       library: library,
-      favorites: favorites,
       resolveRemoteUrl: (bvid) async => '//i0.hdslb.com/bfs/resolved.jpg',
     );
     final track = _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg');
@@ -362,7 +314,6 @@ void main() {
 
     expect(path, isNull);
     expect(library.coverWrites, isEmpty);
-    expect(favorites.coverWrites, isEmpty);
     expect(root.listSync().whereType<File>(), isEmpty);
   });
 
@@ -387,6 +338,5 @@ void main() {
     expect(path, coverFile.path);
     expect(downloader.requestedUrls, isEmpty);
     expect(library.coverWrites, isEmpty);
-    expect(favorites.coverWrites, isEmpty);
   });
 }

@@ -38,17 +38,6 @@ abstract interface class FavoritesRepository {
   /// Removes the favourite with [uri]; a no-op when absent.
   Future<void> removeFavorite(String uri);
 
-  /// Updates the cached cover pointer of an existing favourite, identified by
-  /// its canonical [uri].
-  ///
-  /// A no-op when [uri] is not favourited, and it never touches `favoritedAt`,
-  /// so refreshing a cover cannot reorder the favourites list.
-  Future<void> updateFavoriteCover(
-    String uri, {
-    String? coverPath,
-    String? coverUrl,
-  });
-
   /// Adds [track] when absent, removes it when present.
   ///
   /// Returns the new state (`true` = now favourited).

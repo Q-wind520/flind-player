@@ -25,7 +25,6 @@ import 'package:flind_player/data/cache/cover_downloader.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
-import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/cover_prefetch_coordinator.dart';
 import 'package:flind_player/data/services/cover_service.dart';
@@ -56,7 +55,6 @@ final coverServiceProvider = Provider<CoverService>((ref) {
     store: ref.watch(coverCacheStoreProvider),
     downloader: ref.watch(coverDownloaderProvider),
     library: ref.watch(musicLibraryRepositoryProvider),
-    favorites: ref.watch(favoritesRepositoryProvider),
     // Bilibili search/view payloads normally carry the cover URL, so this is
     // the fallback for tracks persisted before the URL was stored.
     resolveRemoteUrl: (bvid) async {
