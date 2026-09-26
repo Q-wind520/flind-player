@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,12 +23,15 @@ import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 
@@ -136,16 +141,87 @@ class _FakePlaybackController implements PlaybackController {
   Future<void> dispose() async {}
 }
 
+/// In-memory [FavoritesRepository] for tests.
+///
+/// Each subscriber to [watchFavorites] receives the current state immediately,
+/// then live updates. Overriding the favourites providers keeps the real
+/// `AppDatabase` out of the widget test (the row's [TrackActionsButton] watches
+/// them at build time).
+class _InMemoryFavoritesRepository implements FavoritesRepository {
+  final _favourites = <String, Track>{};
+  final List<StreamController<List<Track>>> _listeners = [];
+
+  @override
+  Stream<List<Track>> watchFavorites() async* {
+    yield _favourites.values.toList();
+    final controller = StreamController<List<Track>>();
+    _listeners.add(controller);
+    yield* controller.stream;
+    // ignore: use_key_synchronously
+    controller.onCancel = () => _listeners.remove(controller);
+  }
+
+  @override
+  Future<List<Track>> allFavorites() async => _favourites.values.toList();
+
+  @override
+  Future<bool> isFavorite(String uri) async => _favourites.containsKey(uri);
+
+  @override
+  Future<void> addFavorite(Track track) async {
+    _favourites[track.uri] = track;
+    _notify();
+  }
+
+  @override
+  Future<void> removeFavorite(String uri) async {
+    _favourites.remove(uri);
+    _notify();
+  }
+
+  @override
+  Future<void> updateFavoriteCover(
+    String uri, {
+    String? coverPath,
+    String? coverUrl,
+  }) async {}
+
+  @override
+  Future<bool> toggleFavorite(Track track) async {
+    if (_favourites.containsKey(track.uri)) {
+      _favourites.remove(track.uri);
+      _notify();
+      return false;
+    } else {
+      _favourites[track.uri] = track;
+      _notify();
+      return true;
+    }
+  }
+
+  void _notify() {
+    final value = _favourites.values.toList();
+    for (final c in _listeners) {
+      if (!c.isClosed) c.add(value);
+    }
+  }
+}
+
 /// Pumps [BilibiliFavoritesScreen] with a fake remote source and playback
 /// controller.
 ///
 /// Overriding [playbackStateProvider] and [playbackControllerProvider] keeps the
 /// real just_audio-backed controller from ever being constructed, both when the
 /// screen watches the state and when a track is tapped.
+///
+/// The favourites and audio-cache providers are overridden because each row's
+/// [TrackActionsButton] watches them at build time; without the overrides the
+/// real `AppDatabase` would be constructed for every test.
 Widget _app({
   required RemotePlaylistSource source,
   PlaybackController? controller,
 }) {
+  final favRepo = _InMemoryFavoritesRepository();
   return ProviderScope(
     overrides: [
       remotePlaylistSourceProvider.overrideWithValue(source),
@@ -155,6 +231,9 @@ Widget _app({
       playbackControllerProvider.overrideWith(
         (ref) => controller ?? _FakePlaybackController(),
       ),
+      audioCacheEntryProvider.overrideWith((ref, track) async => null),
+      favoritesRepositoryProvider.overrideWithValue(favRepo),
+      favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
     ],
     child: localizedApp(const BilibiliFavoritesScreen()),
   );
@@ -237,6 +316,7 @@ void main() {
     await tester.tap(find.byType(TrackActionsButton).first);
     await tester.pumpAndSettle();
     expect(find.text('收藏'), findsWidgets);
+    expect(find.text('存入曲库'), findsWidgets);
     expect(find.text('加入歌单'), findsWidgets);
   });
 
