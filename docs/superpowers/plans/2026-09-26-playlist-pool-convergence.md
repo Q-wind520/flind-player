@@ -433,10 +433,20 @@ git commit -m "fix(playlist): 成员可用性由池 missing_at 判定 (B)"
 
 ```dart
 test('recentlyAdded preserves the incoming (SQL added_at) order', () {
-  final newer = Track(id: 1, source: 'local', sourceTrackId: const LocalTrackId('/m/b.mp3'), uri: 'local:/m/b.mp3', title: 'B');
-  final older = Track(id: 99, source: 'local', sourceTrackId: const LocalTrackId('/m/a.mp3'), uri: 'local:/m/a.mp3', title: 'A');
-  final sorted = sortFavouriteTracks([newer, older], TrackSort.recentlyAdded);
-  expect(sorted.map((t) => t.title), ['B', 'A']); // NOT id order
+  // 100 elements: Dart's List.sort is unstable, so a 2-element list would not
+  // expose a broken comparator that scrambles longer lists.
+  final tracks = List.generate(
+    100,
+    (i) => Track(
+      id: i + 1,
+      source: 'local',
+      sourceTrackId: LocalTrackId('/m/$i.mp3'),
+      uri: 'local:/m/$i.mp3',
+      title: 'T$i',
+    ),
+  );
+  final sorted = sortFavouriteTracks(tracks, TrackSort.recentlyAdded);
+  expect(sorted.map((t) => t.title), tracks.map((t) => t.title)); // not id order
 });
 ```
 
@@ -469,14 +479,16 @@ import 'package:flind_player/core/models/track_sort.dart';
 
 List<Track> sortFavouriteTracks(List<Track> tracks, TrackSort sort) {
   final sorted = List<Track>.from(tracks);
+  // Repository already orders by added_at DESC; Track.id is the pool id, not the
+  // favourite time. Dart's List.sort is not stable, so an all-equal comparator
+  // would scramble the order — return the copy untouched instead.
+  if (sort == TrackSort.recentlyAdded) return sorted;
   sorted.sort((a, b) {
     return switch (sort) {
       TrackSort.title => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
       TrackSort.artist => _compareNullable(a.artist?.toLowerCase(), b.artist?.toLowerCase()),
       TrackSort.album => _compareNullable(a.album?.toLowerCase(), b.album?.toLowerCase()),
-      // Repository already orders by added_at DESC; Track.id is the pool id,
-      // not the favourite time, so preserve the incoming order.
-      TrackSort.recentlyAdded => 0,
+      TrackSort.recentlyAdded => 0, // unreachable: early-returned above
     };
   });
   return sorted;
@@ -502,13 +514,13 @@ Expected: `unavailable` 断言失败（当前收藏页不传该标志）。
 
 `_trackList` / `_trackGrid` 的 `TrackTile`/`TrackCard` 加 `unavailable: track.id == null`。
 
-`_sortTracks` 的 `recentlyAdded`：
+`sortFavouriteTracks` 的 `recentlyAdded`（见上）必须 **early-return**：
 
 ```dart
 // The repository already orders members by `added_at DESC`; `Track.id` is the
-// pool row id and does NOT track when the song was favourited, so leave the
-// incoming order untouched.
-TrackSort.recentlyAdded => 0,
+// pool row id and does NOT track when the song was favourited. List.sort is not
+// stable, so return the copy untouched rather than sorting with a 0 comparator.
+if (sort == TrackSort.recentlyAdded) return sorted;
 ```
 
 - [ ] **Step 4: 运行确认通过**
