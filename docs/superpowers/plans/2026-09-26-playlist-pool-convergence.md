@@ -809,67 +809,87 @@ git commit -m "refactor: 成员封面统一由池承载，删除重复接口"
 ```dart
 test('v8 -> v9 backfills the pool and rebuilds playlist_tracks', () async {
   final dir = Directory.systemTemp.createTempSync('flind_migration_v9');
-  addTearDown(() => dir.deleteSync(recursive: true));
-  final file = File(p.join(dir.path, 'db.sqlite'));
+  addTearDown(() {
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+  });
+  final file = File('${dir.path}/library.sqlite');
 
-  // Build a v8-shaped database with a member that is NOT in tracks.
+  // Build a current (v9) file, then roll `playlist_tracks` back to its v8
+  // shape (snapshot columns + position), restore the v8-only bits, pin v8.
   final before = AppDatabase(NativeDatabase(file));
+  await before.customStatement('DROP TABLE playlist_tracks');
   await before.customStatement('''
-CREATE TABLE tracks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  source TEXT NOT NULL, source_track_id TEXT NOT NULL, uri TEXT NOT NULL UNIQUE,
-  title TEXT NOT NULL, artist TEXT, album TEXT, album_artist TEXT,
-  track_no INTEGER, disc_no INTEGER, year INTEGER, duration_ms INTEGER,
-  bitrate INTEGER, sample_rate INTEGER, genre TEXT, cover_path TEXT,
-  cover_url TEXT, content_hash TEXT, last_seen_at INTEGER, size_bytes INTEGER,
-  mtime_ms INTEGER, scan_root TEXT, missing_at INTEGER,
-  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-);
-CREATE TABLE playlists (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kind TEXT NOT NULL,
-  description TEXT, cover_path TEXT, cover_url TEXT,
-  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-);
 CREATE TABLE playlist_tracks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, playlist_id INTEGER NOT NULL,
-  uri TEXT NOT NULL, source TEXT NOT NULL, source_track_id TEXT NOT NULL,
-  title TEXT NOT NULL, artist TEXT, album TEXT, duration_ms INTEGER,
-  cover_path TEXT, cover_url TEXT, added_at INTEGER NOT NULL, position INTEGER,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  uri TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_track_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  artist TEXT,
+  album TEXT,
+  duration_ms INTEGER,
+  cover_path TEXT,
+  cover_url TEXT,
+  added_at INTEGER NOT NULL,
+  position INTEGER,
   UNIQUE (playlist_id, uri)
-);
-CREATE TABLE scan_state (key TEXT PRIMARY KEY, value TEXT);
-INSERT INTO playlists (id, name, kind, created_at, updated_at)
-  VALUES (1, 'Favorites', 'favorites', 1, 1);
-INSERT INTO playlist_tracks
-  (playlist_id, uri, source, source_track_id, title, artist, album,
-   duration_ms, cover_path, cover_url, added_at)
-  VALUES (1, 'bilibili:BV1:7', 'bilibili', 'BV1:7', 'Online', 'UP', NULL,
-          NULL, NULL, 'https://x/c.webp', 5);
+)
 ''');
+  // A member that is NOT in tracks — the v8 favourites-snapshot case.
+  await before.customStatement(
+    'INSERT INTO playlist_tracks '
+    '(playlist_id, uri, source, source_track_id, title, artist, added_at, '
+    "cover_url) VALUES (1, 'bilibili:BV1:7', 'bilibili', 'BV1:7', 'Online', "
+    "'UP', 5, 'https://x/c.webp')",
+  );
+  await before.customStatement('ALTER TABLE tracks ADD COLUMN content_hash TEXT');
+  await before.customStatement(
+    'CREATE TABLE scan_state (key TEXT PRIMARY KEY, value TEXT)',
+  );
   await before.customStatement('PRAGMA user_version = 8');
   await before.close();
 
   final after = AppDatabase(NativeDatabase(file));
   addTearDown(after.close);
+
+  // Backfill promoted the member into the pool.
   final pool = await after.select(after.tracks).get();
   expect(pool, hasLength(1));
   expect(pool.single.uri, 'bilibili:BV1:7');
-  // content_hash removed
+  expect(pool.single.title, 'Online');
+
+  // tracks.content_hash removed.
   final cols = await after.customSelect('PRAGMA table_info(tracks)').get();
   expect(cols.map((r) => r.data['name']), isNot(contains('content_hash')));
-  // scan_state removed
+
+  // scan_state removed.
   final tables = await after.customSelect(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='scan_state'",
   ).get();
   expect(tables, isEmpty);
-  // playlist_tracks is reference-only
-  final ptCols = await after.customSelect('PRAGMA table_info(playlist_tracks)').get();
-  expect(ptCols.map((r) => r.data['name']).toSet(),
-      {'id', 'playlist_id', 'uri', 'added_at'});
-  // member still resolves through the pool
+
+  // playlist_tracks is reference-only.
+  final ptCols = await after
+      .customSelect('PRAGMA table_info(playlist_tracks)')
+      .get();
+  expect(
+    ptCols.map((r) => r.data['name']).toSet(),
+    {'id', 'playlist_id', 'uri', 'added_at'},
+  );
+
+  // The ordering index survives the rebuild.
+  final idx = await after.customSelect(
+    "SELECT name FROM sqlite_master WHERE type='index' "
+    "AND name='idx_playlist_tracks_order'",
+  ).get();
+  expect(idx, hasLength(1));
+
+  // The member resolves through the pool.
   final repo = DriftPlaylistRepository(after);
   final members = await repo.playlistTracks(1);
   expect(members.single.title, 'Online');
+  expect(members.single.id, isNotNull);
 });
 ```
 
@@ -913,8 +933,10 @@ FROM playlist_tracks
 WHERE uri NOT IN (SELECT uri FROM tracks)
 ''');
 
-  // 2) Rebuild playlist_tracks as a reference-only table.
-  await m.alterTable(TableMigration(playlistTracks));
+  // 2) Rebuild playlist_tracks as a reference-only table. A guarded raw rebuild
+  // is used instead of TableMigration so the ordering index is recreated
+  // deterministically.
+  await _rebuildPlaylistTracksAsReferences();
 
   // 3) Drop tracks.content_hash (best-effort on old SQLite).
   await _dropColumnIfExists(m, tracks, tracks.contentHash);
@@ -941,6 +963,45 @@ Future<void> _dropColumnIfExists(
   } on Exception {
     // SQLite < 3.35 has no DROP COLUMN; leaving the column is harmless.
   }
+}
+```
+
+加重建 helper（与 `_dropColumnIfExists` 并列）：
+
+```dart
+/// Rebuilds `playlist_tracks` to the reference-only v9 shape, preserving
+/// `(id, playlist_id, uri, added_at)` and recreating the ordering index.
+///
+/// Idempotent: a re-run over an already-v9 table is a no-op.
+Future<void> _rebuildPlaylistTracksAsReferences() async {
+  final cols = await customSelect('PRAGMA table_info(playlist_tracks)').get();
+  final names = cols.map((r) => r.data['name']).toSet();
+  if (names.contains('added_at') &&
+      !names.contains('source') &&
+      !names.contains('position')) {
+    return; // Already reference-only.
+  }
+  await customStatement('''
+CREATE TABLE playlist_tracks_v9 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  uri TEXT NOT NULL,
+  added_at INTEGER NOT NULL,
+  UNIQUE (playlist_id, uri)
+)
+''');
+  await customStatement('''
+INSERT INTO playlist_tracks_v9 (id, playlist_id, uri, added_at)
+SELECT id, playlist_id, uri, added_at FROM playlist_tracks
+''');
+  await customStatement('DROP TABLE playlist_tracks');
+  await customStatement(
+    'ALTER TABLE playlist_tracks_v9 RENAME TO playlist_tracks',
+  );
+  await customStatement(
+    'CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order '
+    'ON playlist_tracks (playlist_id, added_at DESC, id DESC)',
+  );
 }
 ```
 
