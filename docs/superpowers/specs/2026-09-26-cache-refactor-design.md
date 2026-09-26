@@ -58,18 +58,22 @@
 
 ## 5. 存储布局
 
-单一缓存根 `<app support>/cache/`：
+单一缓存根 `<app support>/cache/`，**两个 store 各占一个互不重叠的子树**（否则一方的递归 `clear()`/孤儿清理会误删另一方文件）：
 
 ```
 <app support>/cache/
-├── audio/<sha1(字节)>.<ext>              # 层 1 音频，内容寻址（保留去重）
-├── cover/<sha1(字节)>.<ext>              # 层 2 临时封面，内容寻址（保留 URL→内容去重）
-└── songs/<sha1(source:trackId)>/cover.<ext>   # 层 1 随行封面
+├── audio/                                  # 层 1 根（AudioCacheStore.baseDir）
+│   └── <source>/<sha1(source:trackId)>.<ext>          # 层 1 音频
+│   └── <source>/<sha1(source:trackId)>.cover.<ext>    # 层 1 随行封面
+└── cover/                                  # 层 2 根（CoverCacheStore.baseDir）
+    └── <sha1(字节)>.jpg                              # 层 2 临时封面
 ```
 
-- 旧根 `<app support>/audio_cache/` 与 `<app support>/cover_cache/` 合并进 `<app support>/cache/`。
-- **`file_path` 是权威**：新写入一律落在新根；旧行由一次性搬迁或启动自愈迁移，搬迁失败时旧路径仍可用（下次重试或被 LRU 自然淘汰）。
-- 删除统一走单一 containment guard，**移除 `AudioCacheStore._deleteCoverFile` 跨目录特例**。
+- **层 1 音频保持现有命名**（`sha1(source:trackId)` 的确定性路径）；内容去重仍在 `insert` 时通过指向既有 canonical 文件实现（`file_path` 可被多行共享），**不把磁盘文件名改成内容哈希**。
+- **层 2 封面保持内容寻址**（`sha1(字节)` 文件名），保留 URL→内容去重。
+- 旧根 `<app support>/audio_cache/` 与 `<app support>/cover_cache/` 合并进 `<app support>/cache/` 的对应子树。
+- **`file_path` 是权威**：新写入一律落在新根；旧行由启动自愈一次性搬迁，搬迁失败时旧路径仍可用（下次重试或被 LRU 自然淘汰）。
+- 每个 store 的删除/清理只在自己的子树内进行；层 1 的 containment guard 覆盖音频与随行封面两个子路径，**移除 `AudioCacheStore._deleteCoverFile` 跨目录特例**。
 
 ## 6. 数据模型（schema v10）
 
