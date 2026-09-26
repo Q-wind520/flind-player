@@ -40,6 +40,7 @@ class CachedAudio {
     required this.cachedAt,
     required this.lastAccessedAt,
     this.contentHash,
+    this.coverPath,
   });
 
   final int id;
@@ -54,6 +55,9 @@ class CachedAudio {
 
   /// SHA-1 hex digest of the file's bytes, or `null` for legacy rows.
   final String? contentHash;
+
+  /// Absolute path of the song's companion cover, or `null` when none.
+  final String? coverPath;
 }
 
 /// Outcome of [AudioCacheStore.ensureSpace].
@@ -180,6 +184,39 @@ class AudioCacheStore {
     return File(p.join(base.path, source, '$digest.$normalizedExtension'));
   }
 
+  /// Deterministic companion-cover path for a cached song.
+  ///
+  /// Lives beside the audio file (`<base>/<source>/<digest>.cover.<ext>`) so a
+  /// single containment guard covers both.
+  File coverFileFor({
+    required String source,
+    required String sourceTrackId,
+    required String extension,
+  }) {
+    final base = _baseDir;
+    if (base == null) {
+      throw StateError(
+        'AudioCacheStore base directory is not resolved yet; await an async '
+        'store method before calling coverFileFor on a lazily-initialised '
+        'store.',
+      );
+    }
+    final digest = sha1
+        .convert(utf8.encode('$source:$sourceTrackId'))
+        .toString();
+    final normalized = extension.startsWith('.')
+        ? extension.substring(1)
+        : extension;
+    return File(p.join(base.path, source, '$digest.cover.$normalized'));
+  }
+
+  /// Records the companion cover path for the row [id].
+  Future<void> setCoverPath(int id, String? path) async {
+    await (_db.update(_db.audioCache)..where((t) => t.id.equals(id))).write(
+      AudioCacheCompanion(coverPath: Value(path)),
+    );
+  }
+
   /// The row for [source]/[sourceTrackId], or `null` when not cached.
   Future<CachedAudio?> lookup(String source, String sourceTrackId) async {
     await _resolveDir();
@@ -220,7 +257,8 @@ class AudioCacheStore {
   /// hash stays `null`. If another row already indexes the same content under a
   /// different path, the freshly written duplicate is deleted and this row is
   /// pointed at the existing physical file instead, so identical audio is
-  /// stored and counted once.
+  /// stored and counted once. [coverPath], when given, is recorded verbatim as
+  /// the row's companion cover.
   Future<CachedAudio> insert({
     required String source,
     required String sourceTrackId,
@@ -229,6 +267,7 @@ class AudioCacheStore {
     required String qualityId,
     required bool pinned,
     String? contentHash,
+    String? coverPath,
   }) async {
     await _resolveDir();
     final resolvedHash = contentHash ?? await _hashFile(filePath);
@@ -257,6 +296,7 @@ class AudioCacheStore {
       cachedAt: now,
       lastAccessedAt: now,
       contentHash: Value(resolvedHash),
+      coverPath: Value(coverPath),
     );
     final row = await _db
         .into(_db.audioCache)
@@ -281,6 +321,7 @@ class AudioCacheStore {
     if (row == null) return;
     await (_db.delete(_db.audioCache)..where((t) => t.id.equals(id))).go();
     await _deleteFileIfUnreferenced(row.filePath);
+    _deleteCoverFile(row.coverPath);
   }
 
   /// Deletes every row and every file under the cache root.
@@ -319,19 +360,6 @@ class AudioCacheStore {
     return row.read<int>('total');
   }
 
-  /// Distinct cover bytes, mirroring [totalBytes] for the `cover_cache` table.
-  ///
-  /// Covers share the quota with audio; see [ensureSpace].
-  Future<int> _coverCacheBytes() async {
-    final query = _db.customSelect(
-      'SELECT COALESCE(SUM(bytes), 0) AS total FROM ('
-      'SELECT DISTINCT file_path, bytes FROM cover_cache)',
-      readsFrom: {_db.coverCache},
-    );
-    final row = await query.getSingle();
-    return row.read<int>('total');
-  }
-
   /// Every cached row, oldest `lastAccessedAt` first (LRU order).
   Future<List<CachedAudio>> entries() async {
     final rows =
@@ -344,12 +372,12 @@ class AudioCacheStore {
   }
 
   /// Evicts cache entries until `used + incomingBytes <= limitBytes`, where
-  /// `used` is the combined cover and audio footprint.
+  /// `used` is the layer-1 audio footprint.
   ///
-  /// Cover rows are evicted first (oldest `lastAccessedAt` first, and they are
-  /// never pinned), then non-pinned audio rows oldest-first. Reads the current
-  /// [CacheSettings] on every call, so a settings change applies immediately.
-  /// Pinned audio entries are never evicted; when they alone exceed the limit,
+  /// Eviction is row-based: a non-pinned row is removed oldest-first together
+  /// with its companion cover. Reads the current [CacheSettings] on every
+  /// call, so a settings change applies immediately. Pinned entries are never
+  /// evicted; when they alone exceed the limit,
   /// [EvictionResult.hasSpace] is `false`.
   ///
   /// Only files no other row references are deleted and counted as freed, so a
@@ -362,7 +390,7 @@ class AudioCacheStore {
     try {
       await _resolveDir();
       final settings = await _settings.cacheSettings();
-      final used = await totalBytes() + await _coverCacheBytes();
+      final used = await totalBytes();
 
       if (used + incomingBytes <= settings.limitBytes) {
         return const EvictionResult(
@@ -370,30 +398,6 @@ class AudioCacheStore {
           freedBytes: 0,
           hasSpace: true,
         );
-      }
-
-      // Covers share the quota but are never pinned, so they go first.
-      final coverCandidates =
-          await (_db.select(_db.coverCache)..orderBy([
-                (t) => OrderingTerm.asc(t.lastAccessedAt),
-                (t) => OrderingTerm.asc(t.id),
-              ]))
-              .get();
-      for (final candidate in coverCandidates) {
-        if (used - freedBytes + incomingBytes <= settings.limitBytes) break;
-        await (_db.delete(
-          _db.coverCache,
-        )..where((t) => t.id.equals(candidate.id))).go();
-        evictedCount++;
-        final stillReferenced = await (_db.select(
-          _db.coverCache,
-        )..where((t) => t.filePath.equals(candidate.filePath))).get();
-        if (stillReferenced.isEmpty) {
-          // Cover files live outside the audio base dir, so the containment
-          // guard in `_deleteFile` cannot be used here.
-          _deleteCoverFile(candidate.filePath);
-          freedBytes += candidate.bytes;
-        }
       }
 
       final candidates =
@@ -418,6 +422,7 @@ class AudioCacheStore {
           _deleteFile(candidate.filePath);
           freedBytes += candidate.bytes;
         }
+        _deleteCoverFile(candidate.coverPath);
       }
 
       return EvictionResult(
@@ -499,6 +504,10 @@ class AudioCacheStore {
         final file = File(row.filePath);
         if (file.existsSync()) {
           referenced.add(p.canonicalize(row.filePath));
+          final cover = row.coverPath;
+          if (cover != null && File(cover).existsSync()) {
+            referenced.add(p.canonicalize(cover));
+          }
         } else {
           await (_db.delete(
             _db.audioCache,
@@ -562,19 +571,10 @@ class AudioCacheStore {
     }
   }
 
-  /// Deletes a cover cache file, best-effort; never throws.
-  ///
-  /// Cover files live outside the audio cache root, so [_deleteFile]'s
-  /// containment guard must not be applied here.
-  void _deleteCoverFile(String path) {
-    try {
-      final file = File(path);
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
-    } catch (error) {
-      debugPrint('AudioCacheStore: failed to delete cover $path: $error');
-    }
+  /// Deletes a row's companion cover, best-effort; never throws.
+  void _deleteCoverFile(String? path) {
+    if (path == null) return;
+    _deleteFile(path);
   }
 
   /// Deletes [path] unless another row still points at the same file.
@@ -632,6 +632,7 @@ class AudioCacheStore {
       cachedAt: DateTime.fromMillisecondsSinceEpoch(row.cachedAt),
       lastAccessedAt: DateTime.fromMillisecondsSinceEpoch(row.lastAccessedAt),
       contentHash: row.contentHash,
+      coverPath: row.coverPath,
     );
   }
 }

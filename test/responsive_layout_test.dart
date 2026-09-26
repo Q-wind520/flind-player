@@ -203,6 +203,7 @@ class _FakeCacheStore implements AudioCacheStore {
     required String qualityId,
     required bool pinned,
     String? contentHash,
+    String? coverPath,
   }) async => throw UnimplementedError();
 
   @override
@@ -229,6 +230,16 @@ class _FakeCacheStore implements AudioCacheStore {
     required String sourceTrackId,
     required String extension,
   }) => throw UnimplementedError();
+
+  @override
+  File coverFileFor({
+    required String source,
+    required String sourceTrackId,
+    required String extension,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> setCoverPath(int id, String? path) async {}
 }
 
 /// Minimal in-memory [FavoritesRepository] used only for read paths.

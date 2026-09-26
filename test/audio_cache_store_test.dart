@@ -187,6 +187,34 @@ void main() {
         expect((await store.entries()).map((e) => e.id), [b.id, c.id, a.id]);
       },
     );
+
+    test('round-trips a companion cover path', () async {
+      final file = store.fileFor(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        extension: 'm4a',
+      );
+      file.parent.createSync(recursive: true);
+      file.writeAsBytesSync(const [1, 2, 3]);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [9, 9]);
+
+      final entry = await store.insert(
+        source: 'bilibili',
+        sourceTrackId: 'BV1:1',
+        filePath: file.path,
+        bytes: 3,
+        qualityId: '30280',
+        pinned: false,
+        coverPath: cover.path,
+      );
+
+      expect(entry.coverPath, cover.path);
+      expect((await store.lookup('bilibili', 'BV1:1'))!.coverPath, cover.path);
+    });
   });
 
   group('setPinned', () {
@@ -325,6 +353,24 @@ void main() {
       expect(result.hasSpace, isTrue);
       expect(await store.totalBytes(), 800);
     });
+
+    test('evicting a row also deletes its companion cover', () async {
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
+      final entry = await addEntry('a', bytes: 400, lastAccessedAt: 1000);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [1]);
+      await store.setCoverPath(entry.id, cover.path);
+      await addEntry('b', bytes: 400, lastAccessedAt: 2000);
+
+      final result = await store.ensureSpace(400);
+
+      expect(result.hasSpace, isTrue);
+      expect(File(cover.path).existsSync(), isFalse);
+      expect(await store.lookup('bilibili', 'a'), isNull);
+    });
   });
 
   group('remove / clear', () {
@@ -349,6 +395,34 @@ void main() {
       for (final id in ['a', 'b', 'c']) {
         expect(File(pathFor(id)).existsSync(), isFalse);
       }
+    });
+
+    test('remove deletes the companion cover too', () async {
+      final entry = await addEntry('a', bytes: 100);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [1]);
+      await store.setCoverPath(entry.id, cover.path);
+
+      await store.remove(entry.id);
+
+      expect(File(cover.path).existsSync(), isFalse);
+    });
+
+    test('clear deletes companion covers too', () async {
+      final entry = await addEntry('a', bytes: 100);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [1]);
+      await store.setCoverPath(entry.id, cover.path);
+
+      await store.clear();
+
+      expect(File(cover.path).existsSync(), isFalse);
     });
   });
 
@@ -516,6 +590,21 @@ void main() {
       expect(await store.lookup('bilibili', 'vanished'), isNull);
       expect(orphan.existsSync(), isFalse);
       expect(outside.existsSync(), isTrue);
+    });
+
+    test('a companion cover is not treated as an orphan', () async {
+      final entry = await addEntry('a', bytes: 100);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [1]);
+      await store.setCoverPath(entry.id, cover.path);
+
+      final report = await store.checkIntegrity();
+
+      expect(report.orphansRemoved, 0);
+      expect(File(cover.path).existsSync(), isTrue);
     });
   });
 

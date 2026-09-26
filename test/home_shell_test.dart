@@ -121,6 +121,7 @@ class _FakeCacheStore implements AudioCacheStore {
     required String qualityId,
     required bool pinned,
     String? contentHash,
+    String? coverPath,
   }) async => throw UnimplementedError();
 
   @override
@@ -147,6 +148,16 @@ class _FakeCacheStore implements AudioCacheStore {
     required String sourceTrackId,
     required String extension,
   }) => throw UnimplementedError();
+
+  @override
+  File coverFileFor({
+    required String source,
+    required String sourceTrackId,
+    required String extension,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> setCoverPath(int id, String? path) async {}
 }
 
 /// Records calls so the player route never constructs the real controller.
