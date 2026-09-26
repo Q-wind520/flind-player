@@ -1736,6 +1736,17 @@ class $AudioCacheTable extends AudioCache
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _coverPathMeta = const VerificationMeta(
+    'coverPath',
+  );
+  @override
+  late final GeneratedColumn<String> coverPath = GeneratedColumn<String>(
+    'cover_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1748,6 +1759,7 @@ class $AudioCacheTable extends AudioCache
     cachedAt,
     lastAccessedAt,
     contentHash,
+    coverPath,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1841,6 +1853,12 @@ class $AudioCacheTable extends AudioCache
         ),
       );
     }
+    if (data.containsKey('cover_path')) {
+      context.handle(
+        _coverPathMeta,
+        coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
+      );
+    }
     return context;
   }
 
@@ -1894,6 +1912,10 @@ class $AudioCacheTable extends AudioCache
         DriftSqlType.string,
         data['${effectivePrefix}content_hash'],
       ),
+      coverPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_path'],
+      ),
     );
   }
 
@@ -1936,6 +1958,9 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
   /// file; this column is how those rows are grouped. `null` for legacy rows
   /// written before v6 and for rows whose file could not be hashed.
   final String? contentHash;
+
+  /// Absolute path of the song's companion cover, or `null` when none.
+  final String? coverPath;
   const AudioCacheRow({
     required this.id,
     required this.source,
@@ -1947,6 +1972,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     required this.cachedAt,
     required this.lastAccessedAt,
     this.contentHash,
+    this.coverPath,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1962,6 +1988,9 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     map['last_accessed_at'] = Variable<int>(lastAccessedAt);
     if (!nullToAbsent || contentHash != null) {
       map['content_hash'] = Variable<String>(contentHash);
+    }
+    if (!nullToAbsent || coverPath != null) {
+      map['cover_path'] = Variable<String>(coverPath);
     }
     return map;
   }
@@ -1980,6 +2009,9 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       contentHash: contentHash == null && nullToAbsent
           ? const Value.absent()
           : Value(contentHash),
+      coverPath: coverPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverPath),
     );
   }
 
@@ -1999,6 +2031,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       cachedAt: serializer.fromJson<int>(json['cachedAt']),
       lastAccessedAt: serializer.fromJson<int>(json['lastAccessedAt']),
       contentHash: serializer.fromJson<String?>(json['contentHash']),
+      coverPath: serializer.fromJson<String?>(json['coverPath']),
     );
   }
   @override
@@ -2015,6 +2048,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       'cachedAt': serializer.toJson<int>(cachedAt),
       'lastAccessedAt': serializer.toJson<int>(lastAccessedAt),
       'contentHash': serializer.toJson<String?>(contentHash),
+      'coverPath': serializer.toJson<String?>(coverPath),
     };
   }
 
@@ -2029,6 +2063,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     int? cachedAt,
     int? lastAccessedAt,
     Value<String?> contentHash = const Value.absent(),
+    Value<String?> coverPath = const Value.absent(),
   }) => AudioCacheRow(
     id: id ?? this.id,
     source: source ?? this.source,
@@ -2040,6 +2075,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     cachedAt: cachedAt ?? this.cachedAt,
     lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
     contentHash: contentHash.present ? contentHash.value : this.contentHash,
+    coverPath: coverPath.present ? coverPath.value : this.coverPath,
   );
   AudioCacheRow copyWithCompanion(AudioCacheCompanion data) {
     return AudioCacheRow(
@@ -2059,6 +2095,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
       contentHash: data.contentHash.present
           ? data.contentHash.value
           : this.contentHash,
+      coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
     );
   }
 
@@ -2074,7 +2111,8 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
           ..write('pinned: $pinned, ')
           ..write('cachedAt: $cachedAt, ')
           ..write('lastAccessedAt: $lastAccessedAt, ')
-          ..write('contentHash: $contentHash')
+          ..write('contentHash: $contentHash, ')
+          ..write('coverPath: $coverPath')
           ..write(')'))
         .toString();
   }
@@ -2091,6 +2129,7 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
     cachedAt,
     lastAccessedAt,
     contentHash,
+    coverPath,
   );
   @override
   bool operator ==(Object other) =>
@@ -2105,7 +2144,8 @@ class AudioCacheRow extends DataClass implements Insertable<AudioCacheRow> {
           other.pinned == this.pinned &&
           other.cachedAt == this.cachedAt &&
           other.lastAccessedAt == this.lastAccessedAt &&
-          other.contentHash == this.contentHash);
+          other.contentHash == this.contentHash &&
+          other.coverPath == this.coverPath);
 }
 
 class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
@@ -2119,6 +2159,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
   final Value<int> cachedAt;
   final Value<int> lastAccessedAt;
   final Value<String?> contentHash;
+  final Value<String?> coverPath;
   const AudioCacheCompanion({
     this.id = const Value.absent(),
     this.source = const Value.absent(),
@@ -2130,6 +2171,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     this.cachedAt = const Value.absent(),
     this.lastAccessedAt = const Value.absent(),
     this.contentHash = const Value.absent(),
+    this.coverPath = const Value.absent(),
   });
   AudioCacheCompanion.insert({
     this.id = const Value.absent(),
@@ -2142,6 +2184,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     required int cachedAt,
     required int lastAccessedAt,
     this.contentHash = const Value.absent(),
+    this.coverPath = const Value.absent(),
   }) : source = Value(source),
        sourceTrackId = Value(sourceTrackId),
        filePath = Value(filePath),
@@ -2160,6 +2203,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     Expression<int>? cachedAt,
     Expression<int>? lastAccessedAt,
     Expression<String>? contentHash,
+    Expression<String>? coverPath,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2172,6 +2216,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
       if (cachedAt != null) 'cached_at': cachedAt,
       if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
       if (contentHash != null) 'content_hash': contentHash,
+      if (coverPath != null) 'cover_path': coverPath,
     });
   }
 
@@ -2186,6 +2231,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     Value<int>? cachedAt,
     Value<int>? lastAccessedAt,
     Value<String?>? contentHash,
+    Value<String?>? coverPath,
   }) {
     return AudioCacheCompanion(
       id: id ?? this.id,
@@ -2198,6 +2244,7 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
       cachedAt: cachedAt ?? this.cachedAt,
       lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
       contentHash: contentHash ?? this.contentHash,
+      coverPath: coverPath ?? this.coverPath,
     );
   }
 
@@ -2234,6 +2281,9 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
     if (contentHash.present) {
       map['content_hash'] = Variable<String>(contentHash.value);
     }
+    if (coverPath.present) {
+      map['cover_path'] = Variable<String>(coverPath.value);
+    }
     return map;
   }
 
@@ -2249,7 +2299,8 @@ class AudioCacheCompanion extends UpdateCompanion<AudioCacheRow> {
           ..write('pinned: $pinned, ')
           ..write('cachedAt: $cachedAt, ')
           ..write('lastAccessedAt: $lastAccessedAt, ')
-          ..write('contentHash: $contentHash')
+          ..write('contentHash: $contentHash, ')
+          ..write('coverPath: $coverPath')
           ..write(')'))
         .toString();
   }
@@ -4048,9 +4099,25 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_audio_cache_lru',
     'CREATE INDEX IF NOT EXISTS idx_audio_cache_lru ON audio_cache (pinned, last_accessed_at)',
   );
+  late final Index idxAudioCacheContentHash = Index(
+    'idx_audio_cache_content_hash',
+    'CREATE INDEX IF NOT EXISTS idx_audio_cache_content_hash ON audio_cache (content_hash)',
+  );
+  late final Index idxAudioCacheFilePath = Index(
+    'idx_audio_cache_file_path',
+    'CREATE INDEX IF NOT EXISTS idx_audio_cache_file_path ON audio_cache (file_path)',
+  );
   late final Index idxCoverCacheLru = Index(
     'idx_cover_cache_lru',
     'CREATE INDEX IF NOT EXISTS idx_cover_cache_lru ON cover_cache (last_accessed_at)',
+  );
+  late final Index idxCoverCacheContentHash = Index(
+    'idx_cover_cache_content_hash',
+    'CREATE INDEX IF NOT EXISTS idx_cover_cache_content_hash ON cover_cache (content_hash)',
+  );
+  late final Index idxCoverCacheFilePath = Index(
+    'idx_cover_cache_file_path',
+    'CREATE INDEX IF NOT EXISTS idx_cover_cache_file_path ON cover_cache (file_path)',
   );
   late final Index idxPlaylistTracksOrder = Index(
     'idx_playlist_tracks_order',
@@ -4069,7 +4136,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     playlists,
     playlistTracks,
     idxAudioCacheLru,
+    idxAudioCacheContentHash,
+    idxAudioCacheFilePath,
     idxCoverCacheLru,
+    idxCoverCacheContentHash,
+    idxCoverCacheFilePath,
     idxPlaylistTracksOrder,
   ];
 }
@@ -4833,6 +4904,7 @@ typedef $$AudioCacheTableCreateCompanionBuilder = AudioCacheCompanion Function({
   required int cachedAt,
   required int lastAccessedAt,
   Value<String?> contentHash,
+  Value<String?> coverPath,
 });
 typedef $$AudioCacheTableUpdateCompanionBuilder = AudioCacheCompanion Function({
   Value<int> id,
@@ -4845,6 +4917,7 @@ typedef $$AudioCacheTableUpdateCompanionBuilder = AudioCacheCompanion Function({
   Value<int> cachedAt,
   Value<int> lastAccessedAt,
   Value<String?> contentHash,
+  Value<String?> coverPath,
 });
 
 class $$AudioCacheTableFilterComposer
@@ -4903,6 +4976,11 @@ class $$AudioCacheTableFilterComposer
 
   ColumnFilters<String> get contentHash => $composableBuilder(
     column: $table.contentHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverPath => $composableBuilder(
+    column: $table.coverPath,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4965,6 +5043,11 @@ class $$AudioCacheTableOrderingComposer
     column: $table.contentHash,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get coverPath => $composableBuilder(
+    column: $table.coverPath,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AudioCacheTableAnnotationComposer
@@ -5011,6 +5094,9 @@ class $$AudioCacheTableAnnotationComposer
     column: $table.contentHash,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get coverPath =>
+      $composableBuilder(column: $table.coverPath, builder: (column) => column);
 }
 
 class $$AudioCacheTableTableManager
@@ -5054,6 +5140,7 @@ class $$AudioCacheTableTableManager
                 Value<int> cachedAt = const Value.absent(),
                 Value<int> lastAccessedAt = const Value.absent(),
                 Value<String?> contentHash = const Value.absent(),
+                Value<String?> coverPath = const Value.absent(),
               }) => AudioCacheCompanion(
                 id: id,
                 source: source,
@@ -5065,6 +5152,7 @@ class $$AudioCacheTableTableManager
                 cachedAt: cachedAt,
                 lastAccessedAt: lastAccessedAt,
                 contentHash: contentHash,
+                coverPath: coverPath,
               ),
           createCompanionCallback:
               ({
@@ -5078,6 +5166,7 @@ class $$AudioCacheTableTableManager
                 required int cachedAt,
                 required int lastAccessedAt,
                 Value<String?> contentHash = const Value.absent(),
+                Value<String?> coverPath = const Value.absent(),
               }) => AudioCacheCompanion.insert(
                 id: id,
                 source: source,
@@ -5089,6 +5178,7 @@ class $$AudioCacheTableTableManager
                 cachedAt: cachedAt,
                 lastAccessedAt: lastAccessedAt,
                 contentHash: contentHash,
+                coverPath: coverPath,
               ),
           withReferenceMapper: (p0) => p0
               .map(

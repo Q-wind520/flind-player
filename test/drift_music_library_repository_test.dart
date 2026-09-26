@@ -1078,6 +1078,11 @@ void main() {
         'cached_at, last_accessed_at) '
         "VALUES ('bilibili', 'BV1:1', '/tmp/x.m4a', 10, '30280', 0, 1, 1)",
       );
+      // The v10 index over content_hash blocks the drop; remove it with the
+      // column and let the v10 migration recreate it.
+      await before.customStatement(
+        'DROP INDEX IF EXISTS idx_audio_cache_content_hash',
+      );
       await before.customStatement(
         'ALTER TABLE audio_cache DROP COLUMN content_hash',
       );
@@ -1463,6 +1468,71 @@ CREATE TABLE playlist_tracks (
       final members = await repo.playlistTracks(1);
       expect(members.single.title, 'Online');
       expect(members.single.id, isNotNull);
+    });
+
+    test('v9 -> v10 adds cover_path and the cache lookup indexes', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v10');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current-schema file, then roll it back to v9 by dropping the
+      // column and indexes v10 introduces.
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement(
+        'INSERT INTO audio_cache '
+        '(source, source_track_id, file_path, bytes, quality_id, pinned, '
+        'cached_at, last_accessed_at) '
+        "VALUES ('bilibili', 'BV1:1', '/tmp/x.m4a', 10, '30280', 0, 1, 1)",
+      );
+      await before.customStatement(
+        'ALTER TABLE audio_cache DROP COLUMN cover_path',
+      );
+      await before.customStatement(
+        'DROP INDEX IF EXISTS idx_audio_cache_content_hash',
+      );
+      await before.customStatement(
+        'DROP INDEX IF EXISTS idx_audio_cache_file_path',
+      );
+      await before.customStatement(
+        'DROP INDEX IF EXISTS idx_cover_cache_content_hash',
+      );
+      await before.customStatement(
+        'DROP INDEX IF EXISTS idx_cover_cache_file_path',
+      );
+      await before.customStatement('PRAGMA user_version = 9');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      // The existing row survives, defaults to a null cover, and the new
+      // indexes exist.
+      final row = await after
+          .customSelect('SELECT cover_path FROM audio_cache')
+          .getSingle();
+      expect(row.data['cover_path'], isNull);
+
+      final indexes = await after
+          .customSelect("SELECT name FROM sqlite_master WHERE type='index'")
+          .get();
+      final names = indexes.map((r) => r.data['name']).toSet();
+      expect(names, contains('idx_audio_cache_content_hash'));
+      expect(names, contains('idx_audio_cache_file_path'));
+      expect(names, contains('idx_cover_cache_content_hash'));
+      expect(names, contains('idx_cover_cache_file_path'));
+
+      // Re-running the migration is safe.
+      await after.close();
+      final again = AppDatabase(NativeDatabase(file));
+      addTearDown(again.close);
+      expect(
+        await again
+            .customSelect('SELECT COUNT(*) AS n FROM audio_cache')
+            .getSingle(),
+        isNotNull,
+      );
     });
   });
 }

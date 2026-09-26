@@ -93,15 +93,23 @@ class ScanRoots extends Table {
   IntColumn get addedAt => integer()();
 }
 
-/// Offline audio cache index (docs/local-library.md §4.4).
+/// Song asset rows (schema v10): one cached song's audio file plus its
+/// companion cover.
 ///
-/// One row per cached file; `pinned` marks manual downloads that LRU eviction
-/// must never touch. The unique key is the source identity, not the file hash,
-/// so re-caching a track updates its row instead of duplicating it.
+/// `pinned` marks a manual/offline download, exempt from all quotas. The row is
+/// the eviction unit: audio and companion cover are removed together.
 @DataClassName('AudioCacheRow')
 @TableIndex.sql(
   'CREATE INDEX IF NOT EXISTS idx_audio_cache_lru '
   'ON audio_cache (pinned, last_accessed_at)',
+)
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_audio_cache_content_hash '
+  'ON audio_cache (content_hash)',
+)
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_audio_cache_file_path '
+  'ON audio_cache (file_path)',
 )
 class AudioCache extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -136,6 +144,9 @@ class AudioCache extends Table {
   /// file; this column is how those rows are grouped. `null` for legacy rows
   /// written before v6 and for rows whose file could not be hashed.
   TextColumn get contentHash => text().nullable()();
+
+  /// Absolute path of the song's companion cover, or `null` when none.
+  TextColumn get coverPath => text().nullable()();
 
   @override
   List<Set<Column>> get uniqueKeys => [
@@ -239,6 +250,14 @@ class PlaylistTracks extends Table {
 @TableIndex.sql(
   'CREATE INDEX IF NOT EXISTS idx_cover_cache_lru '
   'ON cover_cache (last_accessed_at)',
+)
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_cover_cache_content_hash '
+  'ON cover_cache (content_hash)',
+)
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_cover_cache_file_path '
+  'ON cover_cache (file_path)',
 )
 class CoverCache extends Table {
   IntColumn get id => integer().autoIncrement()();
