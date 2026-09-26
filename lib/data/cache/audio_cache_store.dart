@@ -358,6 +358,32 @@ class AudioCacheStore {
     }
   }
 
+  /// Deletes every non-pinned row (and its files), keeping pinned downloads.
+  ///
+  /// This is the "clear cache" action behind the settings screen: it only
+  /// drops the online/play-through layer, so manually downloaded songs
+  /// (pinned) and their companion covers survive. Files shared with a pinned
+  /// row are kept; companion covers are per-row and go with their row.
+  ///
+  /// Never throws; failures are logged and the remaining rows are skipped.
+  Future<void> clearUnpinned() async {
+    await _resolveDir();
+    try {
+      final rows = await (_db.select(
+        _db.audioCache,
+      )..where((t) => t.pinned.equals(false))).get();
+      for (final row in rows) {
+        await (_db.delete(
+          _db.audioCache,
+        )..where((t) => t.id.equals(row.id))).go();
+        await _deleteFileIfUnreferenced(row.filePath);
+        _deleteCoverFile(row.coverPath);
+      }
+    } catch (error) {
+      debugPrint('AudioCacheStore: clearUnpinned failed: $error');
+    }
+  }
+
   /// Total bytes under the layer-1 quota: distinct audio files plus the
   /// companion-cover bytes of every row that still has a cover.
   ///

@@ -486,6 +486,62 @@ void main() {
       expect(File(cover.path).existsSync(), isFalse);
     });
 
+    test('clearUnpinned keeps pinned rows and deletes the rest', () async {
+      await addEntry('auto', bytes: 100, lastAccessedAt: 1000);
+      final pinned = await addEntry(
+        'saved',
+        bytes: 100,
+        pinned: true,
+        lastAccessedAt: 2000,
+      );
+
+      await store.clearUnpinned();
+
+      expect(await store.lookup('bilibili', 'auto'), isNull);
+      expect((await store.lookup('bilibili', 'saved'))!.id, pinned.id);
+      expect(File(pathFor('auto')).existsSync(), isFalse);
+      expect(File(pathFor('saved')).existsSync(), isTrue);
+    });
+
+    test(
+      'clearUnpinned deletes the companion cover of a removed row',
+      () async {
+        final entry = await addEntry('a', bytes: 100);
+        final cover = store.coverFileFor(
+          source: 'bilibili',
+          sourceTrackId: 'a',
+          extension: 'jpg',
+        )..writeAsBytesSync(const [1]);
+        await store.setCoverPath(entry.id, cover.path, bytes: 1);
+        final kept = await addEntry('saved', bytes: 100, pinned: true);
+        final keptCover = store.coverFileFor(
+          source: 'bilibili',
+          sourceTrackId: 'saved',
+          extension: 'jpg',
+        )..writeAsBytesSync(const [1]);
+        await store.setCoverPath(kept.id, keptCover.path, bytes: 1);
+
+        await store.clearUnpinned();
+
+        expect(File(cover.path).existsSync(), isFalse);
+        expect(File(keptCover.path).existsSync(), isTrue);
+      },
+    );
+
+    test(
+      'clearUnpinned deletes no downloads when everything is pinned',
+      () async {
+        await addEntry('a', pinned: true);
+        await addEntry('b', pinned: true);
+
+        await store.clearUnpinned();
+
+        expect(await store.entries(), hasLength(2));
+        expect(File(pathFor('a')).existsSync(), isTrue);
+        expect(File(pathFor('b')).existsSync(), isTrue);
+      },
+    );
+
     test('clear deletes companion covers too', () async {
       final entry = await addEntry('a', bytes: 100);
       final cover = store.coverFileFor(

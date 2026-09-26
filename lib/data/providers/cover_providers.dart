@@ -114,7 +114,9 @@ class CacheMaintenance {
   /// the fixed layer-2 cap).
   final Future<void> Function() onEnforceLimits;
 
-  /// Removes every cached file and index row from every cache.
+  /// Removes the online cache: every non-pinned audio row plus the whole
+  /// layer-2 cover cache. Pinned (offline) downloads are kept; they have their
+  /// own entry in the settings screen.
   final Future<void> Function() onClearAll;
 }
 
@@ -128,7 +130,7 @@ final cacheMaintenanceProvider = Provider<CacheMaintenance>((ref) {
       await covers.enforceLimit();
     },
     onClearAll: () async {
-      await audio.clear();
+      await audio.clearUnpinned();
       await covers.clear();
     },
   );

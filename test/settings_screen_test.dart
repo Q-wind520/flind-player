@@ -16,6 +16,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_picker_platform_interface/file_picker_platform_interface.dart';
 import 'package:flutter/foundation.dart';
@@ -30,7 +31,9 @@ import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
+import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
+import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
@@ -105,8 +108,15 @@ class _FakeSettingsRepository implements SettingsRepository {
 /// a database or the filesystem.
 class _FakeCacheStore implements AudioCacheStore {
   int clearCalls = 0;
+  int clearUnpinnedCalls = 0;
   int removeCalls = 0;
   int enforceLimitCalls = 0;
+
+  /// Rows the fake index reports; [remove] drops the row it is given.
+  List<CachedAudio> rows = const <CachedAudio>[];
+
+  /// Ids passed to [remove], in call order.
+  final List<int> removedIds = <int>[];
 
   @override
   Future<void> clear() async {
@@ -114,12 +124,22 @@ class _FakeCacheStore implements AudioCacheStore {
   }
 
   @override
-  Future<void> remove(int id) async {
-    removeCalls++;
+  Future<void> clearUnpinned() async {
+    clearUnpinnedCalls++;
   }
 
   @override
-  Future<List<CachedAudio>> entries() async => const <CachedAudio>[];
+  Future<void> remove(int id) async {
+    removeCalls++;
+    removedIds.add(id);
+    rows = [
+      for (final row in rows)
+        if (row.id != id) row,
+    ];
+  }
+
+  @override
+  Future<List<CachedAudio>> entries() async => rows;
 
   @override
   Future<int> totalBytes() async => 0;
@@ -344,11 +364,16 @@ class _MaintenanceLog {
 
 /// Pumps [SettingsScreen] with every provider overridden so no database,
 /// download manager, platform channel, or network is ever constructed.
+///
+/// [useRealMaintenance] keeps the production [cacheMaintenanceProvider] so a
+/// test can observe which store operation the clear action routes to.
 Widget _app({
   required _FakeSettingsRepository settings,
   required _FakeCacheStore store,
   int usageBytes = 0,
   _MaintenanceLog? maintenance,
+  bool useRealMaintenance = false,
+  CoverCacheStore? coverStore,
   int trackCount = 0,
   List<String> scanRoots = const [],
   List<Track> tracks = const [],
@@ -362,18 +387,21 @@ Widget _app({
         PermissionService(backend: _GrantingPermissionBackend()),
       ),
       audioCacheStoreProvider.overrideWith((ref) => store),
+      if (coverStore != null)
+        coverCacheStoreProvider.overrideWithValue(coverStore),
       // Audio and covers share one quota; the screen reads the combined figure
       // and routes maintenance through the cache-maintenance seam.
       combinedCacheUsageProvider.overrideWith((ref) async => usageBytes),
       coverCacheUsageProvider.overrideWith((ref) async => 0),
-      cacheMaintenanceProvider.overrideWith(
-        (ref) =>
-            maintenance?.build() ??
-            CacheMaintenance(
-              onEnforceLimits: () async {},
-              onClearAll: () async {},
-            ),
-      ),
+      if (!useRealMaintenance)
+        cacheMaintenanceProvider.overrideWith(
+          (ref) =>
+              maintenance?.build() ??
+              CacheMaintenance(
+                onEnforceLimits: () async {},
+                onClearAll: () async {},
+              ),
+        ),
       audioCacheUsageProvider.overrideWith((ref) async => usageBytes),
       audioCacheEntryCountProvider.overrideWith((ref) async => trackCount),
       downloadProgressProvider.overrideWith(
@@ -416,6 +444,32 @@ Track _track(String title, String path) => Track(
   uri: 'local:$path',
   title: title,
 );
+
+/// Builds a cached-song row as [AudioCacheStore.entries] would report it.
+CachedAudio _cachedRow(
+  int id, {
+  required bool pinned,
+  int bytes = 5 * 1024 * 1024,
+}) => CachedAudio(
+  id: id,
+  source: 'bilibili',
+  sourceTrackId: 'BV$id',
+  filePath: '/cache/audio/bilibili/BV$id.m4a',
+  bytes: bytes,
+  qualityId: '30280',
+  pinned: pinned,
+  cachedAt: DateTime.fromMillisecondsSinceEpoch(id),
+  lastAccessedAt: DateTime.fromMillisecondsSinceEpoch(id),
+);
+
+/// Scrolls the settings list until the 离线缓存 section is on screen.
+///
+/// Targets the section's summary tile: its title repeats the section header,
+/// so a plain text finder would not be unique.
+Future<void> _scrollToOfflineCache(WidgetTester tester) async {
+  await tester.scrollUntilVisible(find.widgetWithText(ListTile, '离线缓存'), 100);
+  await tester.pumpAndSettle();
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -712,6 +766,169 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Divider), findsNothing);
+  });
+
+  // -- 离线缓存 section --
+
+  testWidgets('离线缓存 shows an empty hint when nothing is downloaded', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    expect(find.text('暂无已下载歌曲'), findsOneWidget);
+    expect(find.text('无下载 · 已用 0 MB'), findsOneWidget);
+    // Nothing to clear, so the clear action is not offered.
+    expect(find.byIcon(Icons.delete_sweep_outlined), findsNothing);
+  });
+
+  testWidgets('离线缓存 lists the downloads and hides the online rows', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()
+      ..rows = [
+        _cachedRow(1, pinned: true, bytes: 5 * 1024 * 1024),
+        _cachedRow(2, pinned: true, bytes: 512 * 1024),
+        _cachedRow(3, pinned: false),
+      ];
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    expect(find.text('BV1'), findsOneWidget);
+    expect(find.text('5 MB'), findsOneWidget);
+    // Only the two pinned rows are counted, so the online row is not listed.
+    expect(find.text('2 首 · 已用 5.5 MB'), findsOneWidget);
+    expect(find.text('BV3'), findsNothing);
+    expect(find.byIcon(Icons.delete_sweep_outlined), findsOneWidget);
+
+    // The second download sits below the fold; scroll it into view.
+    await tester.scrollUntilVisible(find.text('BV2'), 100);
+    await tester.pumpAndSettle();
+    expect(find.text('BV2'), findsOneWidget);
+    // The tile reports a fixed MB unit, so 512 KiB renders as 0.5 MB.
+    expect(find.text('0.5 MB'), findsOneWidget);
+  });
+
+  testWidgets('deleting a download removes only that row', (tester) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()
+      ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    final entryTile = find.ancestor(
+      of: find.text('BV1'),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(
+      find.descendant(
+        of: entryTile,
+        matching: find.byIcon(Icons.delete_outline),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(store.removedIds, [1]);
+    expect(find.text('BV1'), findsNothing);
+    expect(find.text('BV2'), findsOneWidget);
+    expect(find.text('1 首 · 已用 5 MB'), findsOneWidget);
+  });
+
+  testWidgets('clearing the offline cache asks for confirmation first', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()
+      ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('清空离线缓存？'), findsOneWidget);
+    expect(store.removeCalls, 0);
+
+    // Cancel keeps every download.
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(store.removeCalls, 0);
+    expect(find.text('BV1'), findsOneWidget);
+
+    // Confirming removes them all and reports the freed space.
+    await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清空'));
+    await tester.pumpAndSettle();
+
+    expect(store.removedIds, [1, 2]);
+    expect(find.text('BV1'), findsNothing);
+    expect(find.text('暂无已下载歌曲'), findsOneWidget);
+    expect(find.text('已释放 10 MB'), findsOneWidget);
+  });
+
+  testWidgets('清空缓存 clears the online layer only, keeping downloads', (
+    tester,
+  ) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()..rows = [_cachedRow(1, pinned: true)];
+    // The real maintenance provider runs, so the test observes which store
+    // operation the clear action reaches.
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final coverRoot = Directory.systemTemp.createTempSync(
+      'flind_settings_covers',
+    );
+    addTearDown(() {
+      if (coverRoot.existsSync()) coverRoot.deleteSync(recursive: true);
+    });
+    final coverStore = CoverCacheStore(database: db, baseDir: coverRoot);
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        settings: settings,
+        store: store,
+        useRealMaintenance: true,
+        coverStore: coverStore,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Clear from the cache-location dialog.
+    await tester.tap(find.text('缓存位置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清空缓存'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清空'));
+    await tester.pumpAndSettle();
+
+    // Only the non-pinned rows go; the whole index is never wiped.
+    expect(store.clearUnpinnedCalls, 1);
+    expect(store.clearCalls, 0);
+    expect(store.removeCalls, 0);
+    expect(await coverStore.entries(), isEmpty);
+
+    // Close the still-open cache-location dialog, then check the downloads.
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+    expect(find.text('BV1'), findsOneWidget);
   });
 
   // -- 曲库 on platforms without a local library --

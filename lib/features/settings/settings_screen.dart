@@ -26,11 +26,13 @@ import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -60,6 +62,10 @@ class SettingsScreen extends ConsumerWidget {
           // ── 播放 ──
           _SectionHeader(l10n.sectionPlayback),
           const _PlaybackSection(),
+
+          // ── 离线缓存 ──
+          _SectionHeader(l10n.offlineCache),
+          const _OfflineCacheSection(),
 
           // ── 曲库 ──
           _SectionHeader(l10n.sectionLibrary),
@@ -220,6 +226,10 @@ class _PlaybackSection extends ConsumerWidget {
         ref.invalidate(coverCacheUsageProvider);
         ref.invalidate(audioCacheUsageProvider);
         ref.invalidate(audioCacheEntryCountProvider);
+        // A finished download adds a pinned row, so the offline list and its
+        // usage figure must be refetched too.
+        ref.invalidate(offlineCacheEntriesProvider);
+        ref.invalidate(offlineCacheUsageProvider);
       }
     });
 
@@ -293,6 +303,108 @@ class _PlaybackSection extends ConsumerWidget {
           ref.invalidate(audioCacheEntryCountProvider);
         },
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 离线缓存 section
+// ---------------------------------------------------------------------------
+
+/// Manually downloaded songs: their list, per-download removal and a full
+/// clear.
+///
+/// The complementary counterpart of the "clear cache" action, which now only
+/// drops the online layer, so downloads can only be removed from here.
+class _OfflineCacheSection extends ConsumerWidget {
+  const _OfflineCacheSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final entries =
+        ref.watch(offlineCacheEntriesProvider).value ?? const <CachedAudio>[];
+    final usage = ref.watch(offlineCacheUsageProvider).value ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.download_done_outlined),
+          title: Text(l10n.offlineCache),
+          subtitle: Text(
+            '${l10n.offlineCacheCount(entries.length)} · ${l10n.offlineCacheUsage(formatMegabytes(usage))}',
+          ),
+          trailing: entries.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                  tooltip: l10n.clearOfflineCache,
+                  onPressed: () => _confirmClearOffline(context, ref),
+                ),
+        ),
+        if (entries.isEmpty)
+          ListTile(
+            dense: true,
+            title: Text(
+              l10n.offlineCacheEmpty,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          )
+        else
+          for (final entry in entries)
+            ListTile(
+              dense: true,
+              title: Text(entry.sourceTrackId),
+              subtitle: Text(formatMegabytes(entry.bytes)),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () async {
+                  await ref
+                      .read(offlineCacheMaintenanceProvider)
+                      .onRemove(entry.id);
+                  ref.invalidate(offlineCacheEntriesProvider);
+                  ref.invalidate(offlineCacheUsageProvider);
+                },
+              ),
+            ),
+      ],
+    );
+  }
+
+  /// Confirms, then removes every pinned download.
+  Future<void> _confirmClearOffline(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.clearOfflineTitle),
+        content: Text(l10n.clearOfflineBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.clear),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final freed = ref.read(offlineCacheUsageProvider).value ?? 0;
+    await ref.read(offlineCacheMaintenanceProvider).onClearAll();
+    ref.invalidate(offlineCacheEntriesProvider);
+    ref.invalidate(offlineCacheUsageProvider);
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.offlineCacheCleared(formatMegabytes(freed)))),
     );
   }
 }

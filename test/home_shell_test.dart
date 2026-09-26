@@ -94,6 +94,9 @@ class _FakeCacheStore implements AudioCacheStore {
   Future<void> clear() async {}
 
   @override
+  Future<void> clearUnpinned() async {}
+
+  @override
   Future<void> remove(int id) async {}
 
   @override
