@@ -365,10 +365,11 @@ class AudioCacheStore {
   /// (pinned) and their companion covers survive. Files shared with a pinned
   /// row are kept; companion covers are per-row and go with their row.
   ///
-  /// Never throws; failures are logged and the remaining rows are skipped.
+  /// Never throws; failures are logged, so an unresolvable cache root or a
+  /// failing statement cannot break the settings screen.
   Future<void> clearUnpinned() async {
-    await _resolveDir();
     try {
+      await _resolveDir();
       final rows = await (_db.select(
         _db.audioCache,
       )..where((t) => t.pinned.equals(false))).get();

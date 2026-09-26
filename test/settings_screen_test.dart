@@ -818,7 +818,9 @@ void main() {
     expect(find.text('0.5 MB'), findsOneWidget);
   });
 
-  testWidgets('deleting a download removes only that row', (tester) async {
+  testWidgets('deleting a download asks for confirmation first', (
+    tester,
+  ) async {
     final settings = _FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore()
       ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
@@ -828,16 +830,36 @@ void main() {
     await tester.pumpAndSettle();
     await _scrollToOfflineCache(tester);
 
-    final entryTile = find.ancestor(
-      of: find.text('BV1'),
-      matching: find.byType(ListTile),
-    );
-    await tester.tap(
-      find.descendant(
-        of: entryTile,
+    Future<Finder> deleteIconFor(String title) async {
+      final tile = find.ancestor(
+        of: find.text(title),
+        matching: find.byType(ListTile),
+      );
+      return find.descendant(
+        of: tile,
         matching: find.byIcon(Icons.delete_outline),
-      ),
-    );
+      );
+    }
+
+    await tester.tap(await deleteIconFor('BV1'));
+    await tester.pumpAndSettle();
+
+    // The dialog names the download and nothing is deleted yet.
+    expect(find.text('移除下载？'), findsOneWidget);
+    expect(find.text('将从离线存储中移除“BV1”。'), findsOneWidget);
+    expect(store.removeCalls, 0);
+
+    // Cancel keeps the download.
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(store.removeCalls, 0);
+    expect(find.text('移除下载？'), findsNothing);
+    expect(find.text('BV1'), findsOneWidget);
+
+    // Confirming deletes only that row.
+    await tester.tap(await deleteIconFor('BV1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
 
     expect(store.removedIds, [1]);

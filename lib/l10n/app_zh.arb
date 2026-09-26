@@ -124,7 +124,7 @@
   "pathCopied": "已复制路径",
   "clearCache": "清空缓存",
   "clearCacheTitle": "清空缓存？",
-  "clearCacheBody": "将删除全部已缓存的音频。手动下载的曲目会保留，可在「离线缓存」中管理。",
+  "clearCacheBody": "将永久删除全部已缓存的在线音频。手动下载的曲目会保留，可在「离线缓存」中管理。",
   "offlineCache": "离线缓存",
   "offlineCacheEmpty": "暂无已下载歌曲",
   "offlineCacheCount": "{count, plural, =0{无下载} other{{count} 首}}",

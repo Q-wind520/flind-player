@@ -359,17 +359,49 @@ class _OfflineCacheSection extends ConsumerWidget {
               subtitle: Text(formatMegabytes(entry.bytes)),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () async {
-                  await ref
-                      .read(offlineCacheMaintenanceProvider)
-                      .onRemove(entry.id);
-                  ref.invalidate(offlineCacheEntriesProvider);
-                  ref.invalidate(offlineCacheUsageProvider);
-                },
+                onPressed: () => _confirmRemoveDownload(context, ref, entry),
               ),
             ),
       ],
     );
+  }
+
+  /// Confirms, then deletes the single pinned download [entry].
+  ///
+  /// The dialog names the download by its raw source track id: the settings
+  /// screen holds no library row, so that id is all it can show.
+  Future<void> _confirmRemoveDownload(
+    BuildContext context,
+    WidgetRef ref,
+    CachedAudio entry,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.removeDownloadTitle),
+        content: Text(l10n.removeDownloadBody(entry.sourceTrackId)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await ref.read(offlineCacheMaintenanceProvider).onRemove(entry.id);
+    ref.invalidate(offlineCacheEntriesProvider);
+    ref.invalidate(offlineCacheUsageProvider);
   }
 
   /// Confirms, then removes every pinned download.

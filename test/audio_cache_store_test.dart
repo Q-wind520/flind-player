@@ -542,6 +542,62 @@ void main() {
       },
     );
 
+    test(
+      'clearUnpinned keeps a file still referenced by a pinned row',
+      () async {
+        // Identical content makes the store point both rows at one file.
+        final shared = File('${root.path}/bilibili/shared.bin')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(List<int>.filled(80, 1));
+        final duplicate = File('${root.path}/bilibili/duplicate.bin')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(List<int>.filled(80, 1));
+
+        final pinned = await store.insert(
+          source: 'bilibili',
+          sourceTrackId: 'pinned',
+          filePath: shared.path,
+          bytes: 80,
+          qualityId: '30280',
+          pinned: true,
+        );
+        final online = await store.insert(
+          source: 'bilibili',
+          sourceTrackId: 'online',
+          filePath: duplicate.path,
+          bytes: 80,
+          qualityId: '30280',
+          pinned: false,
+        );
+        expect(online.filePath, pinned.filePath);
+        expect(File(duplicate.path).existsSync(), isFalse);
+
+        await store.clearUnpinned();
+
+        // The unpinned row is gone; the pinned row and the shared file stay.
+        expect(await store.lookup('bilibili', 'online'), isNull);
+        expect((await store.lookup('bilibili', 'pinned'))!.id, pinned.id);
+        expect(File(shared.path).existsSync(), isTrue);
+        expect(await store.totalBytes(), 80);
+      },
+    );
+
+    test(
+      'clearUnpinned never throws when the cache root is unresolvable',
+      () async {
+        // A path-provider failure is the realistic source of this error: the
+        // lazy store resolves its root on first use and createSync can fail.
+        final broken = AudioCacheStore.lazy(
+          database: db,
+          settings: settings,
+          resolveBaseDir: () async =>
+              throw FileSystemException('no support dir'),
+        );
+
+        await expectLater(broken.clearUnpinned(), completes);
+      },
+    );
+
     test('clear deletes companion covers too', () async {
       final entry = await addEntry('a', bytes: 100);
       final cover = store.coverFileFor(
