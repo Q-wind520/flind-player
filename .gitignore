@@ -60,3 +60,6 @@ app.*.map.json
 *.jks
 *.keystore
 key.properties
+
+# Isolated git worktrees
+.worktrees/
