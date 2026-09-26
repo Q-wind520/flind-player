@@ -103,16 +103,22 @@ abstract interface class PlaylistRepository {
   /// The playlist with [id], or `null` when absent.
   Future<Playlist?> playlistById(int id);
 
-  /// Creates a custom playlist with [name] (required, non-blank) and an
-  /// optional [description]. An empty playlist is allowed.
+  /// Creates a custom playlist with [name] (required, non-blank), an optional
+  /// [description] and an optional explicit cover ([coverPath]/[coverUrl]).
+  /// An empty playlist is allowed.
   ///
   /// Throws an [ArgumentError] when [name] is blank.
   Future<Playlist> createPlaylist({
     required String name,
     String? description,
+    String? coverPath,
+    String? coverUrl,
   });
 
   /// Updates a custom playlist's [name], [description] or cover.
+  ///
+  /// A `null` [name], [description], [coverPath] or [coverUrl] leaves that field
+  /// unchanged. Pass `clearCover: true` to explicitly clear both cover columns.
   ///
   /// Throws a [StateError] for the built-in favourites playlist, and an
   /// [ArgumentError] when [name] is provided but blank.
@@ -122,6 +128,7 @@ abstract interface class PlaylistRepository {
     String? description,
     String? coverPath,
     String? coverUrl,
+    bool clearCover = false,
   });
 
   /// Deletes the playlist with [id] and all of its members.

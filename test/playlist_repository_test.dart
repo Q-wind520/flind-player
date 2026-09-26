@@ -99,6 +99,17 @@ void main() {
       expect(stored.kind, PlaylistKind.custom);
     });
 
+    test('creates a playlist with a cover', () async {
+      final p = await repository.createPlaylist(
+        name: 'C',
+        coverPath: '/covers/c.webp',
+        coverUrl: 'https://example.com/c.webp',
+      );
+      final stored = await repository.playlistById(p.id);
+      expect(stored!.coverPath, '/covers/c.webp');
+      expect(stored.coverUrl, 'https://example.com/c.webp');
+    });
+
     test('an empty playlist is allowed', () async {
       final playlist = await repository.createPlaylist(name: 'Empty');
 
@@ -134,6 +145,15 @@ void main() {
       expect(stored.description, 'Desc');
       expect(stored.coverPath, '/covers/p.webp');
       expect(stored.coverUrl, 'https://example.com/p.webp');
+    });
+
+    test('clearCover clears an existing cover', () async {
+      final p = await repository.createPlaylist(name: 'C');
+      await repository.updatePlaylist(p.id, coverPath: '/covers/c.webp');
+      await repository.updatePlaylist(p.id, clearCover: true);
+      final stored = await repository.playlistById(p.id);
+      expect(stored!.coverPath, isNull);
+      expect(stored.coverUrl, isNull);
     });
 
     test('a missing playlist is a no-op', () async {

@@ -227,6 +227,8 @@ class _FakePlaylistRepository implements PlaylistRepository {
   Future<Playlist> createPlaylist({
     required String name,
     String? description,
+    String? coverPath,
+    String? coverUrl,
   }) async {
     if (name.trim().isEmpty) {
       throw ArgumentError('name must not be blank');
@@ -237,6 +239,8 @@ class _FakePlaylistRepository implements PlaylistRepository {
       name: name.trim(),
       kind: PlaylistKind.custom,
       description: description,
+      coverPath: coverPath,
+      coverUrl: coverUrl,
       createdAt: now,
       updatedAt: now,
     );
@@ -252,6 +256,7 @@ class _FakePlaylistRepository implements PlaylistRepository {
     String? description,
     String? coverPath,
     String? coverUrl,
+    bool clearCover = false,
   }) async {
     final index = _playlists.indexWhere((playlist) => playlist.id == id);
     if (index < 0) return;
@@ -262,11 +267,16 @@ class _FakePlaylistRepository implements PlaylistRepository {
     if (name != null && name.trim().isEmpty) {
       throw ArgumentError('name must not be blank');
     }
-    _playlists[index] = current.copyWith(
-      name: name?.trim(),
-      description: description,
-      coverPath: coverPath,
-      coverUrl: coverUrl,
+    // Built explicitly rather than via `copyWith`, whose `null` means "keep":
+    // `clearCover` must write `null` to both cover columns.
+    _playlists[index] = Playlist(
+      id: current.id,
+      name: name?.trim() ?? current.name,
+      kind: current.kind,
+      description: description ?? current.description,
+      coverPath: clearCover ? null : (coverPath ?? current.coverPath),
+      coverUrl: clearCover ? null : (coverUrl ?? current.coverUrl),
+      createdAt: current.createdAt,
       updatedAt: DateTime.now(),
     );
     _emitPlaylists();

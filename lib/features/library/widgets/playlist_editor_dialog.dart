@@ -55,6 +55,7 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
   late final TextEditingController _descriptionController;
   String? _coverPath;
   String? _coverUrl;
+  bool _clearCover = false;
   String? _nameError;
   bool _saving = false;
 
@@ -90,6 +91,7 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
     setState(() {
       _coverPath = path;
       _coverUrl = null;
+      _clearCover = false;
     });
   }
 
@@ -114,12 +116,15 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
           description: description,
           coverPath: _coverPath,
           coverUrl: _coverUrl,
+          clearCover: _clearCover,
         );
         id = widget.playlist!.id;
       } else {
         final created = await repo.createPlaylist(
           name: name,
           description: description.isEmpty ? null : description,
+          coverPath: _coverPath,
+          coverUrl: _coverUrl,
         );
         id = created.id;
       }
@@ -219,6 +224,7 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
                 onPressed: () => setState(() {
                   _coverPath = null;
                   _coverUrl = null;
+                  _clearCover = true;
                 }),
                 icon: const Icon(Icons.delete_outline),
                 label: Text(l10n.removeCover),

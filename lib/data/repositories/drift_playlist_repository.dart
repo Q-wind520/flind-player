@@ -63,6 +63,8 @@ class DriftPlaylistRepository implements PlaylistRepository {
   Future<Playlist> createPlaylist({
     required String name,
     String? description,
+    String? coverPath,
+    String? coverUrl,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -74,6 +76,8 @@ class DriftPlaylistRepository implements PlaylistRepository {
         name: trimmed,
         kind: playlistKindCustom,
         description: Value(description),
+        coverPath: Value(coverPath),
+        coverUrl: Value(coverUrl),
         createdAt: now,
         updatedAt: now,
       ),
@@ -88,6 +92,7 @@ class DriftPlaylistRepository implements PlaylistRepository {
     String? description,
     String? coverPath,
     String? coverUrl,
+    bool clearCover = false,
   }) async {
     final existing = await playlistById(id);
     if (existing == null) return; // A missing playlist is a no-op.
@@ -105,8 +110,12 @@ class DriftPlaylistRepository implements PlaylistRepository {
         description: description == null
             ? const Value.absent()
             : Value(description),
-        coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
-        coverUrl: coverUrl == null ? const Value.absent() : Value(coverUrl),
+        coverPath: clearCover
+            ? const Value(null)
+            : (coverPath == null ? const Value.absent() : Value(coverPath)),
+        coverUrl: clearCover
+            ? const Value(null)
+            : (coverUrl == null ? const Value.absent() : Value(coverUrl)),
         updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
       ),
     );
