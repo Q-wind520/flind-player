@@ -205,7 +205,7 @@ void main() {
   });
 
   group('addTrack / removeTrack / containsTrack', () {
-    test('adds a denormalised snapshot of every stored field', () async {
+    test('resolves every stored field through the pool', () async {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(playlist.id, localTrack());
 
@@ -218,6 +218,11 @@ void main() {
       expect(stored.album, 'Album');
       expect(stored.duration, const Duration(milliseconds: 215000));
       expect(stored.coverPath, '/covers/abc.webp');
+
+      // The member writes no metadata of its own: the pool is the only source.
+      final member = await db.select(db.playlistTracks).getSingle();
+      expect(member.uri, 'local:/music/song.flac');
+      expect(member.playlistId, playlist.id);
     });
 
     test('round-trips a bilibili sourceTrackId', () async {
@@ -368,11 +373,12 @@ void main() {
       expect(pool.single.uri, 'local:/music/song.flac');
     });
 
-    test('pool metadata wins over the snapshot', () async {
+    test('the pool is the single source of truth', () async {
       final playlist = await repository.createPlaylist(name: 'P');
-      await repository.addTrack(playlist.id, localTrack(title: 'Snapshot'));
+      await repository.addTrack(playlist.id, localTrack(title: 'Incoming'));
 
-      // The already-promoted pool row is refreshed later with fresher metadata.
+      // The already-promoted pool row is refreshed later; the member resolves
+      // that pool metadata, not anything captured at add time.
       await (db.update(db.tracks)
             ..where((t) => t.uri.equals('local:/music/song.flac')))
           .write(const TracksCompanion(title: Value('Pool')));
@@ -450,13 +456,14 @@ void main() {
       expect(cover!.coverPath, '/covers/playlist.webp');
     });
 
-    test('pool cover wins over the snapshot cover', () async {
+    test('member cover comes from the pool', () async {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(
         playlist.id,
-        localTrack(coverPath: '/covers/snapshot.webp'),
+        localTrack(coverPath: '/covers/added.webp'),
       );
-      // The already-promoted pool row is refreshed later with a fresher cover.
+      // The already-promoted pool row is refreshed later with a fresher cover;
+      // the member has no snapshot of its own to shadow it.
       await (db.update(db.tracks)
             ..where((t) => t.uri.equals('local:/music/song.flac')))
           .write(

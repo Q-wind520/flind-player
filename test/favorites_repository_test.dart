@@ -93,7 +93,7 @@ void main() {
       expect(await repository.allFavorites(), isEmpty);
     });
 
-    test('adds a denormalised snapshot of every stored field', () async {
+    test('resolves every stored field through the pool', () async {
       await repository.addFavorite(localTrack());
 
       final stored = (await repository.allFavorites()).single;
@@ -105,6 +105,11 @@ void main() {
       expect(stored.album, 'Album');
       expect(stored.duration, const Duration(milliseconds: 215000));
       expect(stored.coverPath, '/covers/abc.webp');
+
+      // The member writes no metadata of its own: the pool is the only source.
+      final member = await db.select(db.playlistTracks).getSingle();
+      expect(member.uri, 'local:/music/song.flac');
+      expect(member.playlistId, 1);
     });
 
     test('round-trips a bilibili sourceTrackId', () async {

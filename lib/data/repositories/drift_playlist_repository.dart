@@ -25,10 +25,9 @@ import 'package:flind_player/data/repositories/drift_music_library_repository.da
 
 /// Drift-backed [PlaylistRepository].
 ///
-/// Members are stored as a denormalised snapshot keyed by `(playlist_id, uri)`
-/// and read through a `LEFT JOIN` on the pool with `COALESCE`, so pool
-/// metadata wins while the snapshot keeps a member resolvable after the track
-/// leaves the library.
+/// Members are stored as pure references keyed by `(playlist_id, uri)` and read
+/// through a `JOIN` on the pool, so the pool is the single source of truth and
+/// a member's metadata and cover are always current.
 class DriftPlaylistRepository implements PlaylistRepository {
   DriftPlaylistRepository(AppDatabase db, {MusicLibraryRepository? library})
     : _db = db,
@@ -156,17 +155,11 @@ class DriftPlaylistRepository implements PlaylistRepository {
     // `tracks` so it can be resolved (and shown in 全部) after being saved.
     await _library.promoteTrack(track);
 
+    // Members are pure references: only the pool row (promoted above) carries
+    // metadata, so no snapshot columns are written here.
     final companion = PlaylistTracksCompanion(
       playlistId: Value(playlistId),
       uri: Value(track.uri),
-      source: Value(track.source),
-      sourceTrackId: Value(_encodeSourceTrackId(track.sourceTrackId)),
-      title: Value(track.title),
-      artist: Value(track.artist),
-      album: Value(track.album),
-      durationMs: Value(track.duration?.inMilliseconds),
-      coverPath: Value(track.coverPath),
-      coverUrl: Value(track.coverUrl),
       addedAt: Value(DateTime.now().millisecondsSinceEpoch),
     );
 
@@ -236,16 +229,15 @@ ORDER BY pt.added_at DESC, pt.id DESC
     );
   }
 
-  /// One row per playlist: the explicit cover plus the newest member's cover
-  /// (pool first, snapshot fallback). A memberless playlist still yields one
-  /// row with null member covers.
+  /// One row per playlist: the explicit cover plus the newest member's pool
+  /// cover. A memberless playlist still yields one row with null member covers.
   Selectable<QueryRow> _coverQuery(int playlistId) {
     return _db.customSelect(
       '''
 SELECT p.cover_path AS playlist_cover_path,
        p.cover_url  AS playlist_cover_url,
-       COALESCE(t.cover_path, pt.cover_path) AS member_cover_path,
-       COALESCE(t.cover_url,  pt.cover_url)  AS member_cover_url
+       t.cover_path AS member_cover_path,
+       t.cover_url  AS member_cover_url
 FROM playlists p
 LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
 LEFT JOIN tracks t ON t.uri = pt.uri
@@ -293,13 +285,6 @@ LIMIT 1
       coverUrl: row.read<String?>('cover_url'),
     );
   }
-}
-
-String _encodeSourceTrackId(SourceTrackId id) {
-  return switch (id) {
-    LocalTrackId(:final path) => path,
-    BiliTrackId(:final bvid, :final cid) => '$bvid:$cid',
-  };
 }
 
 /// Rebuilds the domain [SourceTrackId] from the persisted columns, mirroring

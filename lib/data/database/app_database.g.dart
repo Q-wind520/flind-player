@@ -182,17 +182,6 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _contentHashMeta = const VerificationMeta(
-    'contentHash',
-  );
-  @override
-  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
-    'content_hash',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
     'lastSeenAt',
   );
@@ -289,7 +278,6 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
     genre,
     coverPath,
     coverUrl,
-    contentHash,
     lastSeenAt,
     sizeBytes,
     mtimeMs,
@@ -423,15 +411,6 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
       );
     }
-    if (data.containsKey('content_hash')) {
-      context.handle(
-        _contentHashMeta,
-        contentHash.isAcceptableOrUnknown(
-          data['content_hash']!,
-          _contentHashMeta,
-        ),
-      );
-    }
     if (data.containsKey('last_seen_at')) {
       context.handle(
         _lastSeenAtMeta,
@@ -558,10 +537,6 @@ class $TracksTable extends Tracks with TableInfo<$TracksTable, TrackRow> {
         DriftSqlType.string,
         data['${effectivePrefix}cover_url'],
       ),
-      contentHash: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}content_hash'],
-      ),
       lastSeenAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}last_seen_at'],
@@ -628,13 +603,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
   /// Persisted so a cover can be re-resolved from the cache index — or fetched
   /// again after LRU eviction — without another `view` API round-trip.
   final String? coverUrl;
-
-  /// SHA-1 hex digest of the source file's content (schema v8).
-  ///
-  /// Additive only: the column is created but **not populated** in this round,
-  /// so scanning 3392 tracks is not slowed down. It is reserved for future
-  /// deduplication / stable identity work; `uri` remains the canonical key.
-  final String? contentHash;
   final int? lastSeenAt;
 
   /// Size of the source file in bytes at the last scan (schema v5).
@@ -683,7 +651,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     this.genre,
     this.coverPath,
     this.coverUrl,
-    this.contentHash,
     this.lastSeenAt,
     this.sizeBytes,
     this.mtimeMs,
@@ -735,9 +702,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     }
     if (!nullToAbsent || coverUrl != null) {
       map['cover_url'] = Variable<String>(coverUrl);
-    }
-    if (!nullToAbsent || contentHash != null) {
-      map['content_hash'] = Variable<String>(contentHash);
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<int>(lastSeenAt);
@@ -800,9 +764,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       coverUrl: coverUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(coverUrl),
-      contentHash: contentHash == null && nullToAbsent
-          ? const Value.absent()
-          : Value(contentHash),
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
@@ -846,7 +807,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       genre: serializer.fromJson<String?>(json['genre']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
       coverUrl: serializer.fromJson<String?>(json['coverUrl']),
-      contentHash: serializer.fromJson<String?>(json['contentHash']),
       lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
       sizeBytes: serializer.fromJson<int?>(json['sizeBytes']),
       mtimeMs: serializer.fromJson<int?>(json['mtimeMs']),
@@ -877,7 +837,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       'genre': serializer.toJson<String?>(genre),
       'coverPath': serializer.toJson<String?>(coverPath),
       'coverUrl': serializer.toJson<String?>(coverUrl),
-      'contentHash': serializer.toJson<String?>(contentHash),
       'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
       'sizeBytes': serializer.toJson<int?>(sizeBytes),
       'mtimeMs': serializer.toJson<int?>(mtimeMs),
@@ -906,7 +865,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     Value<String?> genre = const Value.absent(),
     Value<String?> coverPath = const Value.absent(),
     Value<String?> coverUrl = const Value.absent(),
-    Value<String?> contentHash = const Value.absent(),
     Value<int?> lastSeenAt = const Value.absent(),
     Value<int?> sizeBytes = const Value.absent(),
     Value<int?> mtimeMs = const Value.absent(),
@@ -932,7 +890,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     genre: genre.present ? genre.value : this.genre,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
     coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
-    contentHash: contentHash.present ? contentHash.value : this.contentHash,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
     sizeBytes: sizeBytes.present ? sizeBytes.value : this.sizeBytes,
     mtimeMs: mtimeMs.present ? mtimeMs.value : this.mtimeMs,
@@ -968,9 +925,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
       genre: data.genre.present ? data.genre.value : this.genre,
       coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
       coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
-      contentHash: data.contentHash.present
-          ? data.contentHash.value
-          : this.contentHash,
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
@@ -1003,7 +957,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
           ..write('coverUrl: $coverUrl, ')
-          ..write('contentHash: $contentHash, ')
           ..write('lastSeenAt: $lastSeenAt, ')
           ..write('sizeBytes: $sizeBytes, ')
           ..write('mtimeMs: $mtimeMs, ')
@@ -1034,7 +987,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
     genre,
     coverPath,
     coverUrl,
-    contentHash,
     lastSeenAt,
     sizeBytes,
     mtimeMs,
@@ -1064,7 +1016,6 @@ class TrackRow extends DataClass implements Insertable<TrackRow> {
           other.genre == this.genre &&
           other.coverPath == this.coverPath &&
           other.coverUrl == this.coverUrl &&
-          other.contentHash == this.contentHash &&
           other.lastSeenAt == this.lastSeenAt &&
           other.sizeBytes == this.sizeBytes &&
           other.mtimeMs == this.mtimeMs &&
@@ -1092,7 +1043,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
   final Value<String?> genre;
   final Value<String?> coverPath;
   final Value<String?> coverUrl;
-  final Value<String?> contentHash;
   final Value<int?> lastSeenAt;
   final Value<int?> sizeBytes;
   final Value<int?> mtimeMs;
@@ -1118,7 +1068,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.coverUrl = const Value.absent(),
-    this.contentHash = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
     this.sizeBytes = const Value.absent(),
     this.mtimeMs = const Value.absent(),
@@ -1145,7 +1094,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     this.genre = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.coverUrl = const Value.absent(),
-    this.contentHash = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
     this.sizeBytes = const Value.absent(),
     this.mtimeMs = const Value.absent(),
@@ -1177,7 +1125,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Expression<String>? genre,
     Expression<String>? coverPath,
     Expression<String>? coverUrl,
-    Expression<String>? contentHash,
     Expression<int>? lastSeenAt,
     Expression<int>? sizeBytes,
     Expression<int>? mtimeMs,
@@ -1204,7 +1151,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       if (genre != null) 'genre': genre,
       if (coverPath != null) 'cover_path': coverPath,
       if (coverUrl != null) 'cover_url': coverUrl,
-      if (contentHash != null) 'content_hash': contentHash,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
       if (sizeBytes != null) 'size_bytes': sizeBytes,
       if (mtimeMs != null) 'mtime_ms': mtimeMs,
@@ -1233,7 +1179,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     Value<String?>? genre,
     Value<String?>? coverPath,
     Value<String?>? coverUrl,
-    Value<String?>? contentHash,
     Value<int?>? lastSeenAt,
     Value<int?>? sizeBytes,
     Value<int?>? mtimeMs,
@@ -1260,7 +1205,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
       genre: genre ?? this.genre,
       coverPath: coverPath ?? this.coverPath,
       coverUrl: coverUrl ?? this.coverUrl,
-      contentHash: contentHash ?? this.contentHash,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       mtimeMs: mtimeMs ?? this.mtimeMs,
@@ -1325,9 +1269,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
     if (coverUrl.present) {
       map['cover_url'] = Variable<String>(coverUrl.value);
     }
-    if (contentHash.present) {
-      map['content_hash'] = Variable<String>(contentHash.value);
-    }
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<int>(lastSeenAt.value);
     }
@@ -1372,7 +1313,6 @@ class TracksCompanion extends UpdateCompanion<TrackRow> {
           ..write('genre: $genre, ')
           ..write('coverPath: $coverPath, ')
           ..write('coverUrl: $coverUrl, ')
-          ..write('contentHash: $contentHash, ')
           ..write('lastSeenAt: $lastSeenAt, ')
           ..write('sizeBytes: $sizeBytes, ')
           ..write('mtimeMs: $mtimeMs, ')
@@ -1675,223 +1615,6 @@ class ScanRootsCompanion extends UpdateCompanion<ScanRootRow> {
           ..write('path: $path, ')
           ..write('kind: $kind, ')
           ..write('addedAt: $addedAt')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $ScanStateTable extends ScanState
-    with TableInfo<$ScanStateTable, ScanStateRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $ScanStateTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _keyMeta = const VerificationMeta('key');
-  @override
-  late final GeneratedColumn<String> key = GeneratedColumn<String>(
-    'key',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _valueMeta = const VerificationMeta('value');
-  @override
-  late final GeneratedColumn<String> value = GeneratedColumn<String>(
-    'value',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [key, value];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'scan_state';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<ScanStateRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('key')) {
-      context.handle(
-        _keyMeta,
-        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_keyMeta);
-    }
-    if (data.containsKey('value')) {
-      context.handle(
-        _valueMeta,
-        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {key};
-  @override
-  ScanStateRow map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ScanStateRow(
-      key: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}key'],
-      )!,
-      value: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}value'],
-      ),
-    );
-  }
-
-  @override
-  $ScanStateTable createAlias(String alias) {
-    return $ScanStateTable(attachedDatabase, alias);
-  }
-}
-
-class ScanStateRow extends DataClass implements Insertable<ScanStateRow> {
-  final String key;
-  final String? value;
-  const ScanStateRow({required this.key, this.value});
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['key'] = Variable<String>(key);
-    if (!nullToAbsent || value != null) {
-      map['value'] = Variable<String>(value);
-    }
-    return map;
-  }
-
-  ScanStateCompanion toCompanion(bool nullToAbsent) {
-    return ScanStateCompanion(
-      key: Value(key),
-      value: value == null && nullToAbsent
-          ? const Value.absent()
-          : Value(value),
-    );
-  }
-
-  factory ScanStateRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ScanStateRow(
-      key: serializer.fromJson<String>(json['key']),
-      value: serializer.fromJson<String?>(json['value']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'key': serializer.toJson<String>(key),
-      'value': serializer.toJson<String?>(value),
-    };
-  }
-
-  ScanStateRow copyWith({
-    String? key,
-    Value<String?> value = const Value.absent(),
-  }) => ScanStateRow(
-    key: key ?? this.key,
-    value: value.present ? value.value : this.value,
-  );
-  ScanStateRow copyWithCompanion(ScanStateCompanion data) {
-    return ScanStateRow(
-      key: data.key.present ? data.key.value : this.key,
-      value: data.value.present ? data.value.value : this.value,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ScanStateRow(')
-          ..write('key: $key, ')
-          ..write('value: $value')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(key, value);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ScanStateRow &&
-          other.key == this.key &&
-          other.value == this.value);
-}
-
-class ScanStateCompanion extends UpdateCompanion<ScanStateRow> {
-  final Value<String> key;
-  final Value<String?> value;
-  final Value<int> rowid;
-  const ScanStateCompanion({
-    this.key = const Value.absent(),
-    this.value = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  ScanStateCompanion.insert({
-    required String key,
-    this.value = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : key = Value(key);
-  static Insertable<ScanStateRow> custom({
-    Expression<String>? key,
-    Expression<String>? value,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (key != null) 'key': key,
-      if (value != null) 'value': value,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  ScanStateCompanion copyWith({
-    Value<String>? key,
-    Value<String?>? value,
-    Value<int>? rowid,
-  }) {
-    return ScanStateCompanion(
-      key: key ?? this.key,
-      value: value ?? this.value,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (key.present) {
-      map['key'] = Variable<String>(key.value);
-    }
-    if (value.present) {
-      map['value'] = Variable<String>(value.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ScanStateCompanion(')
-          ..write('key: $key, ')
-          ..write('value: $value, ')
-          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -4038,86 +3761,6 @@ class $PlaylistTracksTable extends PlaylistTracks
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
-  @override
-  late final GeneratedColumn<String> source = GeneratedColumn<String>(
-    'source',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _sourceTrackIdMeta = const VerificationMeta(
-    'sourceTrackId',
-  );
-  @override
-  late final GeneratedColumn<String> sourceTrackId = GeneratedColumn<String>(
-    'source_track_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _titleMeta = const VerificationMeta('title');
-  @override
-  late final GeneratedColumn<String> title = GeneratedColumn<String>(
-    'title',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _artistMeta = const VerificationMeta('artist');
-  @override
-  late final GeneratedColumn<String> artist = GeneratedColumn<String>(
-    'artist',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _albumMeta = const VerificationMeta('album');
-  @override
-  late final GeneratedColumn<String> album = GeneratedColumn<String>(
-    'album',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _durationMsMeta = const VerificationMeta(
-    'durationMs',
-  );
-  @override
-  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
-    'duration_ms',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _coverPathMeta = const VerificationMeta(
-    'coverPath',
-  );
-  @override
-  late final GeneratedColumn<String> coverPath = GeneratedColumn<String>(
-    'cover_path',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _coverUrlMeta = const VerificationMeta(
-    'coverUrl',
-  );
-  @override
-  late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
-    'cover_url',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
   static const VerificationMeta _addedAtMeta = const VerificationMeta(
     'addedAt',
   );
@@ -4129,33 +3772,8 @@ class $PlaylistTracksTable extends PlaylistTracks
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _positionMeta = const VerificationMeta(
-    'position',
-  );
   @override
-  late final GeneratedColumn<int> position = GeneratedColumn<int>(
-    'position',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    playlistId,
-    uri,
-    source,
-    sourceTrackId,
-    title,
-    artist,
-    album,
-    durationMs,
-    coverPath,
-    coverUrl,
-    addedAt,
-    position,
-  ];
+  List<GeneratedColumn> get $columns => [id, playlistId, uri, addedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4187,63 +3805,6 @@ class $PlaylistTracksTable extends PlaylistTracks
     } else if (isInserting) {
       context.missing(_uriMeta);
     }
-    if (data.containsKey('source')) {
-      context.handle(
-        _sourceMeta,
-        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_sourceMeta);
-    }
-    if (data.containsKey('source_track_id')) {
-      context.handle(
-        _sourceTrackIdMeta,
-        sourceTrackId.isAcceptableOrUnknown(
-          data['source_track_id']!,
-          _sourceTrackIdMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_sourceTrackIdMeta);
-    }
-    if (data.containsKey('title')) {
-      context.handle(
-        _titleMeta,
-        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_titleMeta);
-    }
-    if (data.containsKey('artist')) {
-      context.handle(
-        _artistMeta,
-        artist.isAcceptableOrUnknown(data['artist']!, _artistMeta),
-      );
-    }
-    if (data.containsKey('album')) {
-      context.handle(
-        _albumMeta,
-        album.isAcceptableOrUnknown(data['album']!, _albumMeta),
-      );
-    }
-    if (data.containsKey('duration_ms')) {
-      context.handle(
-        _durationMsMeta,
-        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
-      );
-    }
-    if (data.containsKey('cover_path')) {
-      context.handle(
-        _coverPathMeta,
-        coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
-      );
-    }
-    if (data.containsKey('cover_url')) {
-      context.handle(
-        _coverUrlMeta,
-        coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
-      );
-    }
     if (data.containsKey('added_at')) {
       context.handle(
         _addedAtMeta,
@@ -4251,12 +3812,6 @@ class $PlaylistTracksTable extends PlaylistTracks
       );
     } else if (isInserting) {
       context.missing(_addedAtMeta);
-    }
-    if (data.containsKey('position')) {
-      context.handle(
-        _positionMeta,
-        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
-      );
     }
     return context;
   }
@@ -4283,46 +3838,10 @@ class $PlaylistTracksTable extends PlaylistTracks
         DriftSqlType.string,
         data['${effectivePrefix}uri'],
       )!,
-      source: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}source'],
-      )!,
-      sourceTrackId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}source_track_id'],
-      )!,
-      title: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}title'],
-      )!,
-      artist: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}artist'],
-      ),
-      album: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}album'],
-      ),
-      durationMs: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}duration_ms'],
-      ),
-      coverPath: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}cover_path'],
-      ),
-      coverUrl: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}cover_url'],
-      ),
       addedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}added_at'],
       )!,
-      position: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}position'],
-      ),
     );
   }
 
@@ -4342,40 +3861,14 @@ class PlaylistTrackRow extends DataClass
   /// Canonical pool key (`local:<path>` / `bilibili:<bvid>:<cid>`).
   final String uri;
 
-  /// Source identifier, e.g. `local` or `bilibili`.
-  final String source;
-
-  /// Source-specific identity (absolute path, or `bvid:cid`).
-  final String sourceTrackId;
-  final String title;
-  final String? artist;
-  final String? album;
-  final int? durationMs;
-  final String? coverPath;
-
-  /// Remote cover URL, mirroring [Tracks.coverUrl].
-  final String? coverUrl;
-
   /// Unix timestamp when the member was added; the ordering key
   /// (= the old favourites `favorited_at`).
   final int addedAt;
-
-  /// Reserved for future manual ordering inside custom playlists; unused.
-  final int? position;
   const PlaylistTrackRow({
     required this.id,
     required this.playlistId,
     required this.uri,
-    required this.source,
-    required this.sourceTrackId,
-    required this.title,
-    this.artist,
-    this.album,
-    this.durationMs,
-    this.coverPath,
-    this.coverUrl,
     required this.addedAt,
-    this.position,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4383,28 +3876,7 @@ class PlaylistTrackRow extends DataClass
     map['id'] = Variable<int>(id);
     map['playlist_id'] = Variable<int>(playlistId);
     map['uri'] = Variable<String>(uri);
-    map['source'] = Variable<String>(source);
-    map['source_track_id'] = Variable<String>(sourceTrackId);
-    map['title'] = Variable<String>(title);
-    if (!nullToAbsent || artist != null) {
-      map['artist'] = Variable<String>(artist);
-    }
-    if (!nullToAbsent || album != null) {
-      map['album'] = Variable<String>(album);
-    }
-    if (!nullToAbsent || durationMs != null) {
-      map['duration_ms'] = Variable<int>(durationMs);
-    }
-    if (!nullToAbsent || coverPath != null) {
-      map['cover_path'] = Variable<String>(coverPath);
-    }
-    if (!nullToAbsent || coverUrl != null) {
-      map['cover_url'] = Variable<String>(coverUrl);
-    }
     map['added_at'] = Variable<int>(addedAt);
-    if (!nullToAbsent || position != null) {
-      map['position'] = Variable<int>(position);
-    }
     return map;
   }
 
@@ -4413,28 +3885,7 @@ class PlaylistTrackRow extends DataClass
       id: Value(id),
       playlistId: Value(playlistId),
       uri: Value(uri),
-      source: Value(source),
-      sourceTrackId: Value(sourceTrackId),
-      title: Value(title),
-      artist: artist == null && nullToAbsent
-          ? const Value.absent()
-          : Value(artist),
-      album: album == null && nullToAbsent
-          ? const Value.absent()
-          : Value(album),
-      durationMs: durationMs == null && nullToAbsent
-          ? const Value.absent()
-          : Value(durationMs),
-      coverPath: coverPath == null && nullToAbsent
-          ? const Value.absent()
-          : Value(coverPath),
-      coverUrl: coverUrl == null && nullToAbsent
-          ? const Value.absent()
-          : Value(coverUrl),
       addedAt: Value(addedAt),
-      position: position == null && nullToAbsent
-          ? const Value.absent()
-          : Value(position),
     );
   }
 
@@ -4447,16 +3898,7 @@ class PlaylistTrackRow extends DataClass
       id: serializer.fromJson<int>(json['id']),
       playlistId: serializer.fromJson<int>(json['playlistId']),
       uri: serializer.fromJson<String>(json['uri']),
-      source: serializer.fromJson<String>(json['source']),
-      sourceTrackId: serializer.fromJson<String>(json['sourceTrackId']),
-      title: serializer.fromJson<String>(json['title']),
-      artist: serializer.fromJson<String?>(json['artist']),
-      album: serializer.fromJson<String?>(json['album']),
-      durationMs: serializer.fromJson<int?>(json['durationMs']),
-      coverPath: serializer.fromJson<String?>(json['coverPath']),
-      coverUrl: serializer.fromJson<String?>(json['coverUrl']),
       addedAt: serializer.fromJson<int>(json['addedAt']),
-      position: serializer.fromJson<int?>(json['position']),
     );
   }
   @override
@@ -4466,16 +3908,7 @@ class PlaylistTrackRow extends DataClass
       'id': serializer.toJson<int>(id),
       'playlistId': serializer.toJson<int>(playlistId),
       'uri': serializer.toJson<String>(uri),
-      'source': serializer.toJson<String>(source),
-      'sourceTrackId': serializer.toJson<String>(sourceTrackId),
-      'title': serializer.toJson<String>(title),
-      'artist': serializer.toJson<String?>(artist),
-      'album': serializer.toJson<String?>(album),
-      'durationMs': serializer.toJson<int?>(durationMs),
-      'coverPath': serializer.toJson<String?>(coverPath),
-      'coverUrl': serializer.toJson<String?>(coverUrl),
       'addedAt': serializer.toJson<int>(addedAt),
-      'position': serializer.toJson<int?>(position),
     };
   }
 
@@ -4483,30 +3916,12 @@ class PlaylistTrackRow extends DataClass
     int? id,
     int? playlistId,
     String? uri,
-    String? source,
-    String? sourceTrackId,
-    String? title,
-    Value<String?> artist = const Value.absent(),
-    Value<String?> album = const Value.absent(),
-    Value<int?> durationMs = const Value.absent(),
-    Value<String?> coverPath = const Value.absent(),
-    Value<String?> coverUrl = const Value.absent(),
     int? addedAt,
-    Value<int?> position = const Value.absent(),
   }) => PlaylistTrackRow(
     id: id ?? this.id,
     playlistId: playlistId ?? this.playlistId,
     uri: uri ?? this.uri,
-    source: source ?? this.source,
-    sourceTrackId: sourceTrackId ?? this.sourceTrackId,
-    title: title ?? this.title,
-    artist: artist.present ? artist.value : this.artist,
-    album: album.present ? album.value : this.album,
-    durationMs: durationMs.present ? durationMs.value : this.durationMs,
-    coverPath: coverPath.present ? coverPath.value : this.coverPath,
-    coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
     addedAt: addedAt ?? this.addedAt,
-    position: position.present ? position.value : this.position,
   );
   PlaylistTrackRow copyWithCompanion(PlaylistTracksCompanion data) {
     return PlaylistTrackRow(
@@ -4515,20 +3930,7 @@ class PlaylistTrackRow extends DataClass
           ? data.playlistId.value
           : this.playlistId,
       uri: data.uri.present ? data.uri.value : this.uri,
-      source: data.source.present ? data.source.value : this.source,
-      sourceTrackId: data.sourceTrackId.present
-          ? data.sourceTrackId.value
-          : this.sourceTrackId,
-      title: data.title.present ? data.title.value : this.title,
-      artist: data.artist.present ? data.artist.value : this.artist,
-      album: data.album.present ? data.album.value : this.album,
-      durationMs: data.durationMs.present
-          ? data.durationMs.value
-          : this.durationMs,
-      coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
-      coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
-      position: data.position.present ? data.position.value : this.position,
     );
   }
 
@@ -4538,36 +3940,13 @@ class PlaylistTrackRow extends DataClass
           ..write('id: $id, ')
           ..write('playlistId: $playlistId, ')
           ..write('uri: $uri, ')
-          ..write('source: $source, ')
-          ..write('sourceTrackId: $sourceTrackId, ')
-          ..write('title: $title, ')
-          ..write('artist: $artist, ')
-          ..write('album: $album, ')
-          ..write('durationMs: $durationMs, ')
-          ..write('coverPath: $coverPath, ')
-          ..write('coverUrl: $coverUrl, ')
-          ..write('addedAt: $addedAt, ')
-          ..write('position: $position')
+          ..write('addedAt: $addedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    playlistId,
-    uri,
-    source,
-    sourceTrackId,
-    title,
-    artist,
-    album,
-    durationMs,
-    coverPath,
-    coverUrl,
-    addedAt,
-    position,
-  );
+  int get hashCode => Object.hash(id, playlistId, uri, addedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4575,96 +3954,39 @@ class PlaylistTrackRow extends DataClass
           other.id == this.id &&
           other.playlistId == this.playlistId &&
           other.uri == this.uri &&
-          other.source == this.source &&
-          other.sourceTrackId == this.sourceTrackId &&
-          other.title == this.title &&
-          other.artist == this.artist &&
-          other.album == this.album &&
-          other.durationMs == this.durationMs &&
-          other.coverPath == this.coverPath &&
-          other.coverUrl == this.coverUrl &&
-          other.addedAt == this.addedAt &&
-          other.position == this.position);
+          other.addedAt == this.addedAt);
 }
 
 class PlaylistTracksCompanion extends UpdateCompanion<PlaylistTrackRow> {
   final Value<int> id;
   final Value<int> playlistId;
   final Value<String> uri;
-  final Value<String> source;
-  final Value<String> sourceTrackId;
-  final Value<String> title;
-  final Value<String?> artist;
-  final Value<String?> album;
-  final Value<int?> durationMs;
-  final Value<String?> coverPath;
-  final Value<String?> coverUrl;
   final Value<int> addedAt;
-  final Value<int?> position;
   const PlaylistTracksCompanion({
     this.id = const Value.absent(),
     this.playlistId = const Value.absent(),
     this.uri = const Value.absent(),
-    this.source = const Value.absent(),
-    this.sourceTrackId = const Value.absent(),
-    this.title = const Value.absent(),
-    this.artist = const Value.absent(),
-    this.album = const Value.absent(),
-    this.durationMs = const Value.absent(),
-    this.coverPath = const Value.absent(),
-    this.coverUrl = const Value.absent(),
     this.addedAt = const Value.absent(),
-    this.position = const Value.absent(),
   });
   PlaylistTracksCompanion.insert({
     this.id = const Value.absent(),
     required int playlistId,
     required String uri,
-    required String source,
-    required String sourceTrackId,
-    required String title,
-    this.artist = const Value.absent(),
-    this.album = const Value.absent(),
-    this.durationMs = const Value.absent(),
-    this.coverPath = const Value.absent(),
-    this.coverUrl = const Value.absent(),
     required int addedAt,
-    this.position = const Value.absent(),
   }) : playlistId = Value(playlistId),
        uri = Value(uri),
-       source = Value(source),
-       sourceTrackId = Value(sourceTrackId),
-       title = Value(title),
        addedAt = Value(addedAt);
   static Insertable<PlaylistTrackRow> custom({
     Expression<int>? id,
     Expression<int>? playlistId,
     Expression<String>? uri,
-    Expression<String>? source,
-    Expression<String>? sourceTrackId,
-    Expression<String>? title,
-    Expression<String>? artist,
-    Expression<String>? album,
-    Expression<int>? durationMs,
-    Expression<String>? coverPath,
-    Expression<String>? coverUrl,
     Expression<int>? addedAt,
-    Expression<int>? position,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (playlistId != null) 'playlist_id': playlistId,
       if (uri != null) 'uri': uri,
-      if (source != null) 'source': source,
-      if (sourceTrackId != null) 'source_track_id': sourceTrackId,
-      if (title != null) 'title': title,
-      if (artist != null) 'artist': artist,
-      if (album != null) 'album': album,
-      if (durationMs != null) 'duration_ms': durationMs,
-      if (coverPath != null) 'cover_path': coverPath,
-      if (coverUrl != null) 'cover_url': coverUrl,
       if (addedAt != null) 'added_at': addedAt,
-      if (position != null) 'position': position,
     });
   }
 
@@ -4672,31 +3994,13 @@ class PlaylistTracksCompanion extends UpdateCompanion<PlaylistTrackRow> {
     Value<int>? id,
     Value<int>? playlistId,
     Value<String>? uri,
-    Value<String>? source,
-    Value<String>? sourceTrackId,
-    Value<String>? title,
-    Value<String?>? artist,
-    Value<String?>? album,
-    Value<int?>? durationMs,
-    Value<String?>? coverPath,
-    Value<String?>? coverUrl,
     Value<int>? addedAt,
-    Value<int?>? position,
   }) {
     return PlaylistTracksCompanion(
       id: id ?? this.id,
       playlistId: playlistId ?? this.playlistId,
       uri: uri ?? this.uri,
-      source: source ?? this.source,
-      sourceTrackId: sourceTrackId ?? this.sourceTrackId,
-      title: title ?? this.title,
-      artist: artist ?? this.artist,
-      album: album ?? this.album,
-      durationMs: durationMs ?? this.durationMs,
-      coverPath: coverPath ?? this.coverPath,
-      coverUrl: coverUrl ?? this.coverUrl,
       addedAt: addedAt ?? this.addedAt,
-      position: position ?? this.position,
     );
   }
 
@@ -4712,35 +4016,8 @@ class PlaylistTracksCompanion extends UpdateCompanion<PlaylistTrackRow> {
     if (uri.present) {
       map['uri'] = Variable<String>(uri.value);
     }
-    if (source.present) {
-      map['source'] = Variable<String>(source.value);
-    }
-    if (sourceTrackId.present) {
-      map['source_track_id'] = Variable<String>(sourceTrackId.value);
-    }
-    if (title.present) {
-      map['title'] = Variable<String>(title.value);
-    }
-    if (artist.present) {
-      map['artist'] = Variable<String>(artist.value);
-    }
-    if (album.present) {
-      map['album'] = Variable<String>(album.value);
-    }
-    if (durationMs.present) {
-      map['duration_ms'] = Variable<int>(durationMs.value);
-    }
-    if (coverPath.present) {
-      map['cover_path'] = Variable<String>(coverPath.value);
-    }
-    if (coverUrl.present) {
-      map['cover_url'] = Variable<String>(coverUrl.value);
-    }
     if (addedAt.present) {
       map['added_at'] = Variable<int>(addedAt.value);
-    }
-    if (position.present) {
-      map['position'] = Variable<int>(position.value);
     }
     return map;
   }
@@ -4751,16 +4028,7 @@ class PlaylistTracksCompanion extends UpdateCompanion<PlaylistTrackRow> {
           ..write('id: $id, ')
           ..write('playlistId: $playlistId, ')
           ..write('uri: $uri, ')
-          ..write('source: $source, ')
-          ..write('sourceTrackId: $sourceTrackId, ')
-          ..write('title: $title, ')
-          ..write('artist: $artist, ')
-          ..write('album: $album, ')
-          ..write('durationMs: $durationMs, ')
-          ..write('coverPath: $coverPath, ')
-          ..write('coverUrl: $coverUrl, ')
-          ..write('addedAt: $addedAt, ')
-          ..write('position: $position')
+          ..write('addedAt: $addedAt')
           ..write(')'))
         .toString();
   }
@@ -4771,7 +4039,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $TracksTable tracks = $TracksTable(this);
   late final $ScanRootsTable scanRoots = $ScanRootsTable(this);
-  late final $ScanStateTable scanState = $ScanStateTable(this);
   late final $AudioCacheTable audioCache = $AudioCacheTable(this);
   late final $CoverCacheTable coverCache = $CoverCacheTable(this);
   late final $PlaybackStatesTable playbackStates = $PlaybackStatesTable(this);
@@ -4796,7 +4063,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     tracks,
     scanRoots,
-    scanState,
     audioCache,
     coverCache,
     playbackStates,
@@ -4826,7 +4092,6 @@ typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
   Value<String?> genre,
   Value<String?> coverPath,
   Value<String?> coverUrl,
-  Value<String?> contentHash,
   Value<int?> lastSeenAt,
   Value<int?> sizeBytes,
   Value<int?> mtimeMs,
@@ -4853,7 +4118,6 @@ typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
   Value<String?> genre,
   Value<String?> coverPath,
   Value<String?> coverUrl,
-  Value<String?> contentHash,
   Value<int?> lastSeenAt,
   Value<int?> sizeBytes,
   Value<int?> mtimeMs,
@@ -4954,11 +4218,6 @@ class $$TracksTableFilterComposer
 
   ColumnFilters<String> get coverUrl => $composableBuilder(
     column: $table.coverUrl,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get contentHash => $composableBuilder(
-    column: $table.contentHash,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5092,11 +4351,6 @@ class $$TracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get contentHash => $composableBuilder(
-    column: $table.contentHash,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => ColumnOrderings(column),
@@ -5201,11 +4455,6 @@ class $$TracksTableAnnotationComposer
   GeneratedColumn<String> get coverUrl =>
       $composableBuilder(column: $table.coverUrl, builder: (column) => column);
 
-  GeneratedColumn<String> get contentHash => $composableBuilder(
-    column: $table.contentHash,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<int> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => column,
@@ -5275,7 +4524,6 @@ class $$TracksTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<String?> coverUrl = const Value.absent(),
-                Value<String?> contentHash = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
                 Value<int?> sizeBytes = const Value.absent(),
                 Value<int?> mtimeMs = const Value.absent(),
@@ -5301,7 +4549,6 @@ class $$TracksTableTableManager
                 genre: genre,
                 coverPath: coverPath,
                 coverUrl: coverUrl,
-                contentHash: contentHash,
                 lastSeenAt: lastSeenAt,
                 sizeBytes: sizeBytes,
                 mtimeMs: mtimeMs,
@@ -5329,7 +4576,6 @@ class $$TracksTableTableManager
                 Value<String?> genre = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<String?> coverUrl = const Value.absent(),
-                Value<String?> contentHash = const Value.absent(),
                 Value<int?> lastSeenAt = const Value.absent(),
                 Value<int?> sizeBytes = const Value.absent(),
                 Value<int?> mtimeMs = const Value.absent(),
@@ -5355,7 +4601,6 @@ class $$TracksTableTableManager
                 genre: genre,
                 coverPath: coverPath,
                 coverUrl: coverUrl,
-                contentHash: contentHash,
                 lastSeenAt: lastSeenAt,
                 sizeBytes: sizeBytes,
                 mtimeMs: mtimeMs,
@@ -5575,146 +4820,6 @@ typedef $$ScanRootsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $ScanRootsTable, ScanRootRow>,
       ),
       ScanRootRow,
-      PrefetchHooks Function()
-    >;
-typedef $$ScanStateTableCreateCompanionBuilder = ScanStateCompanion Function({
-  required String key,
-  Value<String?> value,
-  Value<int> rowid,
-});
-typedef $$ScanStateTableUpdateCompanionBuilder = ScanStateCompanion Function({
-  Value<String> key,
-  Value<String?> value,
-  Value<int> rowid,
-});
-
-class $$ScanStateTableFilterComposer
-    extends Composer<_$AppDatabase, $ScanStateTable> {
-  $$ScanStateTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get key => $composableBuilder(
-    column: $table.key,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get value => $composableBuilder(
-    column: $table.value,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$ScanStateTableOrderingComposer
-    extends Composer<_$AppDatabase, $ScanStateTable> {
-  $$ScanStateTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get key => $composableBuilder(
-    column: $table.key,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get value => $composableBuilder(
-    column: $table.value,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$ScanStateTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ScanStateTable> {
-  $$ScanStateTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get key =>
-      $composableBuilder(column: $table.key, builder: (column) => column);
-
-  GeneratedColumn<String> get value =>
-      $composableBuilder(column: $table.value, builder: (column) => column);
-}
-
-class $$ScanStateTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $ScanStateTable,
-          ScanStateRow,
-          $$ScanStateTableFilterComposer,
-          $$ScanStateTableOrderingComposer,
-          $$ScanStateTableAnnotationComposer,
-          $$ScanStateTableCreateCompanionBuilder,
-          $$ScanStateTableUpdateCompanionBuilder,
-          (
-            ScanStateRow,
-            BaseReferences<_$AppDatabase, $ScanStateTable, ScanStateRow>,
-          ),
-          ScanStateRow,
-          PrefetchHooks Function()
-        > {
-  $$ScanStateTableTableManager(_$AppDatabase db, $ScanStateTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$ScanStateTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$ScanStateTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ScanStateTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<String> key = const Value.absent(),
-            Value<String?> value = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => ScanStateCompanion(key: key, value: value, rowid: rowid),
-          createCompanionCallback: ({
-            required String key,
-            Value<String?> value = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => ScanStateCompanion.insert(key: key, value: value, rowid: rowid),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable<$ScanStateTable, ScanStateRow>(table),
-                  BaseReferences<_$AppDatabase, $ScanStateTable, ScanStateRow>(
-                    db,
-                    table,
-                    e,
-                  ),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$ScanStateTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $ScanStateTable,
-      ScanStateRow,
-      $$ScanStateTableFilterComposer,
-      $$ScanStateTableOrderingComposer,
-      $$ScanStateTableAnnotationComposer,
-      $$ScanStateTableCreateCompanionBuilder,
-      $$ScanStateTableUpdateCompanionBuilder,
-      (
-        ScanStateRow,
-        BaseReferences<_$AppDatabase, $ScanStateTable, ScanStateRow>,
-      ),
-      ScanStateRow,
       PrefetchHooks Function()
     >;
 typedef $$AudioCacheTableCreateCompanionBuilder = AudioCacheCompanion Function({
@@ -6782,32 +5887,14 @@ typedef $$PlaylistTracksTableCreateCompanionBuilder =
       Value<int> id,
       required int playlistId,
       required String uri,
-      required String source,
-      required String sourceTrackId,
-      required String title,
-      Value<String?> artist,
-      Value<String?> album,
-      Value<int?> durationMs,
-      Value<String?> coverPath,
-      Value<String?> coverUrl,
       required int addedAt,
-      Value<int?> position,
     });
 typedef $$PlaylistTracksTableUpdateCompanionBuilder =
     PlaylistTracksCompanion Function({
       Value<int> id,
       Value<int> playlistId,
       Value<String> uri,
-      Value<String> source,
-      Value<String> sourceTrackId,
-      Value<String> title,
-      Value<String?> artist,
-      Value<String?> album,
-      Value<int?> durationMs,
-      Value<String?> coverPath,
-      Value<String?> coverUrl,
       Value<int> addedAt,
-      Value<int?> position,
     });
 
 class $$PlaylistTracksTableFilterComposer
@@ -6834,53 +5921,8 @@ class $$PlaylistTracksTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get source => $composableBuilder(
-    column: $table.source,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get sourceTrackId => $composableBuilder(
-    column: $table.sourceTrackId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get title => $composableBuilder(
-    column: $table.title,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get artist => $composableBuilder(
-    column: $table.artist,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get album => $composableBuilder(
-    column: $table.album,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get durationMs => $composableBuilder(
-    column: $table.durationMs,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get coverPath => $composableBuilder(
-    column: $table.coverPath,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get coverUrl => $composableBuilder(
-    column: $table.coverUrl,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<int> get addedAt => $composableBuilder(
     column: $table.addedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get position => $composableBuilder(
-    column: $table.position,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6909,53 +5951,8 @@ class $$PlaylistTracksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get source => $composableBuilder(
-    column: $table.source,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get sourceTrackId => $composableBuilder(
-    column: $table.sourceTrackId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get title => $composableBuilder(
-    column: $table.title,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get artist => $composableBuilder(
-    column: $table.artist,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get album => $composableBuilder(
-    column: $table.album,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get durationMs => $composableBuilder(
-    column: $table.durationMs,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get coverPath => $composableBuilder(
-    column: $table.coverPath,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get coverUrl => $composableBuilder(
-    column: $table.coverUrl,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get addedAt => $composableBuilder(
     column: $table.addedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get position => $composableBuilder(
-    column: $table.position,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -6980,39 +5977,8 @@ class $$PlaylistTracksTableAnnotationComposer
   GeneratedColumn<String> get uri =>
       $composableBuilder(column: $table.uri, builder: (column) => column);
 
-  GeneratedColumn<String> get source =>
-      $composableBuilder(column: $table.source, builder: (column) => column);
-
-  GeneratedColumn<String> get sourceTrackId => $composableBuilder(
-    column: $table.sourceTrackId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get title =>
-      $composableBuilder(column: $table.title, builder: (column) => column);
-
-  GeneratedColumn<String> get artist =>
-      $composableBuilder(column: $table.artist, builder: (column) => column);
-
-  GeneratedColumn<String> get album =>
-      $composableBuilder(column: $table.album, builder: (column) => column);
-
-  GeneratedColumn<int> get durationMs => $composableBuilder(
-    column: $table.durationMs,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get coverPath =>
-      $composableBuilder(column: $table.coverPath, builder: (column) => column);
-
-  GeneratedColumn<String> get coverUrl =>
-      $composableBuilder(column: $table.coverUrl, builder: (column) => column);
-
   GeneratedColumn<int> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => column);
-
-  GeneratedColumn<int> get position =>
-      $composableBuilder(column: $table.position, builder: (column) => column);
 }
 
 class $$PlaylistTracksTableTableManager
@@ -7055,60 +6021,24 @@ class $$PlaylistTracksTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> playlistId = const Value.absent(),
                 Value<String> uri = const Value.absent(),
-                Value<String> source = const Value.absent(),
-                Value<String> sourceTrackId = const Value.absent(),
-                Value<String> title = const Value.absent(),
-                Value<String?> artist = const Value.absent(),
-                Value<String?> album = const Value.absent(),
-                Value<int?> durationMs = const Value.absent(),
-                Value<String?> coverPath = const Value.absent(),
-                Value<String?> coverUrl = const Value.absent(),
                 Value<int> addedAt = const Value.absent(),
-                Value<int?> position = const Value.absent(),
               }) => PlaylistTracksCompanion(
                 id: id,
                 playlistId: playlistId,
                 uri: uri,
-                source: source,
-                sourceTrackId: sourceTrackId,
-                title: title,
-                artist: artist,
-                album: album,
-                durationMs: durationMs,
-                coverPath: coverPath,
-                coverUrl: coverUrl,
                 addedAt: addedAt,
-                position: position,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
                 required int playlistId,
                 required String uri,
-                required String source,
-                required String sourceTrackId,
-                required String title,
-                Value<String?> artist = const Value.absent(),
-                Value<String?> album = const Value.absent(),
-                Value<int?> durationMs = const Value.absent(),
-                Value<String?> coverPath = const Value.absent(),
-                Value<String?> coverUrl = const Value.absent(),
                 required int addedAt,
-                Value<int?> position = const Value.absent(),
               }) => PlaylistTracksCompanion.insert(
                 id: id,
                 playlistId: playlistId,
                 uri: uri,
-                source: source,
-                sourceTrackId: sourceTrackId,
-                title: title,
-                artist: artist,
-                album: album,
-                durationMs: durationMs,
-                coverPath: coverPath,
-                coverUrl: coverUrl,
                 addedAt: addedAt,
-                position: position,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -7152,8 +6082,6 @@ class $AppDatabaseManager {
       $$TracksTableTableManager(_db, _db.tracks);
   $$ScanRootsTableTableManager get scanRoots =>
       $$ScanRootsTableTableManager(_db, _db.scanRoots);
-  $$ScanStateTableTableManager get scanState =>
-      $$ScanStateTableTableManager(_db, _db.scanState);
   $$AudioCacheTableTableManager get audioCache =>
       $$AudioCacheTableTableManager(_db, _db.audioCache);
   $$CoverCacheTableTableManager get coverCache =>

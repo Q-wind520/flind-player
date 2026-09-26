@@ -24,6 +24,7 @@ import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
+import 'package:flind_player/data/repositories/drift_playlist_repository.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
 /// Polls until [condition] is true, failing after [timeout].
@@ -954,6 +955,8 @@ void main() {
       await before.customStatement('DROP TRIGGER IF EXISTS tracks_fts_au');
       await before.customStatement('DROP TABLE IF EXISTS tracks_fts');
       await before.customStatement('ALTER TABLE tracks DROP COLUMN missing_at');
+      await before.customStatement('DROP TABLE IF EXISTS playlists');
+      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
       await before.customStatement('PRAGMA user_version = 1');
       await before.close();
 
@@ -991,6 +994,8 @@ void main() {
       await before.customStatement('ALTER TABLE tracks DROP COLUMN size_bytes');
       await before.customStatement('ALTER TABLE tracks DROP COLUMN mtime_ms');
       await before.customStatement('ALTER TABLE tracks DROP COLUMN scan_root');
+      await before.customStatement('DROP TABLE IF EXISTS playlists');
+      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
       await before.customStatement('PRAGMA user_version = 4');
       await before.close();
 
@@ -1043,6 +1048,8 @@ void main() {
       await before.customStatement(
         'ALTER TABLE audio_cache DROP COLUMN content_hash',
       );
+      await before.customStatement('DROP TABLE IF EXISTS playlists');
+      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
       await before.customStatement('PRAGMA user_version = 5');
       await before.close();
 
@@ -1073,9 +1080,10 @@ void main() {
       final file = File('${dir.path}/library.sqlite');
 
       // Build a current-schema file, then roll it back to v6 by dropping the
-      // two cover_url columns and the cover_cache table v7 introduces. The
-      // legacy `favorites` table is no longer created by the current schema
-      // (schema v8 removed it), so recreate it here to build the v6 fixture.
+      // two cover_url columns and the cover_cache table v7 introduces, plus the
+      // v8 playlists tables. The legacy `favorites` table is no longer created
+      // by the current schema (schema v8 removed it), so recreate it here to
+      // build the v6 fixture.
       final before = AppDatabase(NativeDatabase(file));
       await before.customStatement(
         'CREATE TABLE IF NOT EXISTS favorites ('
@@ -1103,6 +1111,8 @@ void main() {
         "VALUES ('bilibili:BV1:1', 'bilibili', 'BV1:1', 'Song', 1)",
       );
       await before.customStatement('DROP TABLE cover_cache');
+      await before.customStatement('DROP TABLE IF EXISTS playlists');
+      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
       await before.customStatement('ALTER TABLE tracks DROP COLUMN cover_url');
       await before.customStatement(
         'ALTER TABLE favorites DROP COLUMN cover_url',
@@ -1119,12 +1129,13 @@ void main() {
           .getSingle();
       expect(track.data['cover_url'], isNull);
       // The legacy favourites row migrated into the built-in playlist (the v8
-      // upgrade converts `favorites` into `playlist_tracks` and drops the old
-      // table), carrying the null cover URL the v7 column add produced.
+      // upgrade converts `favorites` into playlist members and drops the old
+      // table, then v9 backfills the pool and makes members reference-only),
+      // carrying the null cover URL the v7 column add produced. Members now
+      // resolve entirely through the pool.
       final member = await after
           .customSelect(
-            "SELECT cover_url FROM playlist_tracks "
-            "WHERE uri = 'bilibili:BV1:1'",
+            "SELECT cover_url FROM tracks WHERE uri = 'bilibili:BV1:1'",
           )
           .getSingle();
       expect(member.data['cover_url'], isNull);
@@ -1151,8 +1162,8 @@ void main() {
       final file = File('${dir.path}/library.sqlite');
 
       // Build a current-schema file, then roll it back to a v7 shape: no
-      // playlists, no `content_hash` on tracks, and the standalone `favorites`
-      // table (with the v7 `cover_url` column) carrying two rows.
+      // playlists, and the standalone `favorites` table (with the v7 `cover_url`
+      // column) carrying two rows.
       final before = AppDatabase(NativeDatabase(file));
       await before.customStatement(
         'INSERT INTO tracks '
@@ -1162,7 +1173,6 @@ void main() {
       );
       await before.customStatement('DROP TABLE IF EXISTS playlists');
       await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
-      await before.customStatement('ALTER TABLE tracks DROP COLUMN content_hash');
       await before.customStatement(
         'CREATE TABLE IF NOT EXISTS favorites ('
         'id INTEGER PRIMARY KEY AUTOINCREMENT, '
@@ -1220,11 +1230,14 @@ void main() {
       ).get();
       expect(legacy, isEmpty);
 
-      // The v8 `content_hash` column was added to tracks.
+      // The short-lived v8 `content_hash` column is gone again in v9.
       final columns = await after.customSelect(
         'PRAGMA table_info(tracks)',
       ).get();
-      expect(columns.map((r) => r.data['name']), contains('content_hash'));
+      expect(
+        columns.map((r) => r.data['name']),
+        isNot(contains('content_hash')),
+      );
     });
 
     test('v7 -> v8 without a legacy favourites table still seeds the playlist',
@@ -1240,7 +1253,6 @@ void main() {
       final before = AppDatabase(NativeDatabase(file));
       await before.customStatement('DROP TABLE IF EXISTS playlists');
       await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
-      await before.customStatement('ALTER TABLE tracks DROP COLUMN content_hash');
       await before.customStatement('PRAGMA user_version = 7');
       await before.close();
 
@@ -1272,7 +1284,6 @@ void main() {
       final first = AppDatabase(NativeDatabase(file));
       await first.customStatement('DROP TABLE IF EXISTS playlists');
       await first.customStatement('DROP TABLE IF EXISTS playlist_tracks');
-      await first.customStatement('ALTER TABLE tracks DROP COLUMN content_hash');
       await first.customStatement(
         'CREATE TABLE IF NOT EXISTS favorites ('
         'id INTEGER PRIMARY KEY AUTOINCREMENT, '
@@ -1308,7 +1319,7 @@ void main() {
       expect(members.data['n'], 1);
     });
 
-    test('a fresh v8 database seeds the built-in favourites playlist', () async {
+    test('a fresh v9 database seeds the built-in favourites playlist', () async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);
 
@@ -1319,6 +1330,100 @@ void main() {
           .getSingle();
       expect(playlist.data['name'], 'Favorites');
       expect(playlist.data['kind'], 'favorites');
+    });
+
+    test('v8 -> v9 backfills the pool and rebuilds playlist_tracks', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v9');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current (v9) file, then roll `playlist_tracks` back to its v8
+      // shape (snapshot columns + position), restore the v8-only bits, pin v8.
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement('DROP TABLE playlist_tracks');
+      await before.customStatement('''
+CREATE TABLE playlist_tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  uri TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_track_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  artist TEXT,
+  album TEXT,
+  duration_ms INTEGER,
+  cover_path TEXT,
+  cover_url TEXT,
+  added_at INTEGER NOT NULL,
+  position INTEGER,
+  UNIQUE (playlist_id, uri)
+)
+''');
+      // A member that is NOT in tracks — the v8 favourites-snapshot case.
+      await before.customStatement(
+        'INSERT INTO playlist_tracks '
+        '(playlist_id, uri, source, source_track_id, title, artist, added_at, '
+        "cover_url) VALUES (1, 'bilibili:BV1:7', 'bilibili', 'BV1:7', 'Online', "
+        "'UP', 5, 'https://x/c.webp')",
+      );
+      await before.customStatement(
+        'ALTER TABLE tracks ADD COLUMN content_hash TEXT',
+      );
+      await before.customStatement(
+        'CREATE TABLE scan_state (key TEXT PRIMARY KEY, value TEXT)',
+      );
+      await before.customStatement('PRAGMA user_version = 8');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      // Backfill promoted the member into the pool.
+      final pool = await after.select(after.tracks).get();
+      expect(pool, hasLength(1));
+      expect(pool.single.uri, 'bilibili:BV1:7');
+      expect(pool.single.title, 'Online');
+
+      // tracks.content_hash removed.
+      final cols = await after.customSelect('PRAGMA table_info(tracks)').get();
+      expect(cols.map((r) => r.data['name']), isNot(contains('content_hash')));
+
+      // scan_state removed.
+      final tables = await after
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name='scan_state'",
+          )
+          .get();
+      expect(tables, isEmpty);
+
+      // playlist_tracks is reference-only.
+      final ptCols = await after
+          .customSelect('PRAGMA table_info(playlist_tracks)')
+          .get();
+      expect(ptCols.map((r) => r.data['name']).toSet(), {
+        'id',
+        'playlist_id',
+        'uri',
+        'added_at',
+      });
+
+      // The ordering index survives the rebuild.
+      final idx = await after
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type='index' "
+            "AND name='idx_playlist_tracks_order'",
+          )
+          .get();
+      expect(idx, hasLength(1));
+
+      // The member resolves through the pool.
+      final repo = DriftPlaylistRepository(after);
+      final members = await repo.playlistTracks(1);
+      expect(members.single.title, 'Online');
+      expect(members.single.id, isNotNull);
     });
   });
 }

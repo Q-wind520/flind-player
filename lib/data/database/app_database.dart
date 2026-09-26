@@ -26,7 +26,6 @@ part 'app_database.g.dart';
   tables: [
     Tracks,
     ScanRoots,
-    ScanState,
     AudioCache,
     CoverCache,
     PlaybackStates,
@@ -40,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -114,15 +113,16 @@ CREATE TABLE IF NOT EXISTS favorites (
       }
       if (from < 8) {
         // v7 had no playlists: favourites were a standalone denormalised table
-        // and there were no user playlists. The new tables/index are created
-        // with `IF NOT EXISTS`, the favourites playlist is seeded with
-        // `INSERT OR IGNORE`, and the legacy `favorites` rows are converted
-        // into members (old `favorited_at` becomes `added_at`) only when the
-        // old table actually exists. Every step is re-runnable.
+        // and there were no user playlists. The new index and the favourites
+        // playlist are created idempotently; `playlist_tracks` is created in
+        // its historical v8 (snapshot) shape with raw SQL because the drift
+        // table is reference-only in v9. The legacy `favorites` rows are
+        // converted into snapshot members only when the old table exists. The
+        // v9 upgrade (from < 9, below) then backfills the pool from those
+        // snapshots and rebuilds the table. Every step is re-runnable.
         await m.createTable(playlists);
-        await m.createTable(playlistTracks);
+        await customStatement(_createV8PlaylistTracks);
         await m.createIndex(idxPlaylistTracksOrder);
-        await _addColumnIfMissing(m, tracks, tracks.contentHash);
 
         // 1) Seed the built-in favourites playlist (raw SQL: `Favorites` is no
         // longer in the table list, so there is no generated code for it).
@@ -144,6 +144,42 @@ CREATE TABLE IF NOT EXISTS favorites (
           );
           await customStatement('DROP TABLE IF EXISTS favorites');
         }
+      }
+      if (from < 9) {
+        // v8 stored playlist members as denormalised snapshots; v9 makes them
+        // pure references into the pool (`tracks`). Migrate in four steps.
+        //
+        // 1) Backfill: promote every referenced member into the pool so the
+        // pool is the single source of truth (favourites added before v9 were
+        // snapshots, so their metadata would otherwise be lost). Guarded on the
+        // v8 snapshot columns so a re-run over an already reference-only table
+        // (or a fixture created from the current schema) is a no-op.
+        final ptColumns = await customSelect(
+          'PRAGMA table_info(playlist_tracks)',
+        ).get();
+        if (ptColumns.any((r) => r.data['name'] == 'source')) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          await customStatement('''
+INSERT OR IGNORE INTO tracks
+  (source, source_track_id, uri, title, artist, album,
+   duration_ms, cover_path, cover_url, created_at, updated_at)
+SELECT source, source_track_id, uri, title, artist, album,
+       duration_ms, cover_path, cover_url, $now, $now
+FROM playlist_tracks
+WHERE uri NOT IN (SELECT uri FROM tracks)
+''');
+        }
+
+        // 2) Rebuild playlist_tracks as a reference-only table. A guarded raw
+        // rebuild is used instead of TableMigration so the ordering index is
+        // recreated deterministically.
+        await _rebuildPlaylistTracksAsReferences();
+
+        // 3) Drop tracks.content_hash (best-effort on old SQLite).
+        await _dropColumnIfExists('tracks', 'content_hash');
+
+        // 4) Drop the unused scan_state table.
+        await customStatement('DROP TABLE IF EXISTS scan_state');
       }
     },
   );
@@ -205,7 +241,81 @@ CREATE TABLE IF NOT EXISTS favorites (
     if (rows.any((row) => row.data['name'] == column)) return;
     await customStatement('ALTER TABLE $table ADD COLUMN $column $type');
   }
+
+  /// Drops [column] from [table] when the physical table still carries it.
+  ///
+  /// Best-effort: SQLite before 3.35 has no `ALTER TABLE ... DROP COLUMN`, and
+  /// leaving an unused column behind is harmless.
+  Future<void> _dropColumnIfExists(String table, String column) async {
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    if (!rows.any((row) => row.data['name'] == column)) return;
+    try {
+      await customStatement('ALTER TABLE $table DROP COLUMN $column');
+    } on Exception {
+      // SQLite < 3.35 has no DROP COLUMN; leaving the column is harmless.
+    }
+  }
+
+  /// Rebuilds `playlist_tracks` to the reference-only v9 shape, preserving
+  /// `(id, playlist_id, uri, added_at)` and recreating the ordering index.
+  ///
+  /// Idempotent: a re-run over an already-v9 table is a no-op.
+  Future<void> _rebuildPlaylistTracksAsReferences() async {
+    final cols = await customSelect('PRAGMA table_info(playlist_tracks)').get();
+    final names = cols.map((r) => r.data['name']).toSet();
+    if (names.contains('added_at') &&
+        !names.contains('source') &&
+        !names.contains('position')) {
+      return; // Already reference-only.
+    }
+    await customStatement('''
+CREATE TABLE playlist_tracks_v9 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  uri TEXT NOT NULL,
+  added_at INTEGER NOT NULL,
+  UNIQUE (playlist_id, uri)
+)
+''');
+    await customStatement('''
+INSERT INTO playlist_tracks_v9 (id, playlist_id, uri, added_at)
+SELECT id, playlist_id, uri, added_at FROM playlist_tracks
+''');
+    await customStatement('DROP TABLE playlist_tracks');
+    await customStatement(
+      'ALTER TABLE playlist_tracks_v9 RENAME TO playlist_tracks',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order '
+      'ON playlist_tracks (playlist_id, added_at DESC, id DESC)',
+    );
+  }
 }
+
+/// Historical v8 shape of `playlist_tracks` (denormalised snapshot + position).
+///
+/// The drift table is reference-only from v9 on, so the `from < 8` upgrade
+/// cannot use `Migrator.createTable` for the intermediate shape. The v9
+/// upgrade immediately backfills the pool from these snapshots and rebuilds
+/// the table.
+const String _createV8PlaylistTracks = '''
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL,
+  uri TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_track_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  artist TEXT,
+  album TEXT,
+  duration_ms INTEGER,
+  cover_path TEXT,
+  cover_url TEXT,
+  added_at INTEGER NOT NULL,
+  position INTEGER,
+  UNIQUE (playlist_id, uri)
+)
+''';
 
 QueryExecutor _openConnection() {
   return driftDatabase(name: 'flind_player');

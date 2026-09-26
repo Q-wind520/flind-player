@@ -50,13 +50,6 @@ class Tracks extends Table {
   /// Persisted so a cover can be re-resolved from the cache index — or fetched
   /// again after LRU eviction — without another `view` API round-trip.
   TextColumn get coverUrl => text().nullable()();
-
-  /// SHA-1 hex digest of the source file's content (schema v8).
-  ///
-  /// Additive only: the column is created but **not populated** in this round,
-  /// so scanning 3392 tracks is not slowed down. It is reserved for future
-  /// deduplication / stable identity work; `uri` remains the canonical key.
-  TextColumn get contentHash => text().nullable()();
   IntColumn get lastSeenAt => integer().nullable()();
 
   /// Size of the source file in bytes at the last scan (schema v5).
@@ -98,16 +91,6 @@ class ScanRoots extends Table {
   /// Root kind, currently only `local`.
   TextColumn get kind => text()();
   IntColumn get addedAt => integer()();
-}
-
-/// Small key/value store for incremental scan bookkeeping.
-@DataClassName('ScanStateRow')
-class ScanState extends Table {
-  TextColumn get key => text()();
-  TextColumn get value => text().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {key};
 }
 
 /// Offline audio cache index (docs/local-library.md §4.4).
@@ -219,9 +202,8 @@ class Playlists extends Table {
 
 /// Playlist members: one row per (playlist, track).
 ///
-/// `uri` is the reference into the pool; the metadata columns are a survival
-/// snapshot, so a member keeps resolving after the track leaves the library
-/// (a removed scan root, a soft-deleted row, or an offline Bilibili item).
+/// `uri` is a pure reference into the `tracks` pool (schema v9); a member
+/// carries no metadata of its own and resolves entirely through the pool.
 @DataClassName('PlaylistTrackRow')
 @TableIndex.sql(
   'CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order '
@@ -236,27 +218,9 @@ class PlaylistTracks extends Table {
   /// Canonical pool key (`local:<path>` / `bilibili:<bvid>:<cid>`).
   TextColumn get uri => text()();
 
-  /// Source identifier, e.g. `local` or `bilibili`.
-  TextColumn get source => text()();
-
-  /// Source-specific identity (absolute path, or `bvid:cid`).
-  TextColumn get sourceTrackId => text()();
-
-  TextColumn get title => text()();
-  TextColumn get artist => text().nullable()();
-  TextColumn get album => text().nullable()();
-  IntColumn get durationMs => integer().nullable()();
-  TextColumn get coverPath => text().nullable()();
-
-  /// Remote cover URL, mirroring [Tracks.coverUrl].
-  TextColumn get coverUrl => text().nullable()();
-
   /// Unix timestamp when the member was added; the ordering key
   /// (= the old favourites `favorited_at`).
   IntColumn get addedAt => integer()();
-
-  /// Reserved for future manual ordering inside custom playlists; unused.
-  IntColumn get position => integer().nullable()();
 
   @override
   List<Set<Column>> get uniqueKeys => [
