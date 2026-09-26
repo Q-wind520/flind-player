@@ -252,6 +252,7 @@ git push origin v0.2.1
 | [`docs/bilibili-source.md`](docs/bilibili-source.md) | Bilibili 适配器：端点、WBI 签名、鉴权、限流、法务 |
 | [`docs/local-library.md`](docs/local-library.md) | 本地曲库：扫描、元数据、drift schema、离线缓存 |
 | [`docs/widget-tree.md`](docs/widget-tree.md) | 轻量级 Widget 树总览 |
+| [`docs/缓存延期问题.md`](docs/缓存延期问题.md) | 缓存评审遗留的延期小问题（触发条件 / 后果） |
 
 <br />
 

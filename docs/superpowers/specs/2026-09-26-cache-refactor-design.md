@@ -4,7 +4,7 @@
 - 状态：待实现
 - 范围：缓存存储布局、数据模型、配额与驱逐、封面生命周期、迁移与测试、设置页离线管理
 - 目标读者：实现者
-- 关联：[`docs/缓存TODO.md`](../../缓存TODO.md)、[`docs/local-library.md`](../../local-library.md) §3/§4、[`docs/architecture.md`](../../architecture.md) §7
+- 关联：[`docs/archive/缓存TODO-2026-09-26.md`](../../archive/缓存TODO-2026-09-26.md)、[`docs/local-library.md`](../../local-library.md) §3/§4、[`docs/architecture.md`](../../architecture.md) §7
 
 ## 1. 背景
 
@@ -15,7 +15,7 @@
 - **本地内嵌封面** `covers/`（`ArtworkCache`）：不入配额；
 - **配置**：`shared_preferences`（`SettingsRepository`）。
 
-`docs/缓存TODO.md` 已逐行核实并列出问题 P1–P5。核心结构性缺陷是：
+`docs/archive/缓存TODO-2026-09-26.md` 已逐行核实并列出问题 P1–P5。核心结构性缺陷是：
 
 - **P1**：音频与封面**共用同一字节配额**，且驱逐永远“封面全清 → 再动音频”。曲库占满配额后封面缓存实际归零、反复重下（缓存抖动）。
 - **P4**：同一套“合并字节 ≤ 限额、封面先驱逐”策略被 `AudioCacheStore` 与 `CoverCacheStore` 各实现一遍，且互相跨表读写，改一侧另一侧必漂移。
