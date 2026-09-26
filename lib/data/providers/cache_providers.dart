@@ -59,7 +59,8 @@ final cacheSettingsProvider = StreamProvider<CacheSettings>(
   (ref) => ref.watch(settingsRepositoryProvider).watchCacheSettings(),
 );
 
-/// Total bytes currently occupied by the offline audio cache.
+/// Bytes the user's cache cap governs: online (non-pinned) audio plus its
+/// companion covers. Pinned downloads are exempt and excluded.
 final audioCacheUsageProvider = FutureProvider<int>(
   (ref) => ref.watch(audioCacheStoreProvider).totalBytes(),
 );

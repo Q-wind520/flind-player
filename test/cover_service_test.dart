@@ -202,7 +202,8 @@ void main() {
   });
 
   /// Indexes the Bilibili fixture song in the audio cache (layer 1), as a
-  /// completed pin/download would.
+  /// completed play-through cache would. Left unpinned so its bytes count
+  /// toward the layer-1 quota.
   Future<void> addCachedSong() async {
     final audioFile = audio.fileFor(
       source: 'bilibili',
@@ -217,7 +218,7 @@ void main() {
       filePath: audioFile.path,
       bytes: 3,
       qualityId: '30280',
-      pinned: true,
+      pinned: false,
     );
   }
 

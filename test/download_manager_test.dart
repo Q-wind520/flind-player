@@ -322,7 +322,7 @@ void main() {
     expect(await manager.isCached(secondTrack), isTrue);
   });
 
-  test('a full cache yields failed without evicting pinned rows', () async {
+  test('pinned rows are exempt, so an online download is not blocked', () async {
     settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
     await addPinned('pinnedA', 800);
     await addPinned('pinnedB', 800);
@@ -333,12 +333,12 @@ void main() {
 
     await manager.cacheTrack(biliTrack);
 
-    expect(downloader.calls, 0);
-    expect(events.last.phase, DownloadPhase.failed);
-    expect(events.last.error, isA<CacheCapacityException>());
+    // Pinned bytes do not fill the quota, so the download proceeds.
+    expect(events.last.phase, DownloadPhase.done);
+    expect(await manager.isCached(biliTrack), isTrue);
+    // The pinned rows are untouched.
     expect(await store.lookup('bilibili', 'pinnedA'), isNotNull);
     expect(await store.lookup('bilibili', 'pinnedB'), isNotNull);
-    expect(await manager.isCached(biliTrack), isFalse);
   });
 
   test(

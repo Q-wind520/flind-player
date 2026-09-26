@@ -263,7 +263,8 @@ void main() {
       expect(refreshed.coverPath, cover.path);
       expect(refreshed.pinned, isTrue);
       expect((await store.lookup('bilibili', 'BV1:1'))!.coverPath, cover.path);
-      expect(await store.totalBytes(), 7);
+      // The row is now pinned, so it is exempt from the quota.
+      expect(await store.totalBytes(), 0);
     });
 
     test(
@@ -297,7 +298,7 @@ void main() {
 
   group('setPinned', () {
     test('promotes a play-through entry so it survives eviction', () async {
-      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 600);
       final auto = await addEntry('auto', bytes: 400, lastAccessedAt: 1000);
       await addEntry('newer', bytes: 400, lastAccessedAt: 2000);
 
@@ -320,10 +321,14 @@ void main() {
         lastAccessedAt: 1000,
       );
 
-      expect((await store.ensureSpace(400)).hasSpace, isFalse);
+      // A pinned row is exempt: it neither counts toward the limit nor is
+      // evicted to make room.
+      expect((await store.ensureSpace(400)).hasSpace, isTrue);
+      expect((await store.entries()).single.sourceTrackId, 'a');
 
       await store.setPinned(pinned.id, false);
 
+      // Now it counts against the quota and is evicted to make room.
       expect((await store.ensureSpace(400)).hasSpace, isTrue);
       expect(await store.entries(), isEmpty);
     });
@@ -361,8 +366,7 @@ void main() {
       expect(await store.lookup('bilibili', 'c'), isNotNull);
     });
 
-    test('never evicts pinned entries and reports no space when pinned '
-        'alone exceeds the limit', () async {
+    test('pinned entries are exempt from the limit and never counted', () async {
       settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
       await addEntry('a', bytes: 800, pinned: true, lastAccessedAt: 1000);
       await addEntry('b', bytes: 800, pinned: true, lastAccessedAt: 2000);
@@ -371,7 +375,9 @@ void main() {
 
       expect(result.evictedCount, 0);
       expect(result.freedBytes, 0);
-      expect(result.hasSpace, isFalse);
+      // Pinned bytes do not count, so the cache is empty against the quota.
+      expect(result.hasSpace, isTrue);
+      expect(await store.totalBytes(), 0);
       expect(await store.lookup('bilibili', 'a'), isNotNull);
       expect(await store.lookup('bilibili', 'b'), isNotNull);
       expect(File(pathFor('a')).existsSync(), isTrue);
@@ -379,7 +385,7 @@ void main() {
     });
 
     test('evicts non-pinned entries while keeping pinned ones', () async {
-      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 500);
       await addEntry('pinned', bytes: 800, pinned: true, lastAccessedAt: 1000);
       await addEntry('streamed', bytes: 800, lastAccessedAt: 2000);
 
@@ -473,6 +479,20 @@ void main() {
       expect(await store.lookup('bilibili', 'a'), isNull);
       expect(await store.lookup('bilibili', 'b'), isNotNull);
       expect(await store.totalBytes(), 900);
+    });
+
+    test('totalBytes counts non-pinned rows only', () async {
+      await addEntry('online', bytes: 300);
+      final saved = await addEntry('saved', bytes: 900, pinned: true);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'saved',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [1]);
+      await store.setCoverPath(saved.id, cover.path, bytes: 100);
+
+      // The pinned row's 900 audio + 100 cover are exempt; only 300 counts.
+      expect(await store.totalBytes(), 300);
     });
   });
 
@@ -603,10 +623,11 @@ void main() {
         await store.clearUnpinned();
 
         // The unpinned row is gone; the pinned row and the shared file stay.
+        // The surviving row is pinned, so the quota footprint is now zero.
         expect(await store.lookup('bilibili', 'online'), isNull);
         expect((await store.lookup('bilibili', 'pinned'))!.id, pinned.id);
         expect(File(shared.path).existsSync(), isTrue);
-        expect(await store.totalBytes(), 80);
+        expect(await store.totalBytes(), 0);
       },
     );
 
@@ -727,7 +748,8 @@ void main() {
       expect(await store.lookup('bilibili', 'auto'), isNull);
       expect(await store.lookup('bilibili', 'pinned'), isNotNull);
       expect(File(shared.path).existsSync(), isTrue);
-      expect(await store.totalBytes(), 80);
+      // Only the pinned row remains, and pinned bytes are exempt.
+      expect(await store.totalBytes(), 0);
     });
 
     test('deduplicateByContent repairs legacy rows with null hashes', () async {

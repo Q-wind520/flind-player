@@ -71,10 +71,11 @@ final coverCacheUsageProvider = FutureProvider<int>(
   (ref) => ref.watch(coverCacheStoreProvider).totalBytes(),
 );
 
-/// Bytes occupied by the audio cache plus the cover cache.
-///
-/// The audio side counts against the user's cap and the cover side against the
-/// fixed layer-2 cap; the settings screen still reports the combined figure.
+/// Bytes the settings screen reports against the user's cap: the governed
+/// online layer-1 footprint (non-pinned audio plus companion covers, see
+/// [AudioCacheStore.totalBytes]) plus the layer-2 cover cache. Pinned (offline)
+/// downloads are exempt and excluded; their own figure lives in the Offline
+/// cache section.
 final combinedCacheUsageProvider = FutureProvider<int>((ref) async {
   final audio = await ref.watch(audioCacheStoreProvider).totalBytes();
   final covers = await ref.watch(coverCacheStoreProvider).totalBytes();

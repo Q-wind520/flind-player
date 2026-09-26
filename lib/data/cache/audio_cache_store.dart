@@ -80,7 +80,9 @@ class EvictionResult {
   final int freedBytes;
 
   /// Whether `currentBytes + incomingBytes` fits within the configured limit
-  /// after eviction. `false` means pinned entries alone exceed the limit.
+  /// after eviction. `false` means even evicting every non-pinned entry leaves
+  /// `incomingBytes` too large for the limit. Pinned entries are exempt and
+  /// never affect this.
   final bool hasSpace;
 }
 
@@ -394,18 +396,21 @@ class AudioCacheStore {
     }
   }
 
-  /// Total bytes under the layer-1 quota: distinct audio files plus the
-  /// companion-cover bytes of every row that still has a cover.
+  /// Bytes the layer-1 quota governs: distinct non-pinned audio files plus the
+  /// companion-cover bytes of non-pinned rows that still have a cover.
   ///
-  /// Rows that share a [CachedAudio.filePath] (identical content deduplicated
-  /// across logical keys) contribute their audio size a single time; each
-  /// row's cover bytes count once while its [CachedAudio.coverPath] is set.
+  /// Pinned (offline) rows are exempt from the quota, so they are excluded here
+  /// and by [ensureSpace]; the settings usage figure therefore never counts a
+  /// manual download against the user's cap. Rows that share a
+  /// [CachedAudio.filePath] (identical content deduplicated across logical
+  /// keys) contribute their audio size a single time; each row's cover bytes
+  /// count once while its [CachedAudio.coverPath] is set.
   Future<int> totalBytes() async {
     final query = _db.customSelect(
       'SELECT (SELECT COALESCE(SUM(bytes),0) FROM '
-      '(SELECT DISTINCT file_path, bytes FROM audio_cache)) + '
+      '(SELECT DISTINCT file_path, bytes FROM audio_cache WHERE pinned = 0)) + '
       '(SELECT COALESCE(SUM(cover_bytes),0) FROM audio_cache '
-      'WHERE cover_path IS NOT NULL) AS total',
+      'WHERE pinned = 0 AND cover_path IS NOT NULL) AS total',
       readsFrom: {_db.audioCache},
     );
     final row = await query.getSingle();
@@ -424,15 +429,14 @@ class AudioCacheStore {
   }
 
   /// Evicts cache entries until `used + incomingBytes <= limitBytes`, where
-  /// `used` is the layer-1 footprint: audio bytes plus companion-cover bytes
-  /// (see [totalBytes]).
+  /// `used` is the governed layer-1 footprint: non-pinned audio bytes plus
+  /// non-pinned companion-cover bytes (see [totalBytes]).
   ///
   /// Eviction is row-based: a non-pinned row is removed oldest-first together
   /// with its companion cover, and both the audio and cover bytes it freed
   /// count toward the quota. Reads the current [CacheSettings] on every
-  /// call, so a settings change applies immediately. Pinned entries are never
-  /// evicted; when they alone exceed the limit,
-  /// [EvictionResult.hasSpace] is `false`.
+  /// call, so a settings change applies immediately. Pinned (offline) entries
+  /// are exempt from the quota: they are neither counted nor evicted.
   ///
   /// Only files no other row references are deleted and counted as freed, so a
   /// physical file shared by two rows survives eviction of one of them.

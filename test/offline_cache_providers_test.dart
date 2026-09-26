@@ -216,4 +216,14 @@ void main() {
       expect(File(pathFor('online')).existsSync(), isTrue);
     });
   });
+
+  group('combinedCacheUsageProvider', () {
+    test('excludes pinned downloads from the cap figure', () async {
+      await addEntry('online', pinned: false, bytes: 500);
+      await addEntry('saved', pinned: true, bytes: 900);
+
+      // Only the online row counts against the user's cap.
+      expect(await container.read(combinedCacheUsageProvider.future), 500);
+    });
+  });
 }
