@@ -148,8 +148,11 @@ void main() {
     });
 
     test('clearCover clears an existing cover', () async {
-      final p = await repository.createPlaylist(name: 'C');
-      await repository.updatePlaylist(p.id, coverPath: '/covers/c.webp');
+      final p = await repository.createPlaylist(
+        name: 'C',
+        coverPath: '/covers/c.webp',
+        coverUrl: 'https://example.com/c.webp',
+      );
       await repository.updatePlaylist(p.id, clearCover: true);
       final stored = await repository.playlistById(p.id);
       expect(stored!.coverPath, isNull);

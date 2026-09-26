@@ -267,7 +267,7 @@ class PlaybackQueue {
 ### 7.3 歌单与收藏
 
 - **收藏 = 内置歌单行**：`playlists` 表 `kind='favorites'` 的行，id 固定为 1，不可删除 / 改名 / 换封面，显示名走 l10n；自建歌单为 `kind='custom'`。
-- **成员 = 池的纯引用**：`playlist_tracks` 每行只存 `(playlist_id, uri, added_at)`，不复制任何元数据；读取时 `JOIN tracks` 取当前元数据，池是唯一事实来源。写入收藏 / 歌单前先 `promoteTrack`（`INSERT OR IGNORE`，键为 `uri`）把曲目并入 `tracks` 池，因此被引用的曲目一定在池中，可在「全部」中解析与播放。
+- **成员 = 池的纯引用**：`playlist_tracks` 每行只存 `(playlist_id, uri, added_at)`，不复制任何元数据；读取时 `JOIN tracks` 取当前元数据，池是唯一事实来源。写入收藏 / 歌单前先 `promoteTrack`（`INSERT OR IGNORE`，键为 `uri`）把曲目并入 `tracks` 池，因此被引用的曲目一定在池中。
 - **「全部」= 池中未软删的行**：即 `tracks WHERE missing_at IS NULL`。软删除只置 `missing_at`（拔盘 / 删除扫描根 / B 站条目离线），池行与成员引用都保留，曲目回到来源后原样恢复。
 - **歌单封面读取时派生**：自定义封面 → 最新成员的池封面 → 默认占位，从不物化，不会过期。
 - 成员排序：`added_at DESC, id DESC`（收藏即加入时间倒序）；v9 已移除未使用的 `position` 列（自建歌单手动排序待后续）。

@@ -149,17 +149,23 @@ CREATE TABLE IF NOT EXISTS favorites (
         // v8 stored playlist members as denormalised snapshots; v9 makes them
         // pure references into the pool (`tracks`). Migrate in four steps.
         //
-        // 1) Backfill: promote every referenced member into the pool so the
-        // pool is the single source of truth (favourites added before v9 were
-        // snapshots, so their metadata would otherwise be lost). Guarded on the
-        // v8 snapshot columns so a re-run over an already reference-only table
-        // (or a fixture created from the current schema) is a no-op.
-        final ptColumns = await customSelect(
-          'PRAGMA table_info(playlist_tracks)',
-        ).get();
-        if (ptColumns.any((r) => r.data['name'] == 'source')) {
-          final now = DateTime.now().millisecondsSinceEpoch;
-          await customStatement('''
+        // Steps 1–2 are wrapped in a single transaction: drift 2.35 does NOT
+        // wrap `onUpgrade` in one, and a crash between the backfill and the
+        // `DROP TABLE playlist_tracks`/`RENAME` would otherwise lose the
+        // membership table. Making them atomic means the backfill and rebuild
+        // commit together or not at all.
+        await transaction(() async {
+          // 1) Backfill: promote every referenced member into the pool so the
+          // pool is the single source of truth (favourites added before v9 were
+          // snapshots, so their metadata would otherwise be lost). Guarded on
+          // the v8 snapshot columns so a re-run over an already reference-only
+          // table (or a fixture created from the current schema) is a no-op.
+          final ptColumns = await customSelect(
+            'PRAGMA table_info(playlist_tracks)',
+          ).get();
+          if (ptColumns.any((r) => r.data['name'] == 'source')) {
+            final now = DateTime.now().millisecondsSinceEpoch;
+            await customStatement('''
 INSERT OR IGNORE INTO tracks
   (source, source_track_id, uri, title, artist, album,
    duration_ms, cover_path, cover_url, created_at, updated_at)
@@ -168,12 +174,13 @@ SELECT source, source_track_id, uri, title, artist, album,
 FROM playlist_tracks
 WHERE uri NOT IN (SELECT uri FROM tracks)
 ''');
-        }
+          }
 
-        // 2) Rebuild playlist_tracks as a reference-only table. A guarded raw
-        // rebuild is used instead of TableMigration so the ordering index is
-        // recreated deterministically.
-        await _rebuildPlaylistTracksAsReferences();
+          // 2) Rebuild playlist_tracks as a reference-only table. A guarded raw
+          // rebuild is used instead of TableMigration so the ordering index is
+          // recreated deterministically.
+          await _rebuildPlaylistTracksAsReferences();
+        });
 
         // 3) Drop tracks.content_hash (best-effort on old SQLite).
         await _dropColumnIfExists('tracks', 'content_hash');
@@ -268,8 +275,12 @@ WHERE uri NOT IN (SELECT uri FROM tracks)
         !names.contains('position')) {
       return; // Already reference-only.
     }
+    // An interrupted prior run can leave `playlist_tracks_v9` behind (SQLite
+    // does not reset a temp table on crash); dropping it first keeps the
+    // rebuild re-runnable instead of aborting with "table already exists".
+    await customStatement('DROP TABLE IF EXISTS playlist_tracks_v9');
     await customStatement('''
-CREATE TABLE playlist_tracks_v9 (
+CREATE TABLE IF NOT EXISTS playlist_tracks_v9 (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   playlist_id INTEGER NOT NULL,
   uri TEXT NOT NULL,

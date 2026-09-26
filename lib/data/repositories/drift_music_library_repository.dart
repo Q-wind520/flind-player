@@ -153,7 +153,10 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
         );
     final row = await (_db.select(
       _db.tracks,
-    )..where((t) => t.uri.equals(track.uri))).getSingle();
+    )..where((t) => t.uri.equals(track.uri))).getSingleOrNull();
+    if (row == null) {
+      throw StateError('promoteTrack could not persist track ${track.uri}');
+    }
     return row.id;
   }
 

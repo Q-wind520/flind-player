@@ -225,6 +225,8 @@ void main() {
         ),
       );
       expect(await repository.allTracks(), isEmpty); // still missing
+      // The row is retained (soft-deleted), not removed.
+      expect(await repository.findByUri('local:/m/b.flac'), isNotNull);
     });
   });
 
@@ -900,6 +902,37 @@ void main() {
     );
   });
 
+  group('pool cover write-through', () {
+    test('updateTrackCover on the pool carries into the playlist member',
+        () async {
+      // Promote a track into the pool and add it to a playlist, then write a
+      // cover directly to the pool row. The member must resolve the fresh pool
+      // cover and keep its ordering unchanged.
+      final playlistRepository = DriftPlaylistRepository(db);
+      final playlist = await playlistRepository.createPlaylist(name: 'P');
+
+      final track = libraryTrack(path: '/m/a.flac', title: 'A');
+      await playlistRepository.addTrack(playlist.id, track);
+      await playlistRepository.addTrack(
+        playlist.id,
+        libraryTrack(path: '/m/b.flac', title: 'B'),
+      );
+      final orderBefore = (await playlistRepository.playlistTracks(playlist.id))
+          .map((t) => t.uri)
+          .toList();
+
+      await repository.updateTrackCover('local:/m/a.flac', coverPath: '/c/x.webp');
+
+      final member = (await playlistRepository.playlistTracks(playlist.id))
+          .firstWhere((t) => t.uri == 'local:/m/a.flac');
+      expect(member.coverPath, '/c/x.webp');
+      expect(
+        (await playlistRepository.playlistTracks(playlist.id)).map((t) => t.uri),
+        orderBefore,
+      );
+    });
+  });
+
   group('bilibili mapping', () {
     test('round-trips a BiliTrackId through the database', () async {
       const id = BiliTrackId(bvid: 'BV1GJ411x7h7', cid: 137649199);
@@ -1409,6 +1442,12 @@ CREATE TABLE playlist_tracks (
         'uri',
         'added_at',
       });
+
+      // The raw member row kept its identity: same autoincrement id and the
+      // v8 `added_at` value survived the rebuild.
+      final memberRow = await after.select(after.playlistTracks).getSingle();
+      expect(memberRow.id, 1);
+      expect(memberRow.addedAt, 5);
 
       // The ordering index survives the rebuild.
       final idx = await after
