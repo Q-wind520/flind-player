@@ -145,7 +145,9 @@ void main() {
 
       final favorites = await repository.allFavorites();
       expect(favorites, hasLength(1));
-      expect(favorites.single.title, 'Renamed');
+      // The pool is the source of truth and promote never overwrites it, so the
+      // second add keeps the original pool metadata.
+      expect(favorites.single.title, 'Song');
     });
   });
 
@@ -171,17 +173,13 @@ void main() {
     });
   });
 
-  group('independence from the library', () {
-    test('a favourite survives the track being absent from tracks', () async {
+  group('promotion into the pool', () {
+    test('addFavorite promotes the track into tracks', () async {
       await repository.addFavorite(localTrack());
-
-      // The library has no row for this track; the favourite still resolves.
-      final libraryRows = await db.select(db.tracks).get();
-      expect(libraryRows, isEmpty);
-
-      final favorites = await repository.allFavorites();
-      expect(favorites, hasLength(1));
-      expect(favorites.single.title, 'Song');
+      final rows = await db.select(db.tracks).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.uri, 'local:/music/song.flac');
+      expect((await repository.allFavorites()).single.title, 'Song');
     });
   });
 }

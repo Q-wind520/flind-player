@@ -167,8 +167,8 @@ void main() {
 
       expect(await repository.playlistById(playlist.id), isNull);
       expect(await repository.playlistTracks(playlist.id), isEmpty);
-      // The pool row is untouched.
-      expect(await db.select(db.tracks).get(), isEmpty);
+      // The promoted pool row is untouched.
+      expect(await db.select(db.tracks).get(), hasLength(1));
     });
 
     test('a missing playlist is a no-op', () async {
@@ -217,7 +217,7 @@ void main() {
       );
     });
 
-    test('adding the same uri twice refreshes the snapshot, not the count',
+    test('adding the same uri twice does not duplicate nor refresh the pool',
         () async {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(playlist.id, localTrack());
@@ -225,7 +225,9 @@ void main() {
 
       final members = await repository.playlistTracks(playlist.id);
       expect(members, hasLength(1));
-      expect(members.single.title, 'Renamed');
+      // The pool is the source of truth and promote never overwrites it, so the
+      // second add keeps the original pool metadata.
+      expect(members.single.title, 'Song');
     });
 
     test('the same song can live in two playlists', () async {
@@ -240,6 +242,23 @@ void main() {
       expect(await repository.containsTrack(b.id, track.uri), isTrue);
       expect(await repository.playlistTracks(a.id), hasLength(1));
       expect(await repository.playlistTracks(b.id), hasLength(1));
+    });
+
+    test('re-adding does not reset addedAt nor reorder', () async {
+      final playlist = await repository.createPlaylist(name: 'P');
+      await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
+      await repository.addTrack(playlist.id, localTrack(path: '/m/b.flac'));
+      expect(
+        (await repository.playlistTracks(playlist.id)).map((t) => t.uri),
+        ['local:/m/b.flac', 'local:/m/a.flac'],
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
+      expect(
+        (await repository.playlistTracks(playlist.id)).map((t) => t.uri),
+        ['local:/m/b.flac', 'local:/m/a.flac'],
+      );
     });
 
     test('removing an absent member is a no-op', () async {
@@ -267,8 +286,15 @@ void main() {
   group('updateTrackCover', () {
     test('updates the cached cover pointer without reordering', () async {
       final playlist = await repository.createPlaylist(name: 'P');
-      await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
-      await repository.addTrack(playlist.id, localTrack(path: '/m/b.flac'));
+      // No pool cover, so the member snapshot is the fallback the update targets.
+      await repository.addTrack(
+        playlist.id,
+        localTrack(path: '/m/a.flac', coverPath: null),
+      );
+      await repository.addTrack(
+        playlist.id,
+        localTrack(path: '/m/b.flac', coverPath: null),
+      );
 
       await repository.updateTrackCover(
         playlist.id,
@@ -350,32 +376,23 @@ void main() {
   });
 
   group('pool join semantics', () {
-    test('a member survives the track being absent from the pool', () async {
+    test('addTrack promotes the track into the pool', () async {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(playlist.id, localTrack());
 
-      expect(await db.select(db.tracks).get(), isEmpty);
-
-      final members = await repository.playlistTracks(playlist.id);
-      expect(members, hasLength(1));
-      expect(members.single.title, 'Song');
+      final pool = await db.select(db.tracks).get();
+      expect(pool, hasLength(1));
+      expect(pool.single.uri, 'local:/music/song.flac');
     });
 
     test('pool metadata wins over the snapshot', () async {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(playlist.id, localTrack(title: 'Snapshot'));
 
-      // The pool row appears later with fresher metadata.
-      await db.into(db.tracks).insert(
-        TracksCompanion.insert(
-          source: 'local',
-          sourceTrackId: 'local:/music/song.flac',
-          uri: 'local:/music/song.flac',
-          title: 'Pool',
-          createdAt: 1,
-          updatedAt: 1,
-        ),
-      );
+      // The already-promoted pool row is refreshed later with fresher metadata.
+      await (db.update(db.tracks)
+            ..where((t) => t.uri.equals('local:/music/song.flac')))
+          .write(const TracksCompanion(title: Value('Pool')));
 
       final members = await repository.playlistTracks(playlist.id);
       expect(members.single.title, 'Pool');
@@ -435,16 +452,11 @@ void main() {
         playlist.id,
         localTrack(coverPath: '/covers/snapshot.webp'),
       );
-      await db.into(db.tracks).insert(
-        TracksCompanion.insert(
-          source: 'local',
-          sourceTrackId: 'local:/music/song.flac',
-          uri: 'local:/music/song.flac',
-          title: 'Song',
-          coverPath: Value('/covers/pool.webp'),
-          createdAt: 1,
-          updatedAt: 1,
-        ),
+      // The already-promoted pool row is refreshed later with a fresher cover.
+      await (db.update(db.tracks)
+            ..where((t) => t.uri.equals('local:/music/song.flac')))
+          .write(
+        const TracksCompanion(coverPath: Value('/covers/pool.webp')),
       );
 
       final cover = await repository.watchPlaylistCover(playlist.id).first;

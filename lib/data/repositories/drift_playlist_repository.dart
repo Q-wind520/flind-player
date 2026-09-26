@@ -16,10 +16,12 @@
 import 'package:drift/drift.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
+import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
 
 /// Drift-backed [PlaylistRepository].
 ///
@@ -28,9 +30,12 @@ import 'package:flind_player/data/database/playlist_defaults.dart';
 /// metadata wins while the snapshot keeps a member resolvable after the track
 /// leaves the library.
 class DriftPlaylistRepository implements PlaylistRepository {
-  DriftPlaylistRepository(this._db);
+  DriftPlaylistRepository(AppDatabase db, {MusicLibraryRepository? library})
+    : _db = db,
+      _library = library ?? DriftMusicLibraryRepository(db);
 
   final AppDatabase _db;
+  final MusicLibraryRepository _library;
 
   @override
   Stream<List<Playlist>> watchPlaylists() {
@@ -138,6 +143,10 @@ class DriftPlaylistRepository implements PlaylistRepository {
 
   @override
   Future<void> addTrack(int playlistId, Track track) async {
+    // The pool is the single source of truth: a referenced track must exist in
+    // `tracks` so it can be resolved (and shown in 全部) after being saved.
+    await _library.promoteTrack(track);
+
     final companion = PlaylistTracksCompanion(
       playlistId: Value(playlistId),
       uri: Value(track.uri),
@@ -152,15 +161,10 @@ class DriftPlaylistRepository implements PlaylistRepository {
       addedAt: Value(DateTime.now().millisecondsSinceEpoch),
     );
 
-    // The uniqueness key is `(playlist_id, uri)`, not the autoincrement primary
-    // key, so target the unique columns explicitly instead of relying on the
-    // primary-key default of `insertOnConflictUpdate`.
+    // Conflict on (playlist_id, uri) is ignored: re-adding never reorders.
     await _db.into(_db.playlistTracks).insert(
       companion,
-      onConflict: DoUpdate(
-        (_) => companion,
-        target: [_db.playlistTracks.playlistId, _db.playlistTracks.uri],
-      ),
+      mode: InsertMode.insertOrIgnore,
     );
   }
 
