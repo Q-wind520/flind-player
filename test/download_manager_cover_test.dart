@@ -51,15 +51,24 @@ class _StubDownloader extends AudioDownloader {
   }
 }
 
+const _track = Track(
+  source: 'bilibili',
+  sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 1),
+  uri: 'bilibili:BV1:1',
+  title: 'Song',
+);
+
 void main() {
-  test('a pinned download invokes ensureCover once after success', () async {
+  /// Builds a [DownloadManager] around a throwaway cache, wiring up all of
+  /// its teardowns, with [ensureCover] attached as the companion-cover
+  /// callback.
+  DownloadManager makeManager(Future<void> Function(Track)? ensureCover) {
     final root = Directory.systemTemp.createTempSync('flind_dl_cover');
     addTearDown(() {
       if (root.existsSync()) root.deleteSync(recursive: true);
     });
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
-    final covers = <Track>[];
     final manager = DownloadManager(
       store: AudioCacheStore(
         database: db,
@@ -68,19 +77,43 @@ void main() {
       ),
       downloader: _StubDownloader(),
       resolver: _StubResolver(),
-      ensureCover: (track) async => covers.add(track),
+      ensureCover: ensureCover,
     );
     addTearDown(manager.dispose);
+    return manager;
+  }
 
-    const track = Track(
-      source: 'bilibili',
-      sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 1),
-      uri: 'bilibili:BV1:1',
-      title: 'Song',
+  test('a pinned download invokes ensureCover once after success', () async {
+    final covers = <Track>[];
+    final manager = makeManager((track) async => covers.add(track));
+
+    await manager.cacheTrack(_track, pinned: true);
+
+    expect(covers.single, _track);
+  });
+
+  test('a failing ensureCover never fails a pinned download', () async {
+    final manager = makeManager(
+      (track) async => throw StateError('cover backend down'),
     );
+    final phases = <DownloadPhase>[];
+    final subscription = manager.progress.listen((p) => phases.add(p.phase));
 
-    await manager.cacheTrack(track, pinned: true);
+    // `cacheTrack` must complete without throwing and still report success.
+    await manager.cacheTrack(_track, pinned: true);
+    await pumpEventQueue();
+    await subscription.cancel();
 
-    expect(covers.single, track);
+    expect(phases, isNot(contains(DownloadPhase.failed)));
+    expect(phases.last, DownloadPhase.done);
+  });
+
+  test('a non-pinned download never invokes ensureCover', () async {
+    final covers = <Track>[];
+    final manager = makeManager((track) async => covers.add(track));
+
+    await manager.cacheTrack(_track);
+
+    expect(covers, isEmpty);
   });
 }

@@ -84,7 +84,7 @@ final audioDownloaderProvider = Provider<AudioDownloader>(
 
 /// Serialises and indexes offline audio downloads.
 ///
-/// Pinned downloads ask [CoverService.ensureCover] to materialise their
+/// Pinned downloads ask `CoverService.ensureCover` to materialise their
 /// companion cover into layer 1; the callback reads the service lazily, so
 /// there is no build-time dependency on `coverServiceProvider`.
 final downloadManagerProvider = Provider<DownloadManager>((ref) {

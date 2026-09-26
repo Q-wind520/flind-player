@@ -139,14 +139,16 @@ Uint8List _jpegBytes() {
   return Uint8List.fromList(img.encodeJpg(image));
 }
 
-/// A Bilibili [Track], optionally carrying a raw (un-normalised) cover URL.
-Track _biliTrack({String? coverUrl}) => Track(
+/// A Bilibili [Track], optionally carrying a raw (un-normalised) cover URL or
+/// an already-known local cover path.
+Track _biliTrack({String? coverUrl, String? coverPath}) => Track(
   source: 'bilibili',
   sourceTrackId: const BiliTrackId(bvid: 'BV1GJ411x7h7', cid: 137649199),
   uri: 'bilibili:BV1GJ411x7h7:137649199',
   title: 'Online Track',
   artist: 'Uploader',
   coverUrl: coverUrl,
+  coverPath: coverPath,
 );
 
 /// A local [Track] pointing at [coverPath].
@@ -198,6 +200,26 @@ void main() {
       root.deleteSync(recursive: true);
     }
   });
+
+  /// Indexes the Bilibili fixture song in the audio cache (layer 1), as a
+  /// completed pin/download would.
+  Future<void> addCachedSong() async {
+    final audioFile = audio.fileFor(
+      source: 'bilibili',
+      sourceTrackId: 'BV1GJ411x7h7:137649199',
+      extension: 'm4a',
+    );
+    audioFile.parent.createSync(recursive: true);
+    audioFile.writeAsBytesSync(const [1, 2, 3]);
+    await audio.insert(
+      source: 'bilibili',
+      sourceTrackId: 'BV1GJ411x7h7:137649199',
+      filePath: audioFile.path,
+      bytes: 3,
+      qualityId: '30280',
+      pinned: true,
+    );
+  }
 
   test(
     'downloads, stores under the base dir, and writes back path + URL',
@@ -304,21 +326,7 @@ void main() {
   });
 
   test('stores a cover in layer 1 when the song is already cached', () async {
-    final audioFile = audio.fileFor(
-      source: 'bilibili',
-      sourceTrackId: 'BV1GJ411x7h7:137649199',
-      extension: 'm4a',
-    );
-    audioFile.parent.createSync(recursive: true);
-    audioFile.writeAsBytesSync(const [1, 2, 3]);
-    await audio.insert(
-      source: 'bilibili',
-      sourceTrackId: 'BV1GJ411x7h7:137649199',
-      filePath: audioFile.path,
-      bytes: 3,
-      qualityId: '30280',
-      pinned: true,
-    );
+    await addCachedSong();
 
     final path = await service.ensureCover(
       _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg'),
@@ -333,4 +341,79 @@ void main() {
     // toward the layer-1 quota (audio: 3 + cover: jpeg size).
     expect(await audio.totalBytes(), 3 + downloader.bytes.length);
   });
+
+  test(
+    'copies a layer-2 cover into layer 1 once the song is cached',
+    () async {
+      // The cover is fetched into layer 2 first (prefetch on enqueue, song
+      // not cached yet) ...
+      final layer2Path = await service.ensureCover(
+        _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg'),
+      );
+      expect(layer2Path, isNotNull);
+      expect(downloader.requestedUrls, hasLength(1));
+
+      // ... then the song gets pinned/downloaded.
+      await addCachedSong();
+
+      // A fresh track instance without coverPath, as the download flow sees it.
+      final path = await service.ensureCover(
+        _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg'),
+      );
+
+      expect(
+        path,
+        audio
+            .coverFileFor(
+              source: 'bilibili',
+              sourceTrackId: 'BV1GJ411x7h7:137649199',
+              extension: 'jpg',
+            )
+            .path,
+      );
+      expect(File(path!).existsSync(), isTrue);
+      expect(
+        (await audio.lookup('bilibili', 'BV1GJ411x7h7:137649199'))!.coverPath,
+        path,
+      );
+      // The layer-2 bytes were reused: no second download.
+      expect(downloader.requestedUrls, hasLength(1));
+    },
+  );
+
+  test(
+    'copies an existing track cover into layer 1 once the song is cached',
+    () async {
+      await addCachedSong();
+      // A cover the library row already points at (e.g. fetched into layer 2
+      // before the song was pinned).
+      final existing = File('${root.path}/prefetched.jpg')
+        ..writeAsBytesSync(_jpegBytes());
+
+      final path = await service.ensureCover(
+        _biliTrack(
+          coverUrl: '//i0.hdslb.com/bfs/a.jpg',
+          coverPath: existing.path,
+        ),
+      );
+
+      expect(
+        path,
+        audio
+            .coverFileFor(
+              source: 'bilibili',
+              sourceTrackId: 'BV1GJ411x7h7:137649199',
+              extension: 'jpg',
+            )
+            .path,
+      );
+      expect(File(path!).existsSync(), isTrue);
+      expect(
+        (await audio.lookup('bilibili', 'BV1GJ411x7h7:137649199'))!.coverPath,
+        path,
+      );
+      expect(File(path).readAsBytesSync(), _jpegBytes());
+      expect(downloader.requestedUrls, isEmpty);
+    },
+  );
 }

@@ -58,13 +58,16 @@ typedef CoverUrlResolver = Future<String?> Function(String bvid);
 /// 2. otherwise the cover URL is taken from the track (Bilibili search/view
 ///    payloads already carry it) and, when absent, resolved through
 ///    [resolveRemoteUrl] for a Bilibili track;
-/// 3. a cache hit on the URL is served without a network round-trip;
-/// 4. a miss downloads the bytes and decode-validates them off the UI isolate,
-///    then routes by cache layer: a song already in the offline audio cache
-///    (layer 1) gets the cover written beside its audio file via
-///    [AudioCacheStore.coverFileFor], so offline artwork survives; anything
-///    else goes to the session-scoped [CoverCacheStore] (layer 2);
-/// 5. the resulting local path and URL are written back to the pool row, when
+/// 3. routing by cache layer comes first: while the song is in the offline
+///    audio cache (layer 1), its cover is materialised beside the audio file
+///    via [AudioCacheStore.coverFileFor] — reusing `track.coverPath` or a
+///    layer-2 copy when present, downloading otherwise — so offline artwork
+///    survives the layer-2 wipe;
+/// 4. for an un-cached song, a cache hit on the URL is served without a
+///    network round-trip;
+/// 5. a miss downloads the bytes, decode-validates them off the UI isolate
+///    and stores them in the session-scoped [CoverCacheStore] (layer 2);
+/// 6. the resulting local path and URL are written back to the pool row, when
 ///    it exists.
 ///
 /// Every failure is non-fatal: [ensureCover] returns `null` instead of throwing,
@@ -123,6 +126,15 @@ class CoverService {
 
   Future<String?> _resolveAndCache(Track track, {required bool force}) async {
     try {
+      // Layer routing comes first: while the song is cached, its cover must
+      // always end up beside the audio file (layer 1) — even when a copy
+      // already exists as `track.coverPath` or in layer 2, both of which the
+      // next start can wipe.
+      final cachedAudio = await _cachedAudioFor(track);
+      if (cachedAudio != null) {
+        return await _ensureLayer1(track, cachedAudio, force: force);
+      }
+
       final existing = track.coverPath;
       if (!force &&
           existing != null &&
@@ -193,23 +205,9 @@ class CoverService {
 
     final cachedAudio = await _cachedAudioFor(track);
     if (cachedAudio != null) {
-      // Layer 1: the cover travels with the cached song.
-      final extension = _extensionFor(bytes);
-      final cover = _audioStore.coverFileFor(
-        source: track.source,
-        sourceTrackId: cacheSourceTrackId(track),
-        extension: extension,
-      );
-      cover.parent.createSync(recursive: true);
-      cover.writeAsBytesSync(bytes, flush: true);
-      // `bytes:` so the companion cover counts toward the layer-1 quota.
-      await _audioStore.setCoverPath(
-        cachedAudio.id,
-        cover.path,
-        bytes: bytes.length,
-      );
-      // The companion cover adds to layer 1's footprint; re-enforce the cap.
-      await _audioStore.enforceLimit();
+      // Layer 1 (race safety net): the song was cached while this download
+      // was in flight, so the cover travels with it after all.
+      final cover = await _writeLayer1Cover(track, cachedAudio, bytes);
       return cover.path;
     }
 
@@ -224,6 +222,80 @@ class CoverService {
       contentHash: _sha1Bytes(bytes),
       bytes: bytes,
     );
+  }
+
+  /// Materialises [track]'s cover beside its cached audio file (layer 1) and
+  /// returns that path.
+  ///
+  /// The bytes are reused from the row's companion cover, then from
+  /// [Track.coverPath] (which may still point into layer 2 from before the
+  /// song was cached), then from the layer-2 URL cache; only a miss
+  /// downloads. `force` skips every reuse so a "refresh cover" re-downloads.
+  /// Failures return `null` and never throw.
+  Future<String?> _ensureLayer1(
+    Track track,
+    CachedAudio cachedAudio, {
+    required bool force,
+  }) async {
+    var url = _normalize(track.coverUrl);
+    Uint8List? bytes;
+    if (!force) {
+      bytes = _bytesOf(cachedAudio.coverPath) ?? _bytesOf(track.coverPath);
+    }
+    if (bytes == null) {
+      url ??= await _resolveUrl(track);
+      if (url == null) return null;
+      if (!force) {
+        // `lookup` (not `lookupPath`) so a hit refreshes the LRU order.
+        final hit = await _store.lookup(_sha1Text(url));
+        if (hit != null) bytes = _bytesOf(hit.filePath);
+      }
+      if (bytes == null) {
+        final downloaded = await _downloader.download(url);
+        if (downloaded == null) return null;
+        final decodable = await Isolate.run(() => isDecodableImage(downloaded));
+        if (!decodable) return null;
+        bytes = downloaded;
+      }
+    }
+
+    final cover = await _writeLayer1Cover(track, cachedAudio, bytes);
+    // `url` is null when the bytes were reused without a known URL; the
+    // library leaves the stored cover URL untouched in that case.
+    await _persist(track, cover.path, url);
+    return cover.path;
+  }
+
+  /// Writes [bytes] to this song's companion-cover slot in layer 1, records
+  /// the path and its byte count on the row, and re-enforces the cap.
+  Future<File> _writeLayer1Cover(
+    Track track,
+    CachedAudio cachedAudio,
+    Uint8List bytes,
+  ) async {
+    final cover = _audioStore.coverFileFor(
+      source: track.source,
+      sourceTrackId: cacheSourceTrackId(track),
+      extension: _extensionFor(bytes),
+    );
+    cover.parent.createSync(recursive: true);
+    cover.writeAsBytesSync(bytes, flush: true);
+    // `bytes:` so the companion cover counts toward the layer-1 quota.
+    await _audioStore.setCoverPath(
+      cachedAudio.id,
+      cover.path,
+      bytes: bytes.length,
+    );
+    // The companion cover adds to layer 1's footprint; re-enforce the cap.
+    await _audioStore.enforceLimit();
+    return cover;
+  }
+
+  /// Existing cover bytes at [path], or `null` when absent or dangling.
+  static Uint8List? _bytesOf(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final file = File(path);
+    return file.existsSync() ? file.readAsBytesSync() : null;
   }
 
   /// The offline audio-cache row for [track], or `null` when the song is not
@@ -280,8 +352,9 @@ class CoverService {
   }
 
   /// Writes the resolved cover back to the pool row that references [track],
-  /// when it exists. Best-effort and never throws.
-  Future<void> _persist(Track track, String coverPath, String coverUrl) async {
+  /// when it exists. Best-effort and never throws; a null [coverUrl] leaves
+  /// the stored URL untouched.
+  Future<void> _persist(Track track, String coverPath, String? coverUrl) async {
     try {
       await _library.updateTrackCover(
         track.uri,
