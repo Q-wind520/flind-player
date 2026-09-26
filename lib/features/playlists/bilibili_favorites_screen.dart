@@ -23,6 +23,7 @@ import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/duration_format.dart';
@@ -505,8 +506,8 @@ class _TrackListFooter extends StatelessWidget {
   }
 }
 
-/// A favourite track row: placeholder cover, title, UP 主, duration and a
-/// trailing 存入曲库 action.
+/// A favourite track row: placeholder cover, title, UP 主, duration and the
+/// shared full action menu (favourite / cache / 存入曲库 / 加入歌单).
 class _FavoriteTrackTile extends StatelessWidget {
   const _FavoriteTrackTile({
     required this.track,
@@ -557,9 +558,10 @@ class _FavoriteTrackTile extends StatelessWidget {
             formatTrackDuration(track.duration),
             style: theme.textTheme.labelMedium,
           ),
-          IconButton(
-            icon: const Icon(Icons.library_add_outlined),
-            onPressed: onSave,
+          TrackActionsButton(
+            track: track,
+            showSaveToLibrary: true,
+            onSaveToLibrary: onSave,
           ),
         ],
       ),

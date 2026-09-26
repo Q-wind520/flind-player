@@ -27,6 +27,7 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 
 import 'support/l10n.dart';
@@ -216,6 +217,27 @@ void main() {
     // A single-page folder shows no pagination footer.
     expect(find.text('加载更多'), findsNothing);
     expect(find.text('已全部加载'), findsNothing);
+  });
+
+  testWidgets('a favourite row exposes the full action menu', (tester) async {
+    const track = Track(
+      source: 'bilibili',
+      sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 7),
+      uri: 'bilibili:BV1:7',
+      title: 'Online',
+    );
+    final source = _FakeRemotePlaylistSource(
+      folders: (uid) async => <RemotePlaylist>[_musicFolder],
+      tracks: (playlistId, page) async => _page(<Track>[track], page: page),
+    );
+    await tester.pumpWidget(_app(source: source));
+    await _openFolder(tester); // uses uid 17340771 + 「音乐收藏」
+
+    expect(find.byType(TrackActionsButton), findsWidgets);
+    await tester.tap(find.byType(TrackActionsButton).first);
+    await tester.pumpAndSettle();
+    expect(find.text('收藏'), findsWidgets);
+    expect(find.text('加入歌单'), findsWidgets);
   });
 
   testWidgets('in-body header replaces the AppBar and backs out of a folder', (
