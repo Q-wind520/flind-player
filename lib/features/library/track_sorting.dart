@@ -22,6 +22,14 @@ import 'package:flind_player/core/models/track_sort.dart';
 /// Used for the favourites list, which is too small to warrant a DB
 /// round-trip. Returns a new list; [tracks] is left untouched.
 List<Track> sortFavouriteTracks(List<Track> tracks, TrackSort sort) {
+  // The repository already orders members by `added_at DESC`, and `Track.id` is
+  // the pool row id (it does NOT track when the song was favourited), so there
+  // is nothing to compare. Return a copy directly: an all-equal comparator
+  // would still let `List.sort` (unstable) reshuffle the list.
+  if (sort == TrackSort.recentlyAdded) {
+    return List<Track>.from(tracks);
+  }
+
   final sorted = List<Track>.from(tracks);
   sorted.sort((a, b) {
     return switch (sort) {
@@ -36,9 +44,6 @@ List<Track> sortFavouriteTracks(List<Track> tracks, TrackSort sort) {
         a.album?.toLowerCase(),
         b.album?.toLowerCase(),
       ),
-      // The repository already orders members by `added_at DESC`; `Track.id` is
-      // the pool row id and does NOT track when the song was favourited, so
-      // leave the incoming order untouched.
       TrackSort.recentlyAdded => 0,
     };
   });

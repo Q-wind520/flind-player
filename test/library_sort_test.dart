@@ -238,22 +238,30 @@ void main() {
     });
 
     test('recentlyAdded preserves the incoming (SQL added_at) order', () {
-      final newer = Track(
-        id: 1,
-        source: 'local',
-        sourceTrackId: const LocalTrackId('/m/b.mp3'),
-        uri: 'local:/m/b.mp3',
-        title: 'B',
+      // 100 elements: above List.sort's small-list threshold, where the
+      // dual-pivot quicksort is not stable, so an all-equal comparator would
+      // otherwise reshuffle the list.
+      final input = List<Track>.generate(100, (i) {
+        return Track(
+          id: i,
+          source: 'local',
+          sourceTrackId: LocalTrackId('/m/t$i.mp3'),
+          uri: 'local:/m/t$i.mp3',
+          title: 'T$i',
+        );
+      });
+      final before = List<Track>.from(input);
+
+      final sorted = sortFavouriteTracks(input, TrackSort.recentlyAdded);
+
+      // Order is preserved exactly (NOT reordered by id).
+      expect(
+        sorted.map((t) => t.title).toList(),
+        input.map((t) => t.title).toList(),
       );
-      final older = Track(
-        id: 99,
-        source: 'local',
-        sourceTrackId: const LocalTrackId('/m/a.mp3'),
-        uri: 'local:/m/a.mp3',
-        title: 'A',
-      );
-      final sorted = sortFavouriteTracks([newer, older], TrackSort.recentlyAdded);
-      expect(sorted.map((t) => t.title), ['B', 'A']); // NOT id order
+      // The caller's list is left unmutated; a copy is returned.
+      expect(input, before);
+      expect(identical(sorted, input), isFalse);
     });
   });
 
