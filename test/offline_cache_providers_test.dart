@@ -144,6 +144,28 @@ void main() {
 
       expect(await container.read(offlineCacheUsageProvider.future), 350);
     });
+
+    test('includes the companion-cover bytes of pinned entries', () async {
+      final a = await addEntry('a', pinned: true, bytes: 100);
+      final cover = audio.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(List<int>.filled(50, 7));
+      await audio.setCoverPath(a.id, cover.path, bytes: 50);
+      await addEntry('b', pinned: true, bytes: 250);
+      // An unpinned row's cover must not leak into the offline figure.
+      final online = await addEntry('online', pinned: false, bytes: 900);
+      final onlineCover = audio.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'online',
+        extension: 'jpg',
+      )..writeAsBytesSync(const [1]);
+      await audio.setCoverPath(online.id, onlineCover.path, bytes: 1);
+
+      // 100 + 50 (cover) + 250; the unpinned row and its cover are excluded.
+      expect(await container.read(offlineCacheUsageProvider.future), 400);
+    });
   });
 
   group('offlineCacheMaintenanceProvider', () {

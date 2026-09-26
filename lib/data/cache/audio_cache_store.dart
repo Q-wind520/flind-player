@@ -39,6 +39,7 @@ class CachedAudio {
     required this.pinned,
     required this.cachedAt,
     required this.lastAccessedAt,
+    required this.coverBytes,
     this.contentHash,
     this.coverPath,
   });
@@ -58,6 +59,9 @@ class CachedAudio {
 
   /// Absolute path of the song's companion cover, or `null` when none.
   final String? coverPath;
+
+  /// Bytes of [coverPath] counted toward the layer-1 quota; `0` when none.
+  final int coverBytes;
 }
 
 /// Outcome of [AudioCacheStore.ensureSpace].
@@ -258,7 +262,8 @@ class AudioCacheStore {
   ///
   /// [contentHash] is the SHA-1 hex digest of [filePath]'s bytes. When it is
   /// omitted it is computed from the file; when the file does not exist the
-  /// hash stays `null`. If another row already indexes the same content under a
+  /// hash stays `null` and an upsert leaves any already-stored hash untouched.
+  /// If another row already indexes the same content under a
   /// different path, the freshly written duplicate is deleted and this row is
   /// pointed at the existing physical file instead, so identical audio is
   /// stored and counted once. [coverPath], when given, is recorded verbatim as
@@ -304,7 +309,11 @@ class AudioCacheStore {
       pinned: Value(pinned),
       cachedAt: now,
       lastAccessedAt: now,
-      contentHash: Value(resolvedHash),
+      // Absent when the hash could not be resolved (file unreadable at call
+      // time), so an upsert never nulls an already-stored content hash.
+      contentHash: resolvedHash == null
+          ? const Value.absent()
+          : Value(resolvedHash),
       // Absent when no cover is given, so an upsert never nulls an existing
       // companion cover (or resets its counted bytes).
       coverPath: coverPath == null ? const Value.absent() : Value(coverPath),
@@ -555,8 +564,22 @@ class AudioCacheStore {
         if (file.existsSync()) {
           referenced.add(p.canonicalize(row.filePath));
           final cover = row.coverPath;
-          if (cover != null && File(cover).existsSync()) {
-            referenced.add(p.canonicalize(cover));
+          if (cover != null) {
+            if (File(cover).existsSync()) {
+              referenced.add(p.canonicalize(cover));
+            } else {
+              // The audio survived but its companion cover did not: clear the
+              // dangling reference so totalBytes() stops charging cover_bytes
+              // for bytes that are no longer on disk.
+              await (_db.update(
+                _db.audioCache,
+              )..where((t) => t.id.equals(row.id))).write(
+                AudioCacheCompanion(
+                  coverPath: const Value(null),
+                  coverBytes: const Value(0),
+                ),
+              );
+            }
           }
         } else {
           await (_db.delete(
@@ -683,6 +706,7 @@ class AudioCacheStore {
       lastAccessedAt: DateTime.fromMillisecondsSinceEpoch(row.lastAccessedAt),
       contentHash: row.contentHash,
       coverPath: row.coverPath,
+      coverBytes: row.coverBytes,
     );
   }
 }

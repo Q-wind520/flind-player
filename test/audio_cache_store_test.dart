@@ -265,6 +265,34 @@ void main() {
       expect((await store.lookup('bilibili', 'BV1:1'))!.coverPath, cover.path);
       expect(await store.totalBytes(), 7);
     });
+
+    test(
+      'upsert keeps a stored content_hash when the file is unreadable',
+      () async {
+        await addEntry('BV1:1', bytes: 64);
+        final storedHash = (await store.lookup(
+          'bilibili',
+          'BV1:1',
+        ))!.contentHash;
+        expect(storedHash, isNotNull);
+
+        // Re-register the same key with a path that no longer exists, so the
+        // hash resolves to null at call time: the upsert must not write NULL
+        // over the good hash that is already stored.
+        final refreshed = await store.insert(
+          source: 'bilibili',
+          sourceTrackId: 'BV1:1',
+          filePath: '${root.path}/bilibili/vanished.m4a',
+          bytes: 64,
+          qualityId: '30280',
+          pinned: false,
+        );
+
+        expect(refreshed.contentHash, storedHash);
+        final stored = await store.lookup('bilibili', 'BV1:1');
+        expect(stored!.contentHash, storedHash);
+      },
+    );
   });
 
   group('setPinned', () {
@@ -792,6 +820,29 @@ void main() {
 
       expect(report.orphansRemoved, 0);
       expect(File(cover.path).existsSync(), isTrue);
+    });
+
+    test('clears a companion cover whose file has vanished', () async {
+      final entry = await addEntry('a', bytes: 100);
+      final cover = store.coverFileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'jpg',
+      )..writeAsBytesSync(List<int>.filled(50, 7));
+      await store.setCoverPath(entry.id, cover.path, bytes: 50);
+      expect(await store.totalBytes(), 150);
+
+      cover.deleteSync();
+
+      final report = await store.checkIntegrity();
+
+      // The audio row survives; only the dangling cover reference goes.
+      expect(report.rowsRemoved, 0);
+      final refreshed = await store.lookup('bilibili', 'a');
+      expect(refreshed, isNotNull);
+      expect(refreshed!.coverPath, isNull);
+      expect(refreshed.coverBytes, 0);
+      expect(await store.totalBytes(), 100);
     });
   });
 

@@ -30,7 +30,12 @@ final offlineCacheEntriesProvider = FutureProvider<List<CachedAudio>>((
 /// Bytes occupied by pinned downloads.
 final offlineCacheUsageProvider = FutureProvider<int>((ref) async {
   final entries = await ref.watch(offlineCacheEntriesProvider.future);
-  return entries.fold<int>(0, (sum, e) => sum + e.bytes);
+  // Companion covers live with their row and leave the quota with it, so the
+  // offline footprint is audio bytes plus those cover bytes.
+  return entries.fold<int>(
+    0,
+    (sum, e) => sum + e.bytes + e.coverBytes,
+  );
 });
 
 /// Delete actions for the offline cache entry.
