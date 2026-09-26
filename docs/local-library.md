@@ -120,9 +120,13 @@
 - **归一化**：`normalizeCoverUrl` 把 `//host/...` 与 `http://` 升到 `https://`，
   并剥掉既有 CDN 处理后缀（`@672w_...`），保证同一图片的缓存键稳定。
 - **缓存**：`CoverCacheStore` 以 `sha1(归一化 URL)` 为键索引、以 `sha1(图片字节)`
-  命名文件（`cover_cache/<contentHash>.jpg`，512px JPEG q85，复用 `encodeCoverJpeg`）。
-  相同图片在不同 URL 下只占一份磁盘。
-- **共享配额**：封面字节与音频缓存共用一个上限（见 §4）。
+  命名文件（`cache/cover/<contentHash>.jpg`）。**图片字节原样落盘，不缩放、不重编码**
+  （文件扩展名固定为 `.jpg`，内容按原始字节存储）。相同图片在不同 URL 下只占一份磁盘。
+- **层 1 / 层 2 路由**：歌曲**已在音频缓存中**时，封面存入**层 1**（随行封面，
+  写回 `audio_cache.cover_path`，见 §4）；**未缓存**时存入**层 2**。
+  `tracks.cover_path` 是唯一对外引用，可指向任一层，悬空由 `File.existsSync()` 兜底回落。
+- **独立配额**：层 2 固定 256 MiB 且每次启动整体清空，**不计入**音频缓存上限
+  （见 §4.4/§4.5）。
 - **触发**：`CoverPrefetchCoordinator` 监听播放队列，**进队即拉**；命中本地文件即跳过，
   失败按 10 分钟退避重试，最多 4 个并发。解析成功后只写回池行 `tracks.cover_url` /
   `tracks.cover_path`（经 `updateTrackCover`，不触碰 `added_at`，不会重排）；歌单成员是池的
@@ -144,14 +148,29 @@ Bilibili 音频缓存到本地，实现：
 
 ### 4.2 存储布局
 
+单一缓存根 `<app support>/cache/`，**两个缓存各占一个互不重叠的子树**（否则一方的
+递归清理/孤儿清理会误删另一方文件）：
+
 ```
 <app support>/
-├── covers/<sha1>.webp           # 本地内嵌封面缓存（不入配额）
-├── cover_cache/<sha1>.jpg       # 远程（B 站）封面缓存（入共享配额）
-└── audio_cache/
-    ├── bilibili/<sha1>.<ext>    # 在线音频（通常 .m4a）
-    └── local/                    # 预留（本地文件不复制）
+├── covers/                                 # 本地内嵌封面缓存（ArtworkCache，不入配额）
+└── cache/                                  # 唯一缓存根
+    ├── audio/                              # 层 1 根（AudioCacheStore.baseDir）
+    │   └── <source>/
+    │       ├── <sha1(source:trackId)>.<ext>          # 层 1 音频
+    │       └── <sha1(source:trackId)>.cover.<ext>    # 层 1 随行封面（扩展名按图片魔数）
+    └── cover/                              # 层 2 根（CoverCacheStore.baseDir）
+        └── <sha1(图片字节)>.jpg                        # 层 2 临时封面
 ```
+
+- 层 1 音频沿用 `sha1(source:trackId)` 的确定性命名；内容去重仍在 `insert` 时通过
+  指向既有 canonical 文件实现（`file_path` 可被多行共享），**文件名不改成内容哈希**。
+- 层 2 保持内容寻址（`sha1(字节)` 文件名），保留 URL→内容去重。
+- 层 1 的两个路径（音频与随行封面）都落在同一子树内，因此删除统一由一个
+  containment guard 覆盖，不需要跨目录特例。
+- 旧根 `<app support>/audio_cache/` 与 `<app support>/cover_cache/` 在**启动自愈**时
+  一次性搬入新根（`CacheRelocator`）并改写 `file_path`；搬迁失败时旧路径仍可用
+  （`file_path` 是权威），下次启动重试。
 
 ### 4.3 两种模式
 
@@ -174,11 +193,17 @@ CREATE TABLE audio_cache (
   cached_at        INTEGER NOT NULL,
   last_accessed_at INTEGER NOT NULL,
   content_hash     TEXT,                   -- v6: 文件字节的 SHA-1，去重键（旧行为 NULL）
+  cover_path       TEXT,                   -- v10: 层 1 随行封面路径（NULL = 无封面）
+  cover_bytes      INTEGER NOT NULL DEFAULT 0,  -- v10: 随行封面字节数，计入层 1 配额
   UNIQUE(source, source_track_id)
 );
 CREATE INDEX idx_audio_cache_lru ON audio_cache(pinned, last_accessed_at);
 
--- v7：远程封面缓存（与 audio_cache 共享同一配额）
+-- v10：补齐热路径索引（去重查找 / 驱逐引用检查，消除全表扫描与 N+1）
+CREATE INDEX idx_audio_cache_content_hash ON audio_cache(content_hash);
+CREATE INDEX idx_audio_cache_file_path    ON audio_cache(file_path);
+
+-- v7：远程封面缓存（v10 起语义收窄为**层 2**：仅未缓存歌曲的临时封面）
 CREATE TABLE cover_cache (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   url_hash         TEXT    NOT NULL UNIQUE,  -- sha1(归一化封面 URL)，查找键
@@ -189,11 +214,17 @@ CREATE TABLE cover_cache (
   last_accessed_at INTEGER NOT NULL
 );
 CREATE INDEX idx_cover_cache_lru ON cover_cache(last_accessed_at);
+CREATE INDEX idx_cover_cache_content_hash ON cover_cache(content_hash);
+CREATE INDEX idx_cover_cache_file_path    ON cover_cache(file_path);
 
 -- v7：封面 URL 随轨道持久化，淘汰后无需再请求 view 接口
 ALTER TABLE tracks ADD COLUMN cover_url TEXT;
 ```
 
+> **v10 变更**：`audio_cache` 即「歌曲资产行」——一行 = 一个已缓存歌曲的音频 + 可选的
+> 随行封面，**行级同生共死**（表名不变）。`cover_cache` 收窄为层 2，独立配额。
+> `audio_cache.last_accessed_at` 已由 `idx_audio_cache_lru` 覆盖，不重复建索引。
+>
 > **v8 变更**：`favorites` 表已移除。收藏改为内置歌单（`playlists` 行 `kind='favorites'`，id=1），
 > 旧收藏数据在 v7→v8 迁移中并入 `playlist_tracks`（`favorited_at` → `added_at`），随后删除
 > `favorites` 表；v9 再把 `playlist_tracks` 收敛为对池的纯引用（见 §5）。
@@ -202,38 +233,71 @@ ALTER TABLE tracks ADD COLUMN cover_url TEXT;
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `cache_limit_bytes` | `1073741824`（1 GiB） | 音频 + 封面共享上限，设置页以 **MB** 为单位编辑（无 MB/GB 选择器） |
+| `cache.limitBytes` | `1073741824`（1 GiB） | **层 1 非 pinned 行**的字节上限（音频 + 随行封面），设置页以 **MB** 为单位编辑（无 MB/GB 选择器）；层 2 用固定 256 MiB，无需设置项 |
 
 > 缓存始终开启（在线音频播放时后台写入）；旧版本写入的 `cache_enabled` /
 > `cache_auto_on_play` 键不再读取。
 
-### 4.5 淘汰算法（LRU）
+### 4.5 配额与淘汰（按歌曲 · LRU）
+
+配额是**按歌曲**分配的：已缓存歌曲的音频与它的封面同属**一条记录**，因此不存在
+「封面永远先让路」，两个缓存也互不协调。
+
+| 配额 | 约束对象 | 可配 |
+|---|---|---|
+| `limitBytes`（1 GiB 默认） | 层 1 **非 pinned** 行（音频字节 + `cover_bytes`） | 是（设置页现有项，显示不变） |
+| 固定 **256 MiB**（`CoverCacheStore.ephemeralLimitBytes`） | 层 2 临时封面 | 否 → 无需新增配额 UI |
+| — | **pinned / 离线** | **不占任何配额** |
 
 ```
-写入前检查:
-  used = SUM(bytes) over DISTINCT file_path(audio_cache)
-       + SUM(bytes) over DISTINCT file_path(cover_cache)   -- 两表共享同一上限
-  if used + new_bytes > limit:
-      -- 1) 封面先让路（永不可 pin）
-      candidates = SELECT * FROM cover_cache ORDER BY last_accessed_at ASC
-      逐个删除：先删行；仅当没有其他行引用同一 file_path 时才删文件并计入释放量
-      -- 2) 仍不足再淘汰非 pin 音频
+层 1 写入前检查（AudioCacheStore.ensureSpace）:
+  used = SUM(bytes) over DISTINCT file_path(audio_cache)   -- 共享音频只计一次
+       + SUM(cover_bytes) where cover_path IS NOT NULL     -- 每行封面各计一次
+  if used + new_bytes > limitBytes:
+      -- 按行淘汰最旧：非 pinned 行，连同其随行封面一起删
       candidates = SELECT * FROM audio_cache
                    WHERE pinned = 0 ORDER BY last_accessed_at ASC
-      逐个删除：先删行；仅当没有其他行引用同一 file_path 时才删文件并计入释放量
-      if 仍不足（pinned 占用过多）:
-          拒绝新的播放缓存；手动下载前提示用户
+      逐行删除：先删行；音频文件仅在没有其他行引用同一 file_path 时才删并计入释放量；
+                随行封面每行独占，随行删除并计入释放量
+      if 仍不足:
+          hasSpace = false → 拒绝新的播放缓存（不驱逐 pinned）
+
+层 2 写入前检查（CoverCacheStore.ensureSpace）:
+  used = SUM(bytes) over DISTINCT file_path(cover_cache)
+  if used + new_bytes > 256 MiB:
+      candidates = SELECT * FROM cover_cache ORDER BY last_accessed_at ASC
+      逐行删除：先删行；文件仅在没有其他行引用同一 file_path 时才删并计入释放量
 ```
 
-- **封面让路、音频优先**：音频需要空间时先淘汰封面；封面自己需要空间而音频已占满时，
-  直接放弃该封面（best-effort），**绝不驱逐音频**。
-
+- **封面随歌同生共死**：层 1 驱逐按**行**进行，删除该行时一并删除其 `cover_path`。
+  已缓存歌曲的封面不会被音频驱逐挤掉，也不再与音频争配额——**P1 消失**。
+- **两 store 不跨表读写**：层 1 只读 `audio_cache`、层 2 只读 `cover_cache`，
+  各自单一所有者，**无需配额协调器**。
+- **层 2 是会话级的**：启动时整体清空（`main.dart` 挂在现有启动自愈旁，fire-and-forget），
+  因此层 2 不需要独立 `checkIntegrity`；未下载歌曲的封面每次启动会重新拉取。
+- **层 1 → 层 2 回落**：驱逐层 1 后 `tracks.cover_path` 悬空，由现有
+  `File.existsSync()` 兜底，重新解析时落入层 2。
+- **层 2 → 层 1 拷贝**：封面已在层 2、随后该歌音频被缓存时，**拷贝**一份进层 1
+  （不搬移，避免抽走可能被其它曲目共享的文件）；层 2 副本按 LRU/重启自然消失。
+- **离线封面是硬约束**：手动下载（pinned）完成后必须确保随行封面已入层 1
+  （必要时即时抓取，best-effort 失败不阻塞下载），否则重启清空层 2 后离线歌无封面。
 - **内容去重**：下载完成后按字节计算 SHA-1；若已有行索引同一 `content_hash`，
   新下载的文件被删除，本行指向既有物理文件。因此同一份音频只占一份磁盘、只计一次用量。
+  引用计数**仅**用于音频内容去重。
 - **引用计数删除**：`remove` / 淘汰只在最后一个引用该 `file_path` 的行消失时才删文件；
   pinned 行会保护其共享文件不被淘汰。
 - 启动时做一次一致性检查：DB 有行但文件不存在 → 清理；文件存在但无行 → 孤儿清理；
   并以 `deduplicateByContent()` 回填旧行哈希、合并历史重复内容。
+  另在启动自愈里把旧根 `audio_cache/`、`cover_cache/` 的文件搬入 `cache/`（见 §4.2）。
+
+> **pinned 豁免配额是有意决策**：上限**不再约束总磁盘占用**，用户可无限下载，
+> 需在发布说明注明。代价与风险见
+> [`superpowers/specs/2026-09-26-cache-refactor-design.md`](superpowers/specs/2026-09-26-cache-refactor-design.md) §13。
+
+> **离线 / pinned 的管理入口**：设置页新增独立的「**离线缓存**」区块（列表 + 用量 +
+> 单条删除 + 全部清空），与曲库行的下载按钮状态一致。设置页原有的缓存区块**显示不变**，
+> 但「**清空缓存**」现在是**只清在线**——层 1 非 pinned 行 + 整个层 2，**不误伤**
+> pinned/离线下载。
 
 ### 4.6 播放集成
 
