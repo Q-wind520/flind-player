@@ -20,22 +20,13 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/music_source.dart';
-import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/audio_downloader.dart';
 
-/// Canonical `audio_cache.source_track_id` value for [track].
-///
-/// Mirrors the convention in `docs/local-library.md` §4.4: `bvid:cid` for
-/// Bilibili and the absolute path for local files. The download manager and the
-/// cache-first resolver must agree on this key or lookups would miss.
-String cacheSourceTrackId(Track track) {
-  final id = track.sourceTrackId;
-  if (id is BiliTrackId) return '${id.bvid}:${id.cid}';
-  if (id is LocalTrackId) return id.path;
-  return id.toString();
-}
+import 'cache_keys.dart';
+
+export 'cache_keys.dart';
 
 /// Lifecycle of one queued download.
 enum DownloadPhase { queued, downloading, done, failed, skipped }

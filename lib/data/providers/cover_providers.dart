@@ -54,6 +54,7 @@ final coverDownloaderProvider = Provider<CoverDownloader>(
 final coverServiceProvider = Provider<CoverService>((ref) {
   return CoverService(
     store: ref.watch(coverCacheStoreProvider),
+    audioStore: ref.watch(audioCacheStoreProvider),
     downloader: ref.watch(coverDownloaderProvider),
     library: ref.watch(musicLibraryRepositoryProvider),
     // Bilibili search/view payloads normally carry the cover URL, so this is

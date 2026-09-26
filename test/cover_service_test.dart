@@ -21,62 +21,22 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/cache/cover_downloader.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/services/cover_service.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
+import 'audio_cache_store_test.dart' show FakeSettingsRepository;
+
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
-
-/// In-memory [SettingsRepository] with the default cache quota.
-///
-/// Kept even though batch 1 dropped the `settings` argument from every
-/// `CoverCacheStore(...)` call here: the cache-refactor Task 4 setUp builds an
-/// `AudioCacheStore` with this fake again.
-// ignore: unused_element
-class _FakeSettingsRepository implements SettingsRepository {
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-
-  CacheSettings current = CacheSettings.defaults;
-
-  @override
-  Future<CacheSettings> cacheSettings() async => current;
-
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {
-    current = settings;
-  }
-
-  @override
-  Stream<CacheSettings> watchCacheSettings() =>
-      const Stream<CacheSettings>.empty();
-
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.title;
-
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-}
 
 /// [CoverDownloader] stand-in that returns canned image bytes and records each
 /// requested URL. Set [returnNull] to simulate a failed fetch.
@@ -205,6 +165,8 @@ Track _localTrack({required String coverPath}) => Track(
 void main() {
   late Directory root;
   late AppDatabase db;
+  late FakeSettingsRepository settings;
+  late AudioCacheStore audio;
   late _FakeCoverDownloader downloader;
   late _FakeMusicLibraryRepository library;
   late List<String> resolvedBvids;
@@ -213,11 +175,14 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('flind_cover_service');
     db = AppDatabase(NativeDatabase.memory());
+    settings = FakeSettingsRepository();
+    audio = AudioCacheStore(database: db, baseDir: root, settings: settings);
     downloader = _FakeCoverDownloader(_jpegBytes());
     library = _FakeMusicLibraryRepository();
     resolvedBvids = <String>[];
     service = CoverService(
       store: CoverCacheStore(database: db, baseDir: root),
+      audioStore: audio,
       downloader: downloader,
       library: library,
       resolveRemoteUrl: (bvid) async {
@@ -301,6 +266,7 @@ void main() {
     );
     final service = CoverService(
       store: CoverCacheStore(database: db, baseDir: root),
+      audioStore: audio,
       downloader: bad,
       library: library,
       resolveRemoteUrl: (bvid) async => '//i0.hdslb.com/bfs/resolved.jpg',
@@ -335,5 +301,36 @@ void main() {
     expect(path, coverFile.path);
     expect(downloader.requestedUrls, isEmpty);
     expect(library.coverWrites, isEmpty);
+  });
+
+  test('stores a cover in layer 1 when the song is already cached', () async {
+    final audioFile = audio.fileFor(
+      source: 'bilibili',
+      sourceTrackId: 'BV1GJ411x7h7:137649199',
+      extension: 'm4a',
+    );
+    audioFile.parent.createSync(recursive: true);
+    audioFile.writeAsBytesSync(const [1, 2, 3]);
+    await audio.insert(
+      source: 'bilibili',
+      sourceTrackId: 'BV1GJ411x7h7:137649199',
+      filePath: audioFile.path,
+      bytes: 3,
+      qualityId: '30280',
+      pinned: true,
+    );
+
+    final path = await service.ensureCover(
+      _biliTrack(coverUrl: '//i0.hdslb.com/bfs/a.jpg'),
+    );
+
+    expect(path, isNotNull);
+    expect(
+      (await audio.lookup('bilibili', 'BV1GJ411x7h7:137649199'))!.coverPath,
+      path,
+    );
+    // The companion cover lives beside the audio file and its bytes count
+    // toward the layer-1 quota (audio: 3 + cover: jpeg size).
+    expect(await audio.totalBytes(), 3 + downloader.bytes.length);
   });
 }

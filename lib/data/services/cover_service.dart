@@ -24,6 +24,8 @@ import 'package:image/image.dart' as img;
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
+import 'package:flind_player/data/cache/cache_keys.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/cache/cover_downloader.dart';
 import 'package:flind_player/data/sources/bilibili/bili_models.dart';
@@ -57,8 +59,11 @@ typedef CoverUrlResolver = Future<String?> Function(String bvid);
 ///    payloads already carry it) and, when absent, resolved through
 ///    [resolveRemoteUrl] for a Bilibili track;
 /// 3. a cache hit on the URL is served without a network round-trip;
-/// 4. a miss downloads the bytes, decode-validates them off the UI isolate and
-///    stores them verbatim via [CoverCacheStore];
+/// 4. a miss downloads the bytes and decode-validates them off the UI isolate,
+///    then routes by cache layer: a song already in the offline audio cache
+///    (layer 1) gets the cover written beside its audio file via
+///    [AudioCacheStore.coverFileFor], so offline artwork survives; anything
+///    else goes to the session-scoped [CoverCacheStore] (layer 2);
 /// 5. the resulting local path and URL are written back to the pool row, when
 ///    it exists.
 ///
@@ -68,16 +73,19 @@ class CoverService {
   /// Creates a service.
   CoverService({
     required CoverCacheStore store,
+    required AudioCacheStore audioStore,
     required CoverDownloader downloader,
     required MusicLibraryRepository library,
     required CoverUrlResolver resolveRemoteUrl,
   }) : _store = store, // ignore: prefer_initializing_formals
+       _audioStore = audioStore, // ignore: prefer_initializing_formals
        _downloader = downloader, // ignore: prefer_initializing_formals
        _library = library, // ignore: prefer_initializing_formals
        // ignore: prefer_initializing_formals
        _resolveRemoteUrl = resolveRemoteUrl;
 
   final CoverCacheStore _store;
+  final AudioCacheStore _audioStore;
   final CoverDownloader _downloader;
   final MusicLibraryRepository _library;
   final CoverUrlResolver _resolveRemoteUrl;
@@ -137,7 +145,7 @@ class CoverService {
         }
       }
 
-      final path = await _storeDownload(url, urlHash, force: force);
+      final path = await _storeDownload(url, urlHash, track, force: force);
       if (path == null) return null;
       await _persist(track, path, url);
       return path;
@@ -151,7 +159,8 @@ class CoverService {
   /// same URL (several video parts share one cover).
   Future<String?> _storeDownload(
     String url,
-    String urlHash, {
+    String urlHash,
+    Track track, {
     required bool force,
   }) {
     if (!force) {
@@ -159,7 +168,7 @@ class CoverService {
       if (pending != null) return pending;
     }
 
-    final future = _downloadAndStore(url, urlHash);
+    final future = _downloadAndStore(url, urlHash, track);
     _inFlightByUrl[urlHash] = future;
     return future.whenComplete(() {
       if (identical(_inFlightByUrl[urlHash], future)) {
@@ -168,7 +177,11 @@ class CoverService {
     });
   }
 
-  Future<String?> _downloadAndStore(String url, String urlHash) async {
+  Future<String?> _downloadAndStore(
+    String url,
+    String urlHash,
+    Track track,
+  ) async {
     final bytes = await _downloader.download(url);
     if (bytes == null) return null;
 
@@ -178,6 +191,29 @@ class CoverService {
     final decodable = await Isolate.run(() => isDecodableImage(bytes));
     if (!decodable) return null;
 
+    final cachedAudio = await _cachedAudioFor(track);
+    if (cachedAudio != null) {
+      // Layer 1: the cover travels with the cached song.
+      final extension = _extensionFor(bytes);
+      final cover = _audioStore.coverFileFor(
+        source: track.source,
+        sourceTrackId: cacheSourceTrackId(track),
+        extension: extension,
+      );
+      cover.parent.createSync(recursive: true);
+      cover.writeAsBytesSync(bytes, flush: true);
+      // `bytes:` so the companion cover counts toward the layer-1 quota.
+      await _audioStore.setCoverPath(
+        cachedAudio.id,
+        cover.path,
+        bytes: bytes.length,
+      );
+      // The companion cover adds to layer 1's footprint; re-enforce the cap.
+      await _audioStore.enforceLimit();
+      return cover.path;
+    }
+
+    // Layer 2: session-scoped cover for an un-cached song.
     // The original length is already known, so `ensureSpace` only needs to make
     // room for exactly what is about to be written.
     final eviction = await _store.ensureSpace(bytes.length);
@@ -188,6 +224,45 @@ class CoverService {
       contentHash: _sha1Bytes(bytes),
       bytes: bytes,
     );
+  }
+
+  /// The offline audio-cache row for [track], or `null` when the song is not
+  /// cached (or its file vanished from disk).
+  Future<CachedAudio?> _cachedAudioFor(Track track) async {
+    try {
+      final entry = await _audioStore.lookup(
+        track.source,
+        cacheSourceTrackId(track),
+      );
+      if (entry == null) return null;
+      return File(entry.filePath).existsSync() ? entry : null;
+    } catch (error) {
+      debugPrint('CoverService: audio cache lookup failed: $error');
+      return null;
+    }
+  }
+
+  /// Picks a file extension from the image's magic bytes; defaults to `jpg`.
+  static String _extensionFor(Uint8List bytes) {
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'png';
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'webp';
+    }
+    return 'jpg';
   }
 
   /// Resolves a Bilibili track's cover URL through [CoverUrlResolver].
