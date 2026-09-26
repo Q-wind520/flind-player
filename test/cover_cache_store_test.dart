@@ -218,5 +218,16 @@ void main() {
       expect(result.evictedCount, 0);
       expect(await store.lookup('a'), isNotNull);
     });
+
+    test('is a no-op when there is already room', () async {
+      await addCover('a', 'hash-a', bytes: 100);
+
+      final result = await store.ensureSpace(100);
+
+      expect(result.evictedCount, 0);
+      expect(result.freedBytes, 0);
+      expect(result.hasSpace, isTrue);
+      expect(await store.lookup('a'), isNotNull);
+    });
   });
 }
