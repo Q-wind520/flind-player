@@ -1,0 +1,51 @@
+Name:           flind-player
+Version:        @RPMVERSION@
+Release:        @RPMRELEASE@%{?dist}
+Summary:        Flind Player - cross-platform music player
+
+License:        GPL-3.0-only
+URL:            @HOMEPAGE@
+BuildArch:      x86_64
+AutoReqProv:    yes
+
+# libmpv is dlopen()ed at runtime by media_kit, so rpm's automatic ELF
+# dependency generator cannot see it; declare it by hand.
+Requires:       mpv-libs
+
+%description
+A Flutter based music player with local library scanning, Bilibili audio
+sources, playlists, favorites and offline caching.
+
+Playback requires a system libmpv (package mpv-libs), which is not bundled.
+
+%prep
+%build
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}
+cp -a "%{_bundledir}/." %{buildroot}/
+
+%files
+/opt/flind-player
+/usr/bin/flind_player
+/usr/share/applications/flind_player.desktop
+/usr/share/icons/hicolor/256x256/apps/flind_player.png
+/usr/share/doc/flind-player/copyright
+/usr/share/licenses/flind-player/LICENSE
+
+%post
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database -q /usr/share/applications || :
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || :
+fi
+
+%postun
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database -q /usr/share/applications || :
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || :
+fi
