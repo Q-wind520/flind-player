@@ -16,14 +16,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
+import 'package:flind_player/features/library/library_view_provider.dart';
+import 'package:flind_player/features/library/widgets/library_view_menu_button.dart';
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
-import 'package:flind_player/features/library/widgets/track_list_items.dart';
-import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -76,6 +78,9 @@ class PlaylistDetailScreen extends ConsumerWidget {
               onPressed: () => _confirmDelete(context, ref, playlist),
             ),
           ],
+          const LibraryViewMenuButton(
+            scope: LibraryViewScope.playlistDetail,
+          ),
         ],
       ),
       body: tracksAsync.when(
@@ -174,46 +179,17 @@ class PlaylistDetailScreen extends ConsumerWidget {
   }
 
   Widget _memberList(WidgetRef ref, List<Track> tracks) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (!AppBreakpoints.isCompact(constraints.biggest)) {
-          return GridView.builder(
-            padding: const EdgeInsets.all(12),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
-              childAspectRatio: 0.82,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemCount: tracks.length,
-            itemBuilder: (context, index) {
-              final track = tracks[index];
-              return TrackCard(
-                track: track,
-                isCurrent: false,
-                isPlaying: false,
-                unavailable: track.id == null,
-                playlistId: playlistId,
-                onTap: () => _play(ref, tracks, index),
-              );
-            },
-          );
-        }
-        return ListView.builder(
-          itemCount: tracks.length,
-          itemBuilder: (context, index) {
-            final track = tracks[index];
-            return TrackTile(
-              track: track,
-              isCurrent: false,
-              isPlaying: false,
-              unavailable: track.id == null,
-              playlistId: playlistId,
-              onTap: () => _play(ref, tracks, index),
-            );
-          },
-        );
-      },
+    final view =
+        (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults)
+            .viewOf(LibraryViewScope.playlistDetail);
+    return TrackView(
+      tracks: tracks,
+      view: view,
+      currentUri: null,
+      isPlaying: false,
+      onPlay: (index) => _play(ref, tracks, index),
+      playlistId: playlistId,
+      showDeleteTrack: true,
     );
   }
 }

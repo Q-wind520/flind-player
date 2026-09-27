@@ -17,6 +17,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/library_view.dart';
@@ -40,6 +41,7 @@ import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/playlist_card.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
+import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
 import 'support/l10n.dart';
@@ -916,6 +918,36 @@ void main() {
 
       expect(find.byType(PlaylistCard), findsNothing);
       expect(find.text('Road Trip'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('歌单详情页提供视图菜单并可切换为瀑布流', (tester) async {
+      _setSize(tester, 400, 800);
+      final repo = _FakePlaylistRepository(
+        playlists: [_playlist(2, 'Road Trip', PlaylistKind.custom)],
+        tracks: {
+          2: [_track('Alpha'), _track('Beta')],
+        },
+      );
+
+      await tester.pumpWidget(_app(playlistRepo: repo));
+      await tester.pumpAndSettle();
+      await _openPlaylists(tester);
+
+      // Default showcase: tap the playlist card to push its detail screen.
+      await tester.tap(find.text('Road Trip'));
+      await tester.pumpAndSettle();
+
+      // Detail screen default view is list.
+      expect(find.byType(TrackTile), findsNWidgets(2));
+      expect(find.byKey(const Key('library_view_menu')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('library_view_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(testL10n().viewWaterfall));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MasonryGridView), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
