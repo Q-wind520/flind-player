@@ -205,6 +205,10 @@
     }
   },
   "removeFromPlaylist": "Remove from playlist",
+  "deleteTrack": "Delete song",
+  "deleteTrackTitle": "Delete song?",
+  "deleteTrackBody": "This removes \"{title}\" from every playlist, deletes it from the library, and removes its offline cache (if any). This cannot be undone.",
+  "trackDeleted": "Deleted \"{title}\"",
   "playlistAlreadyContains": "Already in this playlist",
   "playlistTrackCount": "{count} songs",
   "@playlistTrackCount": {

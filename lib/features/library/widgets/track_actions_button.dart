@@ -18,6 +18,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/deletion_providers.dart';
+import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
@@ -40,7 +42,14 @@ import 'package:flind_player/shared/error_snack_bar.dart';
 /// - 存入曲库          (when [showSaveToLibrary] is true)
 /// - 加入歌单          (always)
 /// - 移出歌单          (when [playlistId] is non-null)
-enum _TrackAction { favorite, cache, saveToLibrary, addToPlaylist, removeFromPlaylist }
+enum _TrackAction {
+  favorite,
+  cache,
+  saveToLibrary,
+  addToPlaylist,
+  removeFromPlaylist,
+  deleteTrack,
+}
 
 class TrackActionsButton extends ConsumerWidget {
   const TrackActionsButton({
@@ -145,6 +154,17 @@ class TrackActionsButton extends ConsumerWidget {
               ],
             ),
           ),
+        if (showDeleteTrack)
+          PopupMenuItem<_TrackAction>(
+            value: _TrackAction.deleteTrack,
+            child: Row(
+              children: [
+                const Icon(Icons.delete_outline, size: 20),
+                const SizedBox(width: 12),
+                Text(l10n.deleteTrack),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -161,6 +181,8 @@ class TrackActionsButton extends ConsumerWidget {
         _addToPlaylist(context);
       case _TrackAction.removeFromPlaylist:
         _removeFromPlaylist(context, ref);
+      case _TrackAction.deleteTrack:
+        _deleteTrack(context, ref);
     }
   }
 
@@ -177,6 +199,53 @@ class TrackActionsButton extends ConsumerWidget {
       if (context.mounted) {
         showErrorSnackBar(context, error);
       }
+    }
+  }
+
+  /// Confirms, then permanently deletes the track from playlists, the library
+  /// and the offline cache (local files on disk are left alone).
+  Future<void> _deleteTrack(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.deleteTrackTitle),
+        content: Text(l10n.deleteTrackBody(track.title)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(trackDeletionServiceProvider).deleteEverywhere(track);
+      ref.invalidate(audioCacheEntryProvider(track));
+      ref.invalidate(audioCacheUsageProvider);
+      ref.invalidate(libraryTracksProvider);
+      ref.invalidate(favoritesProvider);
+      ref.invalidate(playlistsProvider);
+      final id = playlistId;
+      if (id != null) ref.invalidate(playlistTracksProvider(id));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(l10n.trackDeleted(track.title))),
+          );
+      }
+    } catch (error) {
+      if (context.mounted) showErrorSnackBar(context, error);
     }
   }
 

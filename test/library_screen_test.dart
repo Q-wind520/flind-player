@@ -29,11 +29,13 @@ import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
+import 'package:flind_player/data/providers/deletion_providers.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
+import 'package:flind_player/data/services/track_deletion_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/library_view_provider.dart';
@@ -158,6 +160,8 @@ Widget _app({
   TrackSort sort = TrackSort.title,
   Future<CachedAudio?> Function(Ref ref, Track track)? cacheEntry,
   LibraryView view = LibraryView.list,
+  Track? currentTrack,
+  Future<void> Function(Track track)? deleteTrack,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -167,7 +171,11 @@ Widget _app({
     overrides: [
       libraryTracksProvider.overrideWith((ref) => Stream.value(tracks)),
       playbackStateProvider.overrideWith(
-        (ref) => Stream.value(PlaybackState.idle),
+        (ref) => Stream.value(
+          currentTrack == null
+              ? PlaybackState.idle
+              : PlaybackState.idle.copyWith(currentTrack: currentTrack),
+        ),
       ),
       librarySyncStateProvider.overrideWith((ref) => Stream.value(syncState)),
       downloadProgressProvider.overrideWith((ref) => progress),
@@ -179,6 +187,10 @@ Widget _app({
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
       libraryViewsProvider.overrideWith(() => _FakeLibraryViewsNotifier(view)),
       if (search != null) librarySearchProvider.overrideWith(search),
+      if (deleteTrack != null)
+        trackDeletionServiceProvider.overrideWithValue(
+          _FakeDeletionService(deleteTrack),
+        ),
     ],
     child: localizedApp(
       MediaQuery(
@@ -667,6 +679,66 @@ void main() {
     );
     expect(addFolder.onPressed, isNull);
   });
+
+  testWidgets('全部 track menu offers delete but not remove-from-playlist', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('删除歌曲'), findsOneWidget);
+    expect(find.text('移出歌单'), findsNothing);
+  });
+
+  testWidgets('deleting asks for confirmation, then removes the row', (
+    tester,
+  ) async {
+    final deleted = <String>[];
+    await tester.pumpWidget(
+      _app(
+        tracks: [_track('Alpha', id: 1)],
+        deleteTrack: (track) async => deleted.add(track.uri),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除歌曲'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('删除歌曲？'), findsOneWidget);
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(deleted, ['local:/music/Alpha.mp3']);
+  });
+
+  testWidgets('deleting the currently playing track does not throw', (
+    tester,
+  ) async {
+    final track = _track('Alpha', id: 1);
+    await tester.pumpWidget(
+      _app(
+        tracks: [track],
+        currentTrack: track,
+        deleteTrack: (t) async {},
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除歌曲'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
 }
 
 /// Fake [LibrarySortNotifier] that returns a fixed value immediately.
@@ -688,4 +760,14 @@ class _FakeLibraryViewsNotifier extends LibraryViewsNotifier {
   @override
   Future<LibraryViews> build() async =>
       LibraryViews({for (final scope in LibraryViewScope.values) scope: _view});
+}
+
+/// Fake [TrackDeletionService] that forwards to an in-test callback.
+class _FakeDeletionService implements TrackDeletionService {
+  _FakeDeletionService(this._onDelete);
+
+  final Future<void> Function(Track track) _onDelete;
+
+  @override
+  Future<void> deleteEverywhere(Track track) => _onDelete(track);
 }
