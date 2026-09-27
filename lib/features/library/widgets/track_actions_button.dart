@@ -38,11 +38,12 @@ import 'package:flind_player/shared/error_snack_bar.dart';
 /// element and does not count toward that limit.
 ///
 /// Menu items:
-/// - 收藏 / 取消收藏  (always)
-/// - 缓存到本地 / 已缓存 (online tracks only)
-/// - 存入曲库          (when [showSaveToLibrary] is true)
-/// - 加入歌单          (always)
-/// - 移出歌单          (when [playlistId] is non-null)
+/// - 收藏 / 取消收藏    (always)
+/// - 离线缓存 / 已缓存  (online tracks only; 已缓存 is disabled)
+/// - 存入曲库           (when [showSaveToLibrary] is true)
+/// - 加入歌单           (always)
+/// - 移出歌单           (when [playlistId] is non-null)
+/// - 删除歌曲           (when [showDeleteTrack] is true)
 enum _TrackAction {
   favorite,
   cache,

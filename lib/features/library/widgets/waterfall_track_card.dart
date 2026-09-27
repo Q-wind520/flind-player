@@ -18,7 +18,6 @@ import 'package:flind_player/l10n/app_localizations.dart';
 class WaterfallTrackCard extends ConsumerWidget {
   const WaterfallTrackCard({
     required this.track,
-    required this.isCurrent,
     required this.isPlaying,
     required this.onTap,
     this.playlistId,
@@ -28,7 +27,6 @@ class WaterfallTrackCard extends ConsumerWidget {
   });
 
   final Track track;
-  final bool isCurrent;
   final bool isPlaying;
   final VoidCallback onTap;
   final int? playlistId;

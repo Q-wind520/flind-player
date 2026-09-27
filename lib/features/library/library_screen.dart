@@ -313,8 +313,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   /// The single top row: the overflow menu on the far left, the section
-  /// selector centred *on screen*, and search + new-playlist on the right
-  /// (＋ rightmost, visible in every section).
+  /// selector centred *on screen*, and the new-playlist ＋ on the right, shown
+  /// only on the 歌单 section. Search is *not* part of this row: it is an
+  /// always-visible field below the header, on the 全部 section only.
   ///
   /// A [Stack] (rather than a [Row]) is used so the selector's centring is
   /// independent of the unequal edge-button widths; a width reservation keeps

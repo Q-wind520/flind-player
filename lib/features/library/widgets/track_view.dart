@@ -77,7 +77,6 @@ class TrackView extends StatelessWidget {
         final isCurrent = currentUri != null && track.uri == currentUri;
         return TrackCard(
           track: track,
-          isCurrent: isCurrent,
           isPlaying: isCurrent && isPlaying,
           unavailable: track.id == null,
           playlistId: playlistId,
@@ -103,7 +102,6 @@ class TrackView extends StatelessWidget {
             final isCurrent = currentUri != null && track.uri == currentUri;
             return WaterfallTrackCard(
               track: track,
-              isCurrent: isCurrent,
               isPlaying: isCurrent && isPlaying,
               unavailable: track.id == null,
               playlistId: playlistId,

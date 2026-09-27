@@ -119,7 +119,8 @@
   2. `playlistRepository.removeTrackFromAllPlaylists(track.uri)`。
   3. `track.id != null` 时 `musicLibraryRepository.deleteTrack(track.id)`。
   4. 失效：`libraryTracksProvider`、`favoritesProvider`、`playlistsProvider`、`playlistTracksProvider`（按需）、`audioCacheEntryProvider(track)`、`audioCacheUsageProvider`。
-  5. 返回删除结果（供 SnackBar）。
+  5. 完成后由调用方（`TrackActionsButton`）弹 SnackBar（`trackDeleted(track.title)`）；服务本身返回 `Future<void>`，不返回结果对象。
+  - 复审补充：调用方另失效 `librarySearchProvider`（清除「全部」搜索结果中的已删行）与 `offlineCacheEntriesProvider`（刷新设置页「离线缓存」列表）；删除失败时弹错误提示。
 - 二次确认弹窗：危险样式（`colorScheme.error`），标题 `deleteTrackTitle`、正文 `deleteTrackBody(track.title)`（说明：从所有歌单移除 + 删除曲库 + 删除离线缓存 + 不可撤销），动作「取消 / 删除」。
 - l10n：`deleteTrack`、`deleteTrackTitle(String)`、`deleteTrackBody(String)`、`trackDeleted(String)`；`removeFromPlaylist` 的 zh 值改为「移出歌单」。
 

@@ -101,14 +101,13 @@ class TrackTile extends StatelessWidget {
   }
 }
 
-/// A card tile for the wide-screen grid layout.
+/// A card tile for the showcase (展柜) grid view.
 ///
 /// Shows a square cover, title, artist, source badge, playing indicator, and
 /// a trailing actions button overlaid in the top-right corner.
 class TrackCard extends StatelessWidget {
   const TrackCard({
     required this.track,
-    required this.isCurrent,
     required this.isPlaying,
     required this.onTap,
     this.playlistId,
@@ -118,7 +117,6 @@ class TrackCard extends StatelessWidget {
   });
 
   final Track track;
-  final bool isCurrent;
   final bool isPlaying;
   final VoidCallback onTap;
 

@@ -36,7 +36,6 @@ Widget _app({required Track track, double? ratio}) => ProviderScope(
         width: 200,
         child: WaterfallTrackCard(
           track: track,
-          isCurrent: false,
           isPlaying: false,
           onTap: () {},
         ),
