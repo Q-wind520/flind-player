@@ -58,6 +58,31 @@ cp "${appdir}/usr/share/icons/hicolor/256x256/apps/${BIN_NAME}.png" "${appdir}/$
 # media_kit dlopen()s libmpv, so it is invisible to ldd; --library forces it in
 # and linuxdeploy resolves its (FFmpeg) closure.
 #
+# libmpv's own dependency closure reaches into the GTK/desktop shared stack
+# (librsvg pulls cairo/pango; ffmpeg pulls wayland/xkbcommon and glib). Those
+# must come from the host, not the AppImage: GTK3 is a system dependency by
+# design (spec 2.5), and mixing a bundled glib/pango/cairo with the host GTK3
+# risks ABI skew (undefined symbols, broken theming/IME). Exclude them so only
+# libmpv's non-desktop closure is bundled.
+GTK_SHARED_EXCLUDES=(
+  'libglib-2.0.so*'
+  'libgio-2.0.so*'
+  'libgobject-2.0.so*'
+  'libgmodule-2.0.so*'
+  'libpango-1.0.so*'
+  'libpangocairo-1.0.so*'
+  'libpangoft2-1.0.so*'
+  'libcairo.so*'
+  'libcairo-gobject.so*'
+  'libgdk_pixbuf-2.0.so*'
+  'libwayland-*.so*'
+  'libxkbcommon.so*'
+)
+exclude_args=()
+for pattern in "${GTK_SHARED_EXCLUDES[@]}"; do
+  exclude_args+=(--exclude-library "${pattern}")
+done
+
 # Order matters: linuxdeploy walks EVERY ELF file already present in the AppDir.
 # Running it before the Flutter bundle is copied in keeps the deployment to
 # libmpv's closure only, leaving GTK3 a system dependency by design (spec 2.5)
@@ -66,7 +91,8 @@ ARCH=x86_64 "${tools}/linuxdeploy" --appimage-extract-and-run \
   --appdir "${appdir}" \
   --desktop-file "${appdir}/usr/share/applications/${BIN_NAME}.desktop" \
   --icon-file "${appdir}/usr/share/icons/hicolor/256x256/apps/${BIN_NAME}.png" \
-  --library "${LIBMPV_SO}"
+  --library "${LIBMPV_SO}" \
+  "${exclude_args[@]}"
 
 # --- add the application itself ---------------------------------------------
 install -d "${appdir}/usr/lib/${PKG_NAME}"

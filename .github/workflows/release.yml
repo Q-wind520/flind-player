@@ -337,9 +337,14 @@ jobs:
           # formal tag always publishes a full release; any other hyphenated tag
           # that does arrive is still marked as a pre-release.
           prerelease: ${{ contains(github.ref_name, '-') }}
+          # upload-artifact preserves the path only AFTER the first wildcard: the
+          # `path: dist/FlindPlayer-*` search root (`dist`) becomes the artifact
+          # root, so downloaded files sit directly under each artifact directory.
+          # Do NOT add a `dist/` segment here — it would match nothing and the
+          # release would ship with no Linux or Windows assets.
           files: |
-            artifacts/linux-release/dist/*
-            artifacts/windows-release/dist/*
+            artifacts/linux-release/*
+            artifacts/windows-release/*
             artifacts/macos-release/*.zip
             artifacts/ios-release/*.ipa
             artifacts/android-release/*.apk
