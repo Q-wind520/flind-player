@@ -22,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
@@ -60,6 +61,15 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setLibrarySort(TrackSort sort) async {}
+
+  @override
+  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
+
+  @override
+  Future<void> setLibraryView(
+    LibraryViewScope scope,
+    LibraryView view,
+  ) async {}
 }
 
 void main() {

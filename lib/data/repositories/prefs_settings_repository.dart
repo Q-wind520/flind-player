@@ -20,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 
@@ -35,6 +36,9 @@ class PrefsSettingsRepository implements SettingsRepository {
 
   /// Preferences key for the library sort order.
   static const String librarySortKey = 'library.sort';
+
+  /// Preferences key prefix for a scope's library view.
+  static const String libraryViewKeyPrefix = 'library.view.';
 
   /// Preferences key for the UI language.
   static const String appLanguageKey = 'app.language';
@@ -108,6 +112,34 @@ class PrefsSettingsRepository implements SettingsRepository {
   Future<void> setLibrarySort(TrackSort sort) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(librarySortKey, sort.name);
+  }
+
+  static String _libraryViewKey(LibraryViewScope scope) =>
+      '$libraryViewKeyPrefix${scope.name}';
+
+  @override
+  Future<LibraryViews> libraryViews() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final views = <LibraryViewScope, LibraryView>{};
+      for (final scope in LibraryViewScope.values) {
+        final name = prefs.getString(_libraryViewKey(scope));
+        if (name == null) continue;
+        final parsed = LibraryView.values.asNameMap()[name];
+        if (parsed == null) continue;
+        views[scope] = scope.sanitize(parsed);
+      }
+      return LibraryViews(views);
+    } catch (error) {
+      debugPrint('PrefsSettingsRepository: libraryViews read failed: $error');
+      return LibraryViews.defaults;
+    }
+  }
+
+  @override
+  Future<void> setLibraryView(LibraryViewScope scope, LibraryView view) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_libraryViewKey(scope), scope.sanitize(view).name);
   }
 
   @override

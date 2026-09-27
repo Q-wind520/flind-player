@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
 
@@ -135,5 +136,48 @@ void main() {
     addTearDown(repository.dispose);
 
     expect(await repository.appLanguage(), AppLanguage.system);
+  });
+
+  test('libraryViews defaults to the scope defaults when nothing is stored',
+      () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    final views = await repository.libraryViews();
+    expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
+    expect(views.viewOf(LibraryViewScope.playlistDetail), LibraryView.list);
+  });
+
+  test('libraryViews round-trips a stored choice', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    await repository.setLibraryView(LibraryViewScope.all, LibraryView.list);
+
+    final views = await repository.libraryViews();
+    expect(views.viewOf(LibraryViewScope.all), LibraryView.list);
+  });
+
+  test('libraryViews falls back for a corrupt stored value', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'library.view.all': 'hologram',
+    });
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    final views = await repository.libraryViews();
+    expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
+  });
+
+  test('libraryViews sanitizes a waterfall stored for the playlists scope',
+      () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'library.view.playlists': 'waterfall',
+    });
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    final views = await repository.libraryViews();
+    expect(views.viewOf(LibraryViewScope.playlists), LibraryView.showcase);
   });
 }

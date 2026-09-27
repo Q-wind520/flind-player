@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 
 /// User-configurable offline audio cache settings.
@@ -67,6 +68,12 @@ abstract interface class SettingsRepository {
 
   /// Persists [sort] as the library sort order.
   Future<void> setLibrarySort(TrackSort sort);
+
+  /// Every scope's persisted library view, falling back to per-scope defaults.
+  Future<LibraryViews> libraryViews();
+
+  /// Persists [view] for [scope] (sanitized for that scope).
+  Future<void> setLibraryView(LibraryViewScope scope, LibraryView view);
 
   /// The persisted UI language, falling back to [AppLanguage.system].
   Future<AppLanguage> appLanguage();

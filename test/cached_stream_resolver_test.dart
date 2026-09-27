@@ -20,6 +20,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/music_source.dart';
@@ -80,6 +81,15 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setLibrarySort(TrackSort sort) async {}
+
+  @override
+  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
+
+  @override
+  Future<void> setLibraryView(
+    LibraryViewScope scope,
+    LibraryView view,
+  ) async {}
 }
 
 /// Inner resolver that records its calls.

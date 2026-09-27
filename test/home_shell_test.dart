@@ -24,6 +24,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
@@ -84,6 +85,15 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setLibrarySort(TrackSort sort) async {}
+
+  @override
+  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
+
+  @override
+  Future<void> setLibraryView(
+    LibraryViewScope scope,
+    LibraryView view,
+  ) async {}
 
   Future<void> dispose() async {}
 }
