@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/library_view.dart';
+import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
 
@@ -179,5 +180,12 @@ void main() {
 
     final views = await repository.libraryViews();
     expect(views.viewOf(LibraryViewScope.playlists), LibraryView.showcase);
+  });
+
+  test('librarySort defaults to recentlyAdded', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.librarySort(), TrackSort.recentlyAdded);
   });
 }

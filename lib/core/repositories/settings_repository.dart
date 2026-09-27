@@ -63,7 +63,8 @@ abstract interface class SettingsRepository {
   /// Emits the current value on subscribe and again after every update.
   Stream<CacheSettings> watchCacheSettings();
 
-  /// The persisted library sort order, falling back to [TrackSort.title].
+  /// The persisted library sort order, falling back to
+  /// [TrackSort.recentlyAdded].
   Future<TrackSort> librarySort();
 
   /// Persists [sort] as the library sort order.

@@ -44,7 +44,7 @@ final localFileImporterProvider = Provider<LocalFileImporter>(
 /// Watches [librarySortProvider] so the list re-sorts when the user changes
 /// the sort order.
 final libraryTracksProvider = StreamProvider<List<Track>>((ref) {
-  final sort = ref.watch(librarySortProvider).value ?? TrackSort.title;
+  final sort = ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
   return ref.watch(musicLibraryRepositoryProvider).watchTracks(sort: sort);
 });
 

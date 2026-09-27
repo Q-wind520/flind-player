@@ -19,7 +19,7 @@
 /// and album are compared case-insensitively and use the row id as a stable
 /// tiebreaker so pagination-free lists never reshuffle between reads.
 enum TrackSort {
-  /// Title, case-insensitive A -> Z. The default.
+  /// Title, case-insensitive A -> Z.
   title,
 
   /// Artist, case-insensitive A -> Z; tracks with no artist sort last.
@@ -28,6 +28,6 @@ enum TrackSort {
   /// Album, case-insensitive A -> Z; tracks with no album sort last.
   album,
 
-  /// Most recently added first (`createdAt` descending).
+  /// Most recently added first (`createdAt` descending). The default.
   recentlyAdded,
 }

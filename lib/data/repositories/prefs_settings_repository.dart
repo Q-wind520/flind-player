@@ -100,11 +100,11 @@ class PrefsSettingsRepository implements SettingsRepository {
     try {
       final prefs = await SharedPreferences.getInstance();
       final name = prefs.getString(librarySortKey);
-      if (name == null) return TrackSort.title;
-      return TrackSort.values.asNameMap()[name] ?? TrackSort.title;
+      if (name == null) return TrackSort.recentlyAdded;
+      return TrackSort.values.asNameMap()[name] ?? TrackSort.recentlyAdded;
     } catch (error) {
       debugPrint('PrefsSettingsRepository: librarySort read failed: $error');
-      return TrackSort.title;
+      return TrackSort.recentlyAdded;
     }
   }
 

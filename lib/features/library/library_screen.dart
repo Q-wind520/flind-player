@@ -370,7 +370,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// the ring from ever colliding with the buttons at 400 px.
   Widget _buildHeaderRow({required bool hasLocalLibrary}) {
     final l10n = AppLocalizations.of(context);
-    final currentSort = ref.watch(librarySortProvider).value ?? TrackSort.title;
+    final currentSort =
+        ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
     final syncState =
         ref.watch(librarySyncStateProvider).value ?? LibrarySyncState.idle;
     final isSyncing = switch (syncState.phase) {
@@ -705,7 +706,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget _buildFavouritesBody(String? currentUri, bool isPlaying) {
     final l10n = AppLocalizations.of(context);
     final favouritesAsync = ref.watch(favoritesProvider);
-    final sort = ref.watch(librarySortProvider).value ?? TrackSort.title;
+    final sort = ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
     return favouritesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _LibraryError(
