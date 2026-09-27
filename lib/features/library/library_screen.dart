@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/playback_queue.dart';
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
@@ -28,6 +29,7 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
+import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
@@ -42,26 +44,6 @@ import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/platform_support.dart';
 import 'package:flind_player/shared/responsive_center.dart';
-
-/// Actions exposed by the library overflow menu.
-///
-/// The `sortBy*` variants carry the [TrackSort] they apply, so the sort choices
-/// live in the same menu as the library actions.
-enum _LibraryAction {
-  addFolder,
-  rescan,
-  importFiles,
-  bilibiliFavorites,
-  sortByTitle(TrackSort.title),
-  sortByArtist(TrackSort.artist),
-  sortByAlbum(TrackSort.album),
-  sortByRecentlyAdded(TrackSort.recentlyAdded);
-
-  const _LibraryAction([this.sort]);
-
-  /// The sort order applied by a `sortBy*` variant; `null` for other actions.
-  final TrackSort? sort;
-}
 
 /// Library sections: all tracks, favourites, and user playlists.
 ///
@@ -109,6 +91,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// not re-trigger the notification.
   String? _syncBubbleText;
 
+  /// Controls the header overflow [MenuAnchor].
+  final MenuController _menuController = MenuController();
+
   /// Local FTS is fast, but debouncing keeps the family provider from churning
   /// on every keystroke.
   static const Duration _debounceDelay = Duration(milliseconds: 250);
@@ -147,27 +132,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       _query = '';
     }
     setState(() => _searchOpen = !_searchOpen);
-  }
-
-  Future<void> _onAction(_LibraryAction action) async {
-    switch (action) {
-      case _LibraryAction.addFolder:
-        await _addFolder();
-      case _LibraryAction.rescan:
-        _startSync();
-      case _LibraryAction.importFiles:
-        await _importFiles();
-      case _LibraryAction.bilibiliFavorites:
-        await _openBilibiliFavorites();
-      case _LibraryAction.sortByTitle ||
-          _LibraryAction.sortByArtist ||
-          _LibraryAction.sortByAlbum ||
-          _LibraryAction.sortByRecentlyAdded:
-        final sort = action.sort;
-        if (sort != null) {
-          await ref.read(librarySortProvider.notifier).setSort(sort);
-        }
-    }
   }
 
   /// Opens the create-playlist dialog from the header "+" button.
@@ -369,7 +333,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// independent of the unequal edge-button widths; a width reservation keeps
   /// the ring from ever colliding with the buttons at 400 px.
   Widget _buildHeaderRow({required bool hasLocalLibrary}) {
-    final l10n = AppLocalizations.of(context);
     final currentSort =
         ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
     final syncState =
@@ -399,48 +362,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               children: [
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: PopupMenuButton<_LibraryAction>(
-                    key: const Key('library_more_menu'),
-                    // Empty message suppresses the default "Show menu" hover bubble.
-                    tooltip: '',
-                    onSelected: _onAction,
-                    itemBuilder: (context) => <PopupMenuEntry<_LibraryAction>>[
-                      if (hasLocalLibrary) ...[
-                        PopupMenuItem(
-                          value: _LibraryAction.addFolder,
-                          enabled: !isSyncing,
-                          child: _MenuRow(
-                            icon: Icons.create_new_folder_outlined,
-                            label: l10n.addFolder,
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: _LibraryAction.rescan,
-                          enabled: !isSyncing,
-                          child: _MenuRow(icon: Icons.refresh, label: l10n.rescan),
-                        ),
-                        PopupMenuItem(
-                          value: _LibraryAction.importFiles,
-                          child: _MenuRow(icon: Icons.add, label: l10n.importFiles),
-                        ),
-                        const PopupMenuDivider(),
-                        for (final sort in TrackSort.values)
-                          PopupMenuItem<_LibraryAction>(
-                            value: _sortAction(sort),
-                            child: _SortRow(
-                              label: _sortLabel(l10n, sort),
-                              selected: sort == currentSort,
-                            ),
-                          ),
-                      ],
-                      PopupMenuItem(
-                        value: _LibraryAction.bilibiliFavorites,
-                        child: _MenuRow(
-                          icon: Icons.cloud_outlined,
-                          label: l10n.browseBiliFavorites,
-                        ),
-                      ),
-                    ],
+                  child: _buildMoreMenu(
+                    hasLocalLibrary: hasLocalLibrary,
+                    isSyncing: isSyncing,
+                    currentSort: currentSort,
                   ),
                 ),
                 Center(
@@ -488,6 +413,120 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
+  /// Maps a library section to its persisted view scope.
+  static LibraryViewScope _scopeForSection(LibrarySection section) =>
+      switch (section) {
+        LibrarySection.all => LibraryViewScope.all,
+        LibrarySection.favorites => LibraryViewScope.favorites,
+        LibrarySection.playlists => LibraryViewScope.playlists,
+      };
+
+  /// The overflow menu: 本地 / 排序 / 视图 submenus plus the Bilibili browser.
+  Widget _buildMoreMenu({
+    required bool hasLocalLibrary,
+    required bool isSyncing,
+    required TrackSort currentSort,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final scope = _scopeForSection(_section);
+    final views =
+        ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults;
+    final currentView = views.viewOf(scope);
+
+    return MenuAnchor(
+      controller: _menuController,
+      menuChildren: <Widget>[
+        if (hasLocalLibrary)
+          SubmenuButton(
+            menuChildren: <Widget>[
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.create_new_folder_outlined),
+                onPressed: isSyncing
+                    ? null
+                    : () {
+                        _menuController.close();
+                        unawaited(_addFolder());
+                      },
+                child: Text(l10n.addFolder),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.refresh),
+                onPressed: isSyncing
+                    ? null
+                    : () {
+                        _menuController.close();
+                        _startSync();
+                      },
+                child: Text(l10n.rescan),
+              ),
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.add),
+                onPressed: () {
+                  _menuController.close();
+                  unawaited(_importFiles());
+                },
+                child: Text(l10n.importFiles),
+              ),
+            ],
+            child: Text(l10n.menuLocal),
+          ),
+        SubmenuButton(
+          menuChildren: <Widget>[
+            for (final sort in TrackSort.values)
+              MenuItemButton(
+                leadingIcon: sort == currentSort
+                    ? const Icon(Icons.check)
+                    : null,
+                onPressed: () {
+                  _menuController.close();
+                  unawaited(
+                    ref.read(librarySortProvider.notifier).setSort(sort),
+                  );
+                },
+                child: Text(_sortLabel(l10n, sort)),
+              ),
+          ],
+          child: Text(l10n.menuSort),
+        ),
+        SubmenuButton(
+          menuChildren: <Widget>[
+            for (final view in scope.allowedViews)
+              MenuItemButton(
+                leadingIcon: view == currentView
+                    ? const Icon(Icons.check)
+                    : null,
+                onPressed: () {
+                  _menuController.close();
+                  unawaited(
+                    ref
+                        .read(libraryViewsProvider.notifier)
+                        .setView(scope, view),
+                  );
+                },
+                child: Text(_viewLabel(l10n, view)),
+              ),
+          ],
+          child: Text(l10n.menuView),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.cloud_outlined),
+          onPressed: () {
+            _menuController.close();
+            unawaited(_openBilibiliFavorites());
+          },
+          child: Text(l10n.browseBiliFavorites),
+        ),
+      ],
+      builder: (context, controller, child) => IconButton(
+        key: const Key('library_more_menu'),
+        tooltip: '',
+        icon: const Icon(Icons.more_vert),
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+      ),
+    );
+  }
+
   /// The inline search field, expanded under the header row.
   Widget _buildSearchField() {
     final l10n = AppLocalizations.of(context);
@@ -528,14 +567,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           : const SizedBox(width: double.infinity),
     );
   }
-
-  /// Maps a [TrackSort] to the overflow-menu action that applies it.
-  static _LibraryAction _sortAction(TrackSort sort) => switch (sort) {
-    TrackSort.title => _LibraryAction.sortByTitle,
-    TrackSort.artist => _LibraryAction.sortByArtist,
-    TrackSort.album => _LibraryAction.sortByAlbum,
-    TrackSort.recentlyAdded => _LibraryAction.sortByRecentlyAdded,
-  };
 
   /// Surfaces sync progress and results as floating bubble notifications.
   void _onSyncStateChanged(AsyncValue<LibrarySyncState> asyncState) {
@@ -916,29 +947,6 @@ class _LibraryFilterSelector extends StatelessWidget {
       };
 }
 
-/// A sort option row inside the overflow menu, check-marked when active.
-class _SortRow extends StatelessWidget {
-  const _SortRow({required this.label, required this.selected});
-
-  final String label;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        if (selected)
-          Icon(Icons.check, size: 20, color: scheme.primary)
-        else
-          const SizedBox(width: 20),
-        const SizedBox(width: 8),
-        Text(label),
-      ],
-    );
-  }
-}
-
 /// The display label for a [TrackSort] option.
 String _sortLabel(AppLocalizations l10n, TrackSort sort) => switch (sort) {
   TrackSort.title => l10n.sortByTitle,
@@ -947,18 +955,12 @@ String _sortLabel(AppLocalizations l10n, TrackSort sort) => switch (sort) {
   TrackSort.recentlyAdded => l10n.sortRecentlyAdded,
 };
 
-/// A menu entry: leading icon plus label.
-class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [Icon(icon), const SizedBox(width: 12), Text(label)]);
-  }
-}
+/// The display label for a [LibraryView] option.
+String _viewLabel(AppLocalizations l10n, LibraryView view) => switch (view) {
+  LibraryView.showcase => l10n.viewShowcase,
+  LibraryView.list => l10n.viewList,
+  LibraryView.waterfall => l10n.viewWaterfall,
+};
 
 /// Shown when the platform offers no local library (iOS): explains the
 /// limitation instead of prompting the user to add folders or import files.

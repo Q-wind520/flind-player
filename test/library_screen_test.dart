@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
@@ -34,6 +35,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
+import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 
@@ -173,6 +175,7 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
+      libraryViewsProvider.overrideWith(_FakeLibraryViewsNotifier.new),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
     child: localizedApp(
@@ -257,15 +260,13 @@ void main() {
       expect(find.byIcon(Icons.sort), findsNothing);
       expect(find.byType(TextField), findsNothing);
 
-      // The Bilibili favourites browser stays available. Its overflow icon
-      // adapts to the platform, so find the button itself.
-      final menuButton = find.byWidgetPredicate(
-        (widget) => widget is PopupMenuButton,
-      );
-      expect(menuButton, findsOneWidget);
-      await tester.tap(menuButton);
+      // The Bilibili favourites browser stays available via the more menu.
+      expect(find.byKey(const Key('library_more_menu')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('library_more_menu')));
       await tester.pumpAndSettle();
       expect(find.text('浏览 B 站收藏夹'), findsOneWidget);
+      // No local-library submenu on iOS.
+      expect(find.text('本地'), findsNothing);
       expect(find.text('重新扫描'), findsNothing);
       expect(find.text('添加文件夹'), findsNothing);
     } finally {
@@ -577,6 +578,86 @@ void main() {
     // The favourites filter is now active and empty.
     expect(find.text('还没有收藏的歌曲'), findsOneWidget);
   });
+
+  testWidgets('the more menu exposes local, sort and view submenus', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(tracks: [_biliTrack('Online', id: 2)]),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('library_more_menu')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('本地'), findsOneWidget);
+    expect(find.text('排序'), findsOneWidget);
+    expect(find.text('视图'), findsOneWidget);
+
+    await tester.tap(find.text('本地'));
+    await tester.pumpAndSettle();
+    expect(find.text('添加文件夹'), findsOneWidget);
+    expect(find.text('重新扫描'), findsOneWidget);
+    expect(find.text('导入文件'), findsOneWidget);
+  });
+
+  testWidgets('the view submenu on 全部 offers all three views', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('library_more_menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('视图'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('展柜视图'), findsOneWidget);
+    expect(find.text('列表视图'), findsOneWidget);
+    expect(find.text('瀑布流视图'), findsOneWidget);
+  });
+
+  testWidgets('the more menu does not overflow at 400 px', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('library_more_menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('排序'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('最近添加'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sync-disabled local actions are not tappable', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        tracks: [_biliTrack('Alpha', id: 1)],
+        syncState: const LibrarySyncState(
+          phase: LibrarySyncPhase.scanning,
+          discovered: 1,
+          processed: 0,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('library_more_menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('本地'));
+    await tester.pumpAndSettle();
+
+    final addFolder = tester.widget<MenuItemButton>(
+      find.ancestor(
+        of: find.text('添加文件夹'),
+        matching: find.byType(MenuItemButton),
+      ),
+    );
+    expect(addFolder.onPressed, isNull);
+  });
 }
 
 /// Fake [LibrarySortNotifier] that returns a fixed value immediately.
@@ -587,4 +668,10 @@ class _FakeLibrarySortNotifier extends LibrarySortNotifier {
 
   @override
   Future<TrackSort> build() async => _sort;
+}
+
+/// Fake [LibraryViewsNotifier] seeded with the scope defaults.
+class _FakeLibraryViewsNotifier extends LibraryViewsNotifier {
+  @override
+  Future<LibraryViews> build() async => LibraryViews.defaults;
 }

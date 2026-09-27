@@ -177,6 +177,12 @@
     }
   },
   "tabPlaylists": "Playlists",
+  "menuLocal": "Local",
+  "menuSort": "Sort",
+  "menuView": "View",
+  "viewShowcase": "Showcase view",
+  "viewList": "List view",
+  "viewWaterfall": "Waterfall view",
   "myPlaylists": "My playlists",
   "newPlaylist": "New playlist",
   "editPlaylist": "Edit playlist",

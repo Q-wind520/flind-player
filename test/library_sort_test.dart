@@ -152,6 +152,8 @@ void main() {
 
       await tester.tap(find.byKey(const Key('library_more_menu')));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('排序'));
+      await tester.pumpAndSettle();
 
       expect(find.text('按标题'), findsOneWidget);
       expect(find.text('按艺术家'), findsOneWidget);
@@ -165,6 +167,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('library_more_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('排序'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('按艺术家'));
