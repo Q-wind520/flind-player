@@ -149,6 +149,10 @@ abstract interface class PlaylistRepository {
   /// Removes the member with [uri] from the playlist; a no-op when absent.
   Future<void> removeTrack(int playlistId, String uri);
 
+  /// Removes the member with [uri] from every playlist (including the built-in
+  /// favourites). The pool row is left untouched.
+  Future<void> removeTrackFromAllPlaylists(String uri);
+
   /// Whether the playlist with [playlistId] contains [uri].
   Future<bool> containsTrack(int playlistId, String uri);
 

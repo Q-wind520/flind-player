@@ -322,6 +322,15 @@ class _FakePlaylistRepository implements PlaylistRepository {
   }
 
   @override
+  Future<void> removeTrackFromAllPlaylists(String uri) async {
+    for (final entry in _tracks.entries) {
+      entry.value.removeWhere((member) => member.uri == uri);
+      _trackController(entry.key).add(List.unmodifiable(entry.value));
+      _coverController(entry.key).add(_deriveCover(entry.key));
+    }
+  }
+
+  @override
   Future<bool> containsTrack(int playlistId, String uri) async {
     final members = _tracks[playlistId];
     if (members == null) return false;

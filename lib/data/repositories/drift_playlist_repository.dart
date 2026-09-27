@@ -180,6 +180,12 @@ class DriftPlaylistRepository implements PlaylistRepository {
   }
 
   @override
+  Future<void> removeTrackFromAllPlaylists(String uri) async {
+    await (_db.delete(_db.playlistTracks)..where((pt) => pt.uri.equals(uri)))
+        .go();
+  }
+
+  @override
   Future<bool> containsTrack(int playlistId, String uri) async {
     final row = await (_db.select(_db.playlistTracks)
           ..where(

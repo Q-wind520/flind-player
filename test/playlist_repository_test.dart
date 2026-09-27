@@ -481,4 +481,24 @@ void main() {
       expect(await repository.watchPlaylistCover(9999).first, isNull);
     });
   });
+
+  test('removeTrackFromAllPlaylists drops the uri everywhere', () async {
+    final a = await repository.createPlaylist(name: 'A');
+    final b = await repository.createPlaylist(name: 'B');
+    final track = localTrack(path: '/music/shared.flac');
+    await repository.addTrack(a.id, track);
+    await repository.addTrack(b.id, track);
+    await repository.addTrack(favoritesPlaylistId, track);
+
+    await repository.removeTrackFromAllPlaylists(track.uri);
+
+    expect(await repository.containsTrack(a.id, track.uri), isFalse);
+    expect(await repository.containsTrack(b.id, track.uri), isFalse);
+    expect(
+      await repository.containsTrack(favoritesPlaylistId, track.uri),
+      isFalse,
+    );
+    // The pool row is untouched.
+    expect(await repository.playlistTracks(a.id), isEmpty);
+  });
 }
