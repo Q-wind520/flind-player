@@ -42,7 +42,8 @@ jobs:
             libgtk-3-dev \
             libmpv-dev \
             libayatana-appindicator3-dev \
-            libsecret-1-dev
+            libsecret-1-dev \
+            rpm
 
       - name: Install dependencies
         run: flutter pub get
@@ -52,14 +53,18 @@ jobs:
 
       - name: Package Linux bundle
         run: |
-          tar -czf "FlindPlayer-${GITHUB_REF_NAME}-linux-x64.tar.gz" \
+          mkdir -p dist
+          tar -czf "dist/FlindPlayer-${GITHUB_REF_NAME}-linux-x64.tar.gz" \
             -C build/linux/x64/release bundle
+          packaging/linux/build-deb.sh --version "${GITHUB_REF_NAME#v}"
+          packaging/linux/build-rpm.sh --version "${GITHUB_REF_NAME#v}"
+          packaging/linux/build-appimage.sh --version "${GITHUB_REF_NAME#v}"
 
       - name: Upload Linux archive
         uses: actions/upload-artifact@v7
         with:
           name: linux-release
-          path: FlindPlayer-*-linux-x64.tar.gz
+          path: dist/FlindPlayer-*-linux-x64.*
           if-no-files-found: error
           retention-days: 7
 
@@ -107,16 +112,45 @@ jobs:
       - name: Build Windows bundle
         run: flutter build windows --release
 
+      # Flutter's Windows runner links the MSVC runtime dynamically and the build
+      # output does not ship it, so stage the CRT DLLs app-local; both the zip and
+      # the installer then run without the Visual C++ Redistributable.
+      - name: Stage MSVC runtime DLLs (app-local)
+        run: |
+          & ./packaging/windows/stage-crt.ps1 -ReleaseDir build/windows/x64/runner/Release
+
       - name: Package Windows bundle
         run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
           Compress-Archive -Path build/windows/x64/runner/Release/* `
-            -DestinationPath "FlindPlayer-$env:GITHUB_REF_NAME-windows-x64.zip"
+            -DestinationPath "dist/FlindPlayer-$env:GITHUB_REF_NAME-windows-x64.zip"
+
+      - name: Install Inno Setup
+        run: |
+          Invoke-WebRequest `
+            -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe' `
+            -OutFile "$env:TEMP\innosetup.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup.exe" -Wait `
+            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-'
+
+      - name: Build Windows installer
+        run: |
+          $iscc = (Get-ChildItem `
+              -Path "$env:ProgramFiles\Inno Setup*\ISCC.exe", `
+                    "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" `
+              -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw 'ISCC.exe not found after installing Inno Setup' }
+          & $iscc `
+            "/DVersion=$($env:GITHUB_REF_NAME -replace '^v','')" `
+            "/DTag=$env:GITHUB_REF_NAME" `
+            "/DSourceDir=$PWD\build\windows\x64\runner\Release" `
+            "packaging\windows\flind-player.iss"
 
       - name: Upload Windows archive
         uses: actions/upload-artifact@v7
         with:
           name: windows-release
-          path: FlindPlayer-*-windows-x64.zip
+          path: dist/FlindPlayer-*-windows-x64*
           if-no-files-found: error
           retention-days: 7
 
@@ -304,8 +338,8 @@ jobs:
           # that does arrive is still marked as a pre-release.
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
-            artifacts/linux-release/*.tar.gz
-            artifacts/windows-release/*.zip
+            artifacts/linux-release/dist/*
+            artifacts/windows-release/dist/*
             artifacts/macos-release/*.zip
             artifacts/ios-release/*.ipa
             artifacts/android-release/*.apk
@@ -334,8 +368,12 @@ jobs:
 
             | 文件 | 说明 |
             | --- | --- |
-            | `FlindPlayer-${{ github.ref_name }}-linux-x64.tar.gz` | Linux 桌面版（解压后运行 `flind_player`；需要系统 `libmpv.so.2`） |
-            | `FlindPlayer-${{ github.ref_name }}-windows-x64.zip` | Windows 桌面版（解压后运行 `flind_player.exe`，已内置 mpv，无需额外依赖） |
+            | `FlindPlayer-${{ github.ref_name }}-linux-x64.deb` | Debian/Ubuntu 安装包（`sudo apt install ./FlindPlayer-….deb`；需系统 `libmpv2`） |
+            | `FlindPlayer-${{ github.ref_name }}-linux-x64.rpm` | Fedora/RHEL 安装包（`sudo dnf install ./FlindPlayer-….rpm`；需系统 `mpv-libs`） |
+            | `FlindPlayer-${{ github.ref_name }}-linux-x64.AppImage` | 免安装、自包含 libmpv（`chmod +x` 后直接运行；需 FUSE） |
+            | `FlindPlayer-${{ github.ref_name }}-linux-x64.tar.gz` | Linux 免安装包（解压后运行 `flind_player`；需要系统 `libmpv.so.2`） |
+            | `FlindPlayer-${{ github.ref_name }}-windows-x64-setup.exe` | Windows 安装器（可选「仅我」安装，无需管理员；已内置运行时） |
+            | `FlindPlayer-${{ github.ref_name }}-windows-x64.zip` | Windows 免安装包（解压后运行 `flind_player.exe`；已内置 mpv 与 VC++ 运行时） |
             | `FlindPlayer-${{ github.ref_name }}-macos-arm64.zip` | macOS 桌面版（Apple Silicon，**未签名**；解压后需 `xattr -dr com.apple.quarantine "Flind Player.app"` 再打开） |
             | `FlindPlayer-${{ github.ref_name }}-ios-unsigned.ipa` | iOS（**未签名**；需用 AltStore / Sideloadly 等工具自行签名安装；暂不支持本地曲库） |
             | `FlindPlayer-${{ github.ref_name }}-arm64-v8a.apk` | **绝大多数现代手机选这个**（体积最小） |
