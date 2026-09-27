@@ -30,6 +30,7 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/deletion_providers.dart';
+import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
@@ -162,6 +163,7 @@ Widget _app({
   LibraryView view = LibraryView.list,
   Track? currentTrack,
   Future<void> Function(Track track)? deleteTrack,
+  Future<List<CachedAudio>> Function(Ref ref)? offlineEntries,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -191,6 +193,8 @@ Widget _app({
         trackDeletionServiceProvider.overrideWithValue(
           _FakeDeletionService(deleteTrack),
         ),
+      if (offlineEntries != null)
+        offlineCacheEntriesProvider.overrideWith(offlineEntries),
     ],
     child: localizedApp(
       MediaQuery(
@@ -738,6 +742,75 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('deleting a search result clears it from the list', (
+    tester,
+  ) async {
+    var calls = 0;
+    await tester.pumpWidget(
+      _app(
+        tracks: [_track('Local Song', id: 1)],
+        search: (ref, query) async {
+          calls++;
+          return calls == 1
+              ? <Track>[_biliTrack('Search Hit', id: 2)]
+              : <Track>[];
+        },
+        deleteTrack: (track) async {},
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Hit');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.text('Search Hit'), findsOneWidget);
+
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除歌曲'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Search Hit'), findsNothing);
+  });
+
+  testWidgets('deleting refreshes the offline-cache list', (tester) async {
+    var reads = 0;
+    await tester.pumpWidget(
+      _app(
+        tracks: [_track('Alpha', id: 1)],
+        deleteTrack: (track) async {},
+        offlineEntries: (ref) async {
+          reads++;
+          return const <CachedAudio>[];
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(LibraryScreen)),
+    );
+    final subscription = container.listen(
+      offlineCacheEntriesProvider,
+      (previous, next) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await tester.pumpAndSettle();
+    final before = reads;
+
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除歌曲'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(reads, greaterThan(before));
   });
 }
 

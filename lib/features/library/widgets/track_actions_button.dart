@@ -20,6 +20,7 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/deletion_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
@@ -233,6 +234,11 @@ class TrackActionsButton extends ConsumerWidget {
       ref.invalidate(audioCacheEntryProvider(track));
       ref.invalidate(audioCacheUsageProvider);
       ref.invalidate(libraryTracksProvider);
+      // A 全部 search result comes from `librarySearchProvider(_query)`, which
+      // is cached per query; without this the deleted row would stay visible.
+      ref.invalidate(librarySearchProvider);
+      // The settings screen's offline list is keep-alive; refresh it too.
+      ref.invalidate(offlineCacheEntriesProvider);
       ref.invalidate(favoritesProvider);
       ref.invalidate(playlistsProvider);
       final id = playlistId;
