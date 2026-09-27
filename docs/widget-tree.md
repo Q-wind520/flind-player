@@ -112,100 +112,120 @@ SearchScreen (搜索页 ConsumerStatefulWidget)
 
 ## 曲库页 LibraryScreen(全部 / 收藏 / 歌单)
 
-无标题栏;最顶一行是四槽固定布局: 更多(最左) / 三段轮盘选择器(屏幕居中) / 搜索 / 新建歌单「+」(最右)。
-搜索框以 `AnimatedSize` 在头部下方展开。三段主体位于环形无缝 `PageView` 中(右划前进: 全部 → 收藏 → 歌单 → 全部,两端皆可循环);
-「+」新建歌单在三段皆可见。
+无标题栏;最顶一行: 更多菜单(最左) / 三段轮盘选择器(屏幕居中) / 新建歌单「+」(仅「歌单」段, 最右)。
+搜索框**仅在「全部」段常显**(头部下方, 已无搜索开关按钮);「收藏」「歌单」段无搜索框。
+三段主体位于环形无缝 `PageView` 中(右划前进: 全部 → 收藏 → 歌单 → 全部,两端皆可循环);
+视图按段独立持久化(见「视图系统」)。
 扫描/保存进度以 SnackBar 气泡通知;无 `_SyncStatus` 常驻条。
 
 ```
 LibraryScreen (曲库页 ConsumerStatefulWidget)
 └─ Scaffold (background: AppSurface.colorOf) + SafeArea(bottom: false)
    └─ Column
-      ├─ _buildHeaderRow (单行头部 — 更多 · 选择器 · 搜索 · 新建)
-      │  └─ Stack (三向对齐: 更多最左 · 选择器居中 · 搜索/新建最右)
+      ├─ _buildHeaderRow (更多 · 选择器 · {歌单段} +)
+      │  └─ Stack (三向对齐: 更多最左 · 选择器居中 · + 最右)
       │     ├─ Center(居中) → _LibraryFilterSelector (三段轮盘: 左=下一段, 中=选中, 右=上一段)
       │     │  └─ GestureDetector (点标签切换 + 横向拖拽: 右拖前进 / 左拖后退)
       │     │     └─ AnimatedSwitcher (交叉淡化 + 位移 250ms)
       │     │        └─ Row (中=选中项加粗放大; 左右为减弱候选项)
-      │     ├─ IconButton (「+」新建歌单 → PlaylistEditorDialog, 三段皆可见)
-      │     ├─ {支持本地曲库} IconButton (搜索开关 — 展开/收起, 图标 搜索/关闭)
-      │     └─ PopupMenuButton<_LibraryAction> (更多操作菜单)
-      │        ├─ {支持本地曲库, 非同步中} 添加文件夹 (文件选择器)
-      │        ├─ {支持本地曲库, 非同步中} 重新扫描
-      │        ├─ {支持本地曲库} 导入文件
-      │        ├─ {支持本地曲库} 分隔线 + 排序项 × 4 (标题/艺术家/专辑/最近添加,
-      │        │                                  _SortRow 选中的打勾)
-      │        └─ 浏览 B 站收藏夹 → 推入 BilibiliFavoritesScreen
-      ├─ {支持本地曲库} _buildSearchField (内联搜索框)
-      │  └─ AnimatedSize (展开/收起 220ms)
-      │     └─ {_searchOpen} Padding → ValueListenableBuilder → TextField
-      │        (250ms 防抖搜索, 清空后缀按钮, 提示文案随段变化)
+      │     ├─ Align(右) → {歌单段} IconButton (「+」新建歌单 → PlaylistEditorDialog)
+      │     └─ Align(左) → _buildMoreMenu → MenuAnchor (key: library_more_menu)
+      │        ├─ 「本地」 SubmenuButton {支持本地曲库}
+      │        │  ├─ 添加文件夹 (非同步中)
+      │        │  ├─ 重新扫描 (非同步中)
+      │        │  └─ 导入文件
+      │        ├─ 「排序」 SubmenuButton → 标题/艺术家/专辑/最近添加 (当前项打勾, 默认「最近添加」)
+      │        ├─ 「视图」 SubmenuButton → 当前段的可用视图 (当前项打勾)
+      │        └─ 「浏览 B 站收藏夹」 → 推入 BilibiliFavoritesScreen
+      ├─ {支持本地曲库 且 当前为「全部」段} _buildSearchField (常显内联搜索框)
+      │  └─ Padding → ValueListenableBuilder → TextField
+      │     (250ms 防抖搜索, 清空后缀按钮, 提示「搜索曲库」)
       └─ Expanded
          ├─ {支持本地曲库} _buildBody (环形 PageView: 右划前进 / 左划后退)
          └─ {iOS 等无本地曲库} _UnsupportedLibraryNotice (不支持提示)
 
-列表主体 (按 三段式 section 分支):
-├─ {歌单段} PlaylistsSection (歌单区, 见下)
-├─ {收藏段} favoritesProvider.when + 客户端排序 (同步相同比较器)
-│  ├─ loading → CircularProgressIndicator (加载圈)
-│  ├─ error   → _LibraryError (加载失败, 可重试)
-│  └─ data
-│     ├─ {空收藏} _EmptyFavourites (收藏为空空态)
-│     ├─ {命中查询} 过滤后 → _trackDisplay (无匹配则 _NoFavouritesSearchResults)
-│     └─ _trackDisplay(全部收藏)
+主体 (按段分支, 曲目列表统一委托 TrackView):
+├─ {歌单段} PlaylistsSection(view: 歌单段视图) — 见下
+├─ {收藏段} favoritesProvider.when + 客户端排序 → TrackView(view: 收藏段视图)
 └─ {全部段} 搜索 / 全部曲目
    ├─ {有查询} librarySearchProvider(_query).when
    │  ├─ loading → CircularProgressIndicator
    │  ├─ error   → _LibraryError (搜索失败)
-   │  └─ data
-   │     ├─ {空结果} _NoSearchResults (无匹配空态)
-   │     └─ _trackDisplay(结果)
+   │  └─ data    → {空结果} _NoSearchResults | TrackView(结果)
    └─ {无查询} libraryTracksProvider.when
       ├─ loading → CircularProgressIndicator
       ├─ error   → _LibraryError (加载失败)
-      └─ data
-         ├─ {空曲库} _EmptyLibrary (添加文件夹 + 导入本地音乐按钮)
-         └─ _trackDisplay(全部曲目)
+      └─ data    → {空曲库} _EmptyLibrary | TrackView(全部曲目)
 
-_trackDisplay (按视口宽度切换列表/网格 — 全部/收藏/歌单详情共用):
-└─ LayoutBuilder
-   ├─ {紧凑} _trackList → ListView.builder
-   │  └─ TrackTile (曲目行, track_list_items.dart)
-   │     └─ ListTile
-   │        ├─ leading: TrackCover (圆角封面 48)
-   │        ├─ title: 曲名
-   │        ├─ subtitle: 艺术家 + SourceBadge (来源徽标: 本地/B站)
-   │        └─ trailing: Row( 播放指示图标 + 时长 + TrackActionsButton )
-   └─ {宽屏} _trackGrid → GridView.builder (maxCrossAxisExtent 220)
-      └─ TrackCard (曲目卡片, track_list_items.dart)
-         └─ Card → InkWell → Column
-            ├─ Expanded → Stack
-            │  ├─ TrackCover (通栏封面, 尺寸自适应)
-            │  ├─ {正在播放} Positioned 播放指示角标
-            │  └─ Positioned TrackActionsButton (右上角操作菜单)
-            └─ Padding → Column( 曲名 + 艺术家 + SourceBadge )
+TrackView (曲目渲染器 — 全部/收藏/歌单详情共用, track_view.dart):
+├─ {list} ListView.builder
+│  └─ TrackTile (曲目行, track_list_items.dart)
+│     └─ ListTile
+│        ├─ leading: TrackCover (圆角封面 48)
+│        ├─ title: 曲名
+│        ├─ subtitle: 艺术家 + SourceBadge (来源徽标: 本地/B站)
+│        └─ trailing: Row( 播放指示图标 + 时长 + TrackActionsButton )
+├─ {showcase} GridView.builder (maxCrossAxisExtent 220)
+│  └─ TrackCard (曲目卡片, track_list_items.dart)
+│     └─ Card → InkWell → Column
+│        ├─ Expanded → Stack
+│        │  ├─ TrackCover (通栏封面, 尺寸自适应)
+│        │  ├─ {正在播放} Positioned 播放指示角标
+│        │  └─ Positioned TrackActionsButton (右上角操作菜单)
+│        └─ Padding → Column( 曲名 + 艺术家 + SourceBadge )
+└─ {waterfall} MasonryGridView.count (列数按宽度 2–6)
+   └─ WaterfallTrackCard (瀑布流卡片)
+      └─ Card → InkWell → Column
+         ├─ Stack
+         │  ├─ AspectRatio(封面真实宽高比 ← coverAspectRatioProvider)
+         │  │  └─ TrackCover (通栏封面)
+         │  ├─ {正在播放} Positioned 播放指示角标
+         │  └─ Positioned TrackActionsButton (右上角)
+         └─ Padding → Column( 曲名 + 艺术家 + SourceBadge )
 
-PlaylistsSection (歌单区 ConsumerWidget, 收藏置顶 + 自建歌单列表):
-└─ ListView
-   ├─ _FavoritesRow (置顶收藏行, primary 强调色, 不可删除, 点击切到收藏段)
-   │  └─ ListTile (派生封面 + 「收藏」 + 曲目数)
-   ├─ {无自建歌单} _EmptyPlaylists (空态提示)
-   └─ {有自建歌单}
-      ├─ Padding → Text (「我的歌单」标题)
-      └─ _PlaylistRow × N (自建歌单行)
-         └─ ListTile (派生封面 + 名称 + 曲目数)
-            → 点击推入 PlaylistDetailScreen
+TrackActionsButton 菜单:
+├─ 收藏 / 取消收藏
+├─ {在线曲目} 离线缓存 (未缓存, 可点击) | 已缓存 (不可点击)
+├─ {搜索结果} 存入曲库
+├─ 加入歌单
+├─ {playlistId != null} 移出歌单 (仅移除本歌单, 保留曲库)
+└─ {showDeleteTrack} 删除歌曲 (危险: 二次确认 → TrackDeletionService)
+
+视图系统:
+- 作用域 LibraryViewScope: all / favorites / playlists / playlistDetail
+- 视图 LibraryView: showcase / list / waterfall
+- 默认: all=waterfall, favorites=showcase, playlists=showcase, playlistDetail=list
+- playlists 作用域仅允许 showcase/list; 持久化于 shared_preferences (键 library.view.*)
+- 「歌单」列表无自建歌单时回落列表, 以显示空态
+
+删除歌曲 (危险操作): TrackDeletionService 从所有歌单移除 + 删除曲库行 + 删除离线缓存;
+本地磁盘原始文件不动。
+
+PlaylistsSection (歌单区 ConsumerWidget, 收藏置顶 + 自建歌单):
+├─ {showcase 且 有自建歌单} GridView.count → PlaylistCard × (收藏 + 自建)
+│  └─ PlaylistCard (Card: 派生封面 + 名称 + 曲目数; 收藏卡 primary 图标)
+│     → 收藏卡切到收藏段 / 自建卡推入 PlaylistDetailScreen
+└─ {list 或 无自建歌单}
+   └─ ListView
+      ├─ _FavoritesRow (置顶收藏行, primary 强调色, 不可删除, 点击切到收藏段)
+      │  └─ ListTile (派生封面 + 「收藏」 + 曲目数)
+      ├─ {无自建歌单} _EmptyPlaylists (空态提示)
+      └─ {有自建歌单}
+         ├─ Padding → Text (「我的歌单」标题)
+         └─ _PlaylistRow × N (自建歌单行)
+            └─ ListTile (派生封面 + 名称 + 曲目数)
+               → 点击推入 PlaylistDetailScreen
 
 PlaylistDetailScreen (歌单详情页 ConsumerWidget)
 └─ Scaffold (background: AppSurface.colorOf)
-   ├─ AppBar (歌单名 + {自建} 编辑/删除按钮)
+   ├─ AppBar (歌单名 + {自建} 编辑/删除按钮 + LibraryViewMenuButton(playlistDetail))
    └─ playlistTracksProvider(id).when
       ├─ loading → CircularProgressIndicator
       ├─ error   → 重试按钮
       └─ data
          ├─ _PlaylistHeader (封面 + 名称 + 简介 + 曲目数, 点击封面可换)
-         └─ Expanded → {空} _EmptyPlaylist | 成员列表 (TrackTile/TrackCard,
-            playlistId 传入, 失联曲目 unavailable 置灰)
+         └─ Expanded → {空} _EmptyPlaylist | TrackView(view: 歌单详情视图,
+            playlistId 传入 → 「移出歌单」, showDeleteTrack: true → 「删除歌曲」)
 
 PlaylistEditorDialog (歌单编辑器对话框 ConsumerStatefulWidget, 创建/编辑)
 └─ AlertDialog
