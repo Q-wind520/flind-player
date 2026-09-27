@@ -25,6 +25,7 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
@@ -152,6 +153,7 @@ Widget _app({
   FutureOr<List<Track>> Function(Ref ref, String query)? search,
   Stream<DownloadProgress> progress = const Stream<DownloadProgress>.empty(),
   TrackSort sort = TrackSort.title,
+  Future<CachedAudio?> Function(Ref ref, Track track)? cacheEntry,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -165,7 +167,9 @@ Widget _app({
       ),
       librarySyncStateProvider.overrideWith((ref) => Stream.value(syncState)),
       downloadProgressProvider.overrideWith((ref) => progress),
-      audioCacheEntryProvider.overrideWith((ref, track) async => null),
+      audioCacheEntryProvider.overrideWith(
+        cacheEntry ?? (ref, track) async => null,
+      ),
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
@@ -391,20 +395,56 @@ void main() {
     expect(find.byType(TrackActionsButton), findsNWidgets(2));
   });
 
-  testWidgets('online track actions menu has cache option', (tester) async {
-    final progress = StreamController<DownloadProgress>.broadcast();
-    addTearDown(progress.close);
-
-    await tester.pumpWidget(
-      _app(tracks: [_biliTrack('Online Song')], progress: progress.stream),
-    );
+  testWidgets('uncached online track shows the offline-cache action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_biliTrack('Online Song')]));
     await tester.pumpAndSettle();
 
-    // Open the actions menu for the online track.
     await tester.tap(find.byType(TrackActionsButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('缓存到本地'), findsOneWidget);
+    expect(find.text('离线缓存'), findsOneWidget);
+    expect(find.text('已缓存'), findsNothing);
+  });
+
+  testWidgets('cached online track shows a disabled cached label', (
+    tester,
+  ) async {
+    final track = _biliTrack('Online Song');
+    await tester.pumpWidget(
+      _app(
+        tracks: [track],
+        cacheEntry: (ref, t) async => CachedAudio(
+          id: 1,
+          source: t.source,
+          sourceTrackId: 'BV_Online Song:-1',
+          filePath: '/cache/audio.m4a',
+          bytes: 1024,
+          qualityId: 'q',
+          pinned: false,
+          cachedAt: DateTime(2026),
+          lastAccessedAt: DateTime(2026),
+          coverBytes: 0,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(TrackActionsButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已缓存'), findsOneWidget);
+    expect(find.text('离线缓存'), findsNothing);
+    // The item is a `PopupMenuItem<_TrackAction>`; `find.byType` would not
+    // match the private type argument, so match the base type by predicate.
+    final item = tester.widget<PopupMenuItem<dynamic>>(
+      find.ancestor(
+        of: find.text('已缓存'),
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+      ),
+    );
+    expect(item.enabled, isFalse);
   });
 
   testWidgets('shows the favourites filter bar', (tester) async {

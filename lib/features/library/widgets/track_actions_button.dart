@@ -17,7 +17,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
@@ -50,6 +49,7 @@ class TrackActionsButton extends ConsumerWidget {
     this.showSaveToLibrary = false,
     this.onSaveToLibrary,
     this.playlistId,
+    this.showDeleteTrack = false,
   });
 
   final Track track;
@@ -63,6 +63,9 @@ class TrackActionsButton extends ConsumerWidget {
   /// The playlist this button is rendered inside, when non-null. Adds a
   /// "移出歌单" item to the menu.
   final int? playlistId;
+
+  /// Whether to show the "删除歌曲" menu item (library rows).
+  final bool showDeleteTrack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,11 +99,17 @@ class TrackActionsButton extends ConsumerWidget {
         if (!isLocal)
           PopupMenuItem<_TrackAction>(
             value: _TrackAction.cache,
+            enabled: cacheEntry == null,
             child: Row(
               children: [
-                Icon(_cacheIcon(cacheEntry), size: 20),
+                Icon(
+                  cacheEntry == null
+                      ? Icons.download_outlined
+                      : Icons.download_done,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
-                Text(_cacheLabel(l10n, cacheEntry)),
+                Text(cacheEntry == null ? l10n.cacheOffline : l10n.cached),
               ],
             ),
           ),
@@ -189,18 +198,6 @@ class TrackActionsButton extends ConsumerWidget {
 
   void _cacheTrack(WidgetRef ref) {
     ref.read(downloadManagerProvider).cacheTrack(track, pinned: true);
-  }
-
-  static IconData _cacheIcon(CachedAudio? entry) {
-    if (entry == null) return Icons.download_outlined;
-    if (entry.pinned) return Icons.download_done;
-    return Icons.offline_pin_outlined;
-  }
-
-  static String _cacheLabel(AppLocalizations l10n, CachedAudio? entry) {
-    if (entry == null) return l10n.cacheToLocal;
-    if (entry.pinned) return l10n.cached;
-    return l10n.cachedUnpinned;
   }
 }
 

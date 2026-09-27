@@ -145,7 +145,7 @@
   "unfavorited": "Removed from favorites",
   "cacheToLocal": "Cache locally",
   "cached": "Cached",
-  "cachedUnpinned": "Cached (not pinned)",
+  "cacheOffline": "Download",
   "notPlaying": "Not playing",
   "notPlayingHint": "Pick a song in your library to start playing",
   "searchHint": "Search songs, creators",

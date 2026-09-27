@@ -74,7 +74,7 @@
   "unfavorited": "已取消收藏",
   "cacheToLocal": "缓存到本地",
   "cached": "已缓存",
-  "cachedUnpinned": "已缓存（未固定）",
+  "cacheOffline": "离线缓存",
   "notPlaying": "未在播放",
   "notPlayingHint": "在音乐库中选择一首歌开始播放",
   "searchHint": "搜索歌曲、UP主",
