@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_state.dart';
@@ -156,6 +157,7 @@ Widget _app({
   Stream<DownloadProgress> progress = const Stream<DownloadProgress>.empty(),
   TrackSort sort = TrackSort.title,
   Future<CachedAudio?> Function(Ref ref, Track track)? cacheEntry,
+  LibraryView view = LibraryView.list,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -175,7 +177,7 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
-      libraryViewsProvider.overrideWith(_FakeLibraryViewsNotifier.new),
+      libraryViewsProvider.overrideWith(() => _FakeLibraryViewsNotifier(view)),
       if (search != null) librarySearchProvider.overrideWith(search),
     ],
     child: localizedApp(
@@ -222,10 +224,23 @@ void main() {
     expect(find.text('曲库还是空的'), findsNothing);
   });
 
+  testWidgets('全部 can render the waterfall view', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        tracks: [_track('Alpha', id: 1), _track('Beta', id: 2)],
+        view: LibraryView.waterfall,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MasonryGridView), findsOneWidget);
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+  });
+
   testWidgets('renders the empty state when the library is empty', (
     tester,
-  ) async {
-    await tester.pumpWidget(_app());
+  ) async {    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     expect(find.text('曲库还是空的'), findsOneWidget);
@@ -664,8 +679,13 @@ class _FakeLibrarySortNotifier extends LibrarySortNotifier {
   Future<TrackSort> build() async => _sort;
 }
 
-/// Fake [LibraryViewsNotifier] seeded with the scope defaults.
+/// Fake [LibraryViewsNotifier] returning [view] for every scope.
 class _FakeLibraryViewsNotifier extends LibraryViewsNotifier {
+  _FakeLibraryViewsNotifier(this._view);
+
+  final LibraryView _view;
+
   @override
-  Future<LibraryViews> build() async => LibraryViews.defaults;
+  Future<LibraryViews> build() async =>
+      LibraryViews({for (final scope in LibraryViewScope.values) scope: _view});
 }

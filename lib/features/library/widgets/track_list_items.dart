@@ -30,6 +30,7 @@ class TrackTile extends StatelessWidget {
     required this.isPlaying,
     required this.onTap,
     this.playlistId,
+    this.showDeleteTrack = false,
     this.unavailable = false,
     super.key,
   });
@@ -42,6 +43,9 @@ class TrackTile extends StatelessWidget {
   /// The playlist this tile is rendered inside, when non-null. Forwarded to
   /// [TrackActionsButton] so its menu can offer "remove from playlist".
   final int? playlistId;
+
+  /// Whether to show the "删除歌曲" menu item.
+  final bool showDeleteTrack;
 
   /// Whether [track] could not be resolved to a playable row. Unresolvable
   /// rows stay visible but are dimmed and announce
@@ -86,7 +90,11 @@ class TrackTile extends StatelessWidget {
             formatTrackDuration(track.duration),
             style: theme.textTheme.labelMedium,
           ),
-          TrackActionsButton(track: track, playlistId: playlistId),
+          TrackActionsButton(
+            track: track,
+            playlistId: playlistId,
+            showDeleteTrack: showDeleteTrack,
+          ),
         ],
       ),
     );
@@ -104,6 +112,7 @@ class TrackCard extends StatelessWidget {
     required this.isPlaying,
     required this.onTap,
     this.playlistId,
+    this.showDeleteTrack = false,
     this.unavailable = false,
     super.key,
   });
@@ -116,6 +125,9 @@ class TrackCard extends StatelessWidget {
   /// The playlist this card is rendered inside, when non-null. Forwarded to
   /// [TrackActionsButton] so its menu can offer "remove from playlist".
   final int? playlistId;
+
+  /// Whether to show the "删除歌曲" menu item.
+  final bool showDeleteTrack;
 
   /// Whether [track] could not be resolved to a playable row. Unresolvable
   /// rows stay visible but are dimmed and announce
@@ -168,6 +180,7 @@ class TrackCard extends StatelessWidget {
                       child: TrackActionsButton(
                         track: track,
                         playlistId: playlistId,
+                        showDeleteTrack: showDeleteTrack,
                       ),
                     ),
                   ],

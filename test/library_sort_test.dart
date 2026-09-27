@@ -19,6 +19,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
@@ -35,6 +36,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
+import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 
@@ -119,6 +121,7 @@ Widget _app({
   List<Track> favourites = const <Track>[],
   TrackSort sort = TrackSort.title,
   LibrarySyncState syncState = LibrarySyncState.idle,
+  LibraryView view = LibraryView.list,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -138,6 +141,7 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
+      libraryViewsProvider.overrideWith(() => _FakeLibraryViews(view)),
     ],
     child: localizedApp(const LibraryScreen()),
   );
@@ -275,11 +279,14 @@ void main() {
       expect(find.byType(GridView), findsNothing);
     });
 
-    testWidgets('at 1000 px the grid layout renders', (tester) async {
+    testWidgets('showcase view renders the grid layout', (tester) async {
       _setSize(tester, 1000, 800);
 
       await tester.pumpWidget(
-        _app(tracks: [_track('Alpha'), _track('Beta')]),
+        _app(
+          tracks: [_track('Alpha'), _track('Beta')],
+          view: LibraryView.showcase,
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -324,6 +331,9 @@ void main() {
             ),
             librarySortProvider.overrideWith(
               () => _FakeLibrarySortNotifier(TrackSort.title),
+            ),
+            libraryViewsProvider.overrideWith(
+              () => _FakeLibraryViews(LibraryView.showcase),
             ),
             playbackControllerProvider.overrideWith((ref) {
               return _FakePlaybackController(
@@ -381,6 +391,7 @@ void main() {
             _track('Gamma', artist: 'Artist C'),
             _track('Delta', artist: 'Artist D'),
           ],
+          view: LibraryView.showcase,
         ),
       );
       await tester.pumpAndSettle();
@@ -398,7 +409,11 @@ void main() {
       final beta = _track('Beta');
 
       await tester.pumpWidget(
-        _app(tracks: [alpha, beta], favourites: [alpha]),
+        _app(
+          tracks: [alpha, beta],
+          favourites: [alpha],
+          view: LibraryView.showcase,
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -423,6 +438,17 @@ class _FakeLibrarySortNotifier extends LibrarySortNotifier {
 
   @override
   Future<TrackSort> build() async => _sort;
+}
+
+/// Fake [LibraryViewsNotifier] returning [view] for every scope.
+class _FakeLibraryViews extends LibraryViewsNotifier {
+  _FakeLibraryViews(this._view);
+
+  final LibraryView _view;
+
+  @override
+  Future<LibraryViews> build() async =>
+      LibraryViews({for (final scope in LibraryViewScope.values) scope: _view});
 }
 
 /// Minimal [PlaybackController] for tests that only need to capture playQueue.

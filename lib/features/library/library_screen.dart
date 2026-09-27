@@ -33,12 +33,11 @@ import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
-import 'package:flind_player/features/library/widgets/track_list_items.dart';
+import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
-import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -674,7 +673,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           if (tracks.isEmpty) {
             return const _NoSearchResults();
           }
-          return _trackDisplay(tracks, currentUri, isPlaying);
+          return _trackDisplay(tracks, currentUri, isPlaying, section);
         },
       );
     }
@@ -690,7 +689,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         if (tracks.isEmpty) {
           return _EmptyLibrary(onImport: _importFiles, onAddFolder: _addFolder);
         }
-        return _trackDisplay(tracks, currentUri, isPlaying);
+        return _trackDisplay(tracks, currentUri, isPlaying, section);
       },
     );
   }
@@ -719,60 +718,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           return const _EmptyFavourites();
         }
         final sorted = sortFavouriteTracks(favourites, sort);
-        return _trackDisplay(sorted, currentUri, isPlaying);
-      },
-    );
-  }
-
-  Widget _trackDisplay(List<Track> tracks, String? currentUri, bool isPlaying) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (!AppBreakpoints.isCompact(constraints.biggest)) {
-          return _trackGrid(tracks, currentUri, isPlaying);
-        }
-        return _trackList(tracks, currentUri, isPlaying);
-      },
-    );
-  }
-
-  Widget _trackList(List<Track> tracks, String? currentUri, bool isPlaying) {
-    return ListView.builder(
-      itemCount: tracks.length,
-      itemBuilder: (context, index) {
-        final track = tracks[index];
-        final isCurrent = currentUri != null && track.uri == currentUri;
-        return TrackTile(
-          track: track,
-          isCurrent: isCurrent,
-          isPlaying: isCurrent && isPlaying,
-          unavailable: track.id == null,
-          onTap: () => _play(tracks, index),
+        return _trackDisplay(
+          sorted,
+          currentUri,
+          isPlaying,
+          LibrarySection.favorites,
         );
       },
     );
   }
 
-  Widget _trackGrid(List<Track> tracks, String? currentUri, bool isPlaying) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 220,
-        childAspectRatio: 0.82,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-      ),
-      itemCount: tracks.length,
-      itemBuilder: (context, index) {
-        final track = tracks[index];
-        final isCurrent = currentUri != null && track.uri == currentUri;
-        return TrackCard(
-          track: track,
-          isCurrent: isCurrent,
-          isPlaying: isCurrent && isPlaying,
-          unavailable: track.id == null,
-          onTap: () => _play(tracks, index),
-        );
-      },
+  Widget _trackDisplay(
+    List<Track> tracks,
+    String? currentUri,
+    bool isPlaying,
+    LibrarySection section,
+  ) {
+    final scope = _scopeForSection(section);
+    final view =
+        (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults)
+            .viewOf(scope);
+    return TrackView(
+      tracks: tracks,
+      view: view,
+      currentUri: currentUri,
+      isPlaying: isPlaying,
+      onPlay: (index) => _play(tracks, index),
+      showDeleteTrack: true,
     );
   }
 }
