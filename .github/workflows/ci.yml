@@ -96,6 +96,31 @@ jobs:
       - name: Build Windows bundle
         run: flutter build windows --release
 
+      - name: Stage MSVC runtime DLLs (app-local)
+        run: |
+          & ./packaging/windows/stage-crt.ps1 -ReleaseDir build/windows/x64/runner/Release
+
+      - name: Install Inno Setup
+        run: |
+          Invoke-WebRequest `
+            -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe' `
+            -OutFile "$env:TEMP\innosetup.exe"
+          Start-Process -FilePath "$env:TEMP\innosetup.exe" -Wait `
+            -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-'
+
+      - name: Build Windows installer (smoke)
+        run: |
+          $iscc = (Get-ChildItem `
+              -Path "$env:ProgramFiles\Inno Setup*\ISCC.exe", `
+                    "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" `
+              -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw 'ISCC.exe not found after installing Inno Setup' }
+          & $iscc `
+            "/DVersion=$($env:GITHUB_REF_NAME -replace '^v','')" `
+            "/DTag=$env:GITHUB_REF_NAME" `
+            "/DSourceDir=$PWD\build\windows\x64\runner\Release" `
+            "packaging\windows\flind-player.iss"
+
   # Apple targets are non-primary and ship unsigned: macOS keeps its sandbox
   # (only the network-client entitlement is added) and the iOS IPA is packed
   # without codesign so users sideload it with their own signing.
@@ -231,13 +256,22 @@ jobs:
             libgtk-3-dev \
             libmpv-dev \
             libayatana-appindicator3-dev \
-            libsecret-1-dev
+            libsecret-1-dev \
+            rpm
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build Linux bundle
         run: flutter build linux --release
+
+      # Smoke-build the installers so packaging regressions surface on the
+      # pre-release tag instead of only during a formal release.
+      - name: Package Linux installers (smoke)
+        run: |
+          packaging/linux/build-deb.sh --version "${GITHUB_REF_NAME#v}"
+          packaging/linux/build-rpm.sh --version "${GITHUB_REF_NAME#v}"
+          packaging/linux/build-appimage.sh --version "${GITHUB_REF_NAME#v}"
 
       - name: Upload Linux bundle
         uses: actions/upload-artifact@v7
