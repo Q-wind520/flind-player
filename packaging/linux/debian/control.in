@@ -1,0 +1,13 @@
+Package: @PKGNAME@
+Version: @VERSION@
+Section: sound
+Priority: optional
+Architecture: amd64
+Maintainer: Qwind520 <qwqwind42@gmail.com>
+Homepage: @HOMEPAGE@
+Depends: libmpv2, libgtk-3-0, libsecret-1-0, libayatana-appindicator3-1
+Description: Flind Player - cross-platform music player
+ A Flutter based music player with local library scanning, Bilibili audio
+ sources, playlists, favorites and offline caching.
+ .
+ Playback requires a system libmpv (package libmpv2), which is not bundled.
