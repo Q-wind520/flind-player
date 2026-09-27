@@ -52,6 +52,11 @@ resolve_version() {
   case "${VERSION}" in
     '' | .* | *.) die "malformed version: ${VERSION}" ;;
   esac
+  # A leading '-' or '+' yields an empty/invalid rpm Version (rpm_version()
+  # splits on '-', rpm forbids a leading '+').
+  case "${VERSION}" in
+    -* | +*) die "version must not start with '-' or '+': ${VERSION}" ;;
+  esac
 }
 
 ensure_bundle() {
@@ -153,6 +158,8 @@ Files: *
 Copyright: 2026 top.qwind.app
 License: GPL-3.0
  本程序为自由软件，依据 GNU GPL-3.0 分发，不附带任何担保。
+ 完整文本随包附于 /usr/share/doc/flind-player/LICENSE；在 Debian/Ubuntu 上亦可指向
+ /usr/share/common-licenses/GPL-3。
 
 License: LGPL-2.1+
  播放后端 libmpv / FFmpeg 依据 LGPL-2.1-or-later 分发；${note}

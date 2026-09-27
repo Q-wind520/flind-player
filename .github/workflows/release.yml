@@ -127,10 +127,13 @@ jobs:
 
       - name: Install Inno Setup
         run: |
-          Invoke-WebRequest `
-            -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe' `
-            -OutFile "$env:TEMP\innosetup.exe"
-          Start-Process -FilePath "$env:TEMP\innosetup.exe" -Wait `
+          $url = 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe'
+          $sha = '0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f'
+          $exe = "$env:TEMP\innosetup.exe"
+          Invoke-WebRequest -Uri $url -OutFile $exe
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $exe).Hash.ToLower()
+          if ($actual -ne $sha) { throw "Inno Setup installer sha256 mismatch: $actual" }
+          Start-Process -FilePath $exe -Wait `
             -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-'
 
       - name: Build Windows installer

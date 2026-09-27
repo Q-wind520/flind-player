@@ -26,6 +26,7 @@ printf 'Installed-Size: %s\n' "$(du -sk "${pkgroot}" | cut -f1)" >>"${pkgroot}/D
 install -m0755 "${PACKAGING_DIR}/debian/postinst" "${pkgroot}/DEBIAN/postinst"
 install -m0755 "${PACKAGING_DIR}/debian/postrm" "${pkgroot}/DEBIAN/postrm"
 
+install -D -m0644 "${REPO_ROOT}/LICENSE" "${pkgroot}/usr/share/doc/${PKG_NAME}/LICENSE"
 normalize_tree "${pkgroot}"
 dpkg-deb --build --root-owner-group "${pkgroot}" "${out}" >/dev/null
 printf 'built %s\n' "${out}"

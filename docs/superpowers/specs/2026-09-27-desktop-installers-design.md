@@ -184,7 +184,7 @@ FlindPlayer.AppDir/
   - `[Run]`：`postinstall nowait skipifsilent` 启动应用。
   - `[UninstallDelete]`：仅清程序目录；**不删用户数据**。
 - 未签名：SmartScreen 会拦截提示；README 说明。
-- CI 安装 Inno：`choco install innosetup --version=6.3.3 -y`（固定 6.3.x —— 脚本用到 `x64compatible` 语法），调用 `ISCC.exe`；本地脚本直接调用 `iscc`（若在 PATH）。
+- CI 安装 Inno：从官方 release 资产固定版本下载（`https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe`，sha256 `0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f`），校验后静默安装；调用动态定位到的 `ISCC.exe`。本地脚本直接调用 `iscc`（若在 PATH）。
 
 ### 5.3 Windows 打包顺序
 
