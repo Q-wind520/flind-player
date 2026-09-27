@@ -651,7 +651,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final isPlaying = playback?.isPlaying ?? false;
 
     if (section == LibrarySection.playlists) {
+      final playlistsView =
+          (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults)
+              .viewOf(LibraryViewScope.playlists);
       return PlaylistsSection(
+        view: playlistsView,
         onOpenFavorites: () => _selectSection(LibrarySection.favorites),
       );
     }

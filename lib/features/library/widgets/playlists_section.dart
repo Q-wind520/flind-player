@@ -16,17 +16,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/features/library/playlist_detail_screen.dart';
+import 'package:flind_player/features/library/widgets/playlist_card.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
 /// The 歌单 section of the library: a pinned favourites row followed by every
 /// user-created playlist.
 class PlaylistsSection extends ConsumerWidget {
-  const PlaylistsSection({super.key, required this.onOpenFavorites});
+  const PlaylistsSection({
+    super.key,
+    required this.view,
+    required this.onOpenFavorites,
+  });
+
+  /// The layout chosen for the playlists scope (showcase or list).
+  final LibraryView view;
 
   /// Called when the pinned favourites row is tapped.
   final VoidCallback onOpenFavorites;
@@ -40,6 +49,37 @@ class PlaylistsSection extends ConsumerWidget {
         .watch(playlistTracksProvider(favoritesPlaylistId))
         .value
         ?.length;
+
+    // The showcase grid needs a cover-sized card; with no custom playlists
+    // fall back to the list branch so the empty-state notice stays visible.
+    if (view == LibraryView.showcase && custom.isNotEmpty) {
+      return GridView.count(
+        padding: const EdgeInsets.all(12),
+        crossAxisCount: 2,
+        childAspectRatio: 0.82,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        children: [
+          PlaylistCard(
+            playlistId: favoritesPlaylistId,
+            name: l10n.tabFavorites,
+            fallbackIcon: Icons.favorite,
+            onTap: onOpenFavorites,
+          ),
+          for (final playlist in custom)
+            PlaylistCard(
+              playlistId: playlist.id,
+              name: playlist.name,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) =>
+                      PlaylistDetailScreen(playlistId: playlist.id),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),

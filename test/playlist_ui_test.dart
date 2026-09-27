@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
@@ -35,7 +36,9 @@ import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
+import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/playlist_card.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
@@ -340,6 +343,19 @@ class _FakeLibrarySortNotifier extends LibrarySortNotifier {
   Future<TrackSort> build() async => _sort;
 }
 
+/// Fake [LibraryViewsNotifier] seeded with the scope defaults; view changes
+/// stay in memory (no `shared_preferences` in tests).
+class _FakeLibraryViewsNotifier extends LibraryViewsNotifier {
+  @override
+  Future<LibraryViews> build() async => LibraryViews.defaults;
+
+  @override
+  Future<void> setView(LibraryViewScope scope, LibraryView view) async {
+    final current = state.value ?? LibraryViews.defaults;
+    state = AsyncData(current.withView(scope, view));
+  }
+}
+
 /// Sets the test view size and registers a tear-down to reset it.
 void _setSize(WidgetTester tester, double width, double height) {
   tester.view.physicalSize = Size(width, height);
@@ -381,6 +397,7 @@ Widget _app({
       librarySortProvider.overrideWith(
         () => _FakeLibrarySortNotifier(TrackSort.title),
       ),
+      libraryViewsProvider.overrideWith(_FakeLibraryViewsNotifier.new),
       playlistRepositoryProvider.overrideWithValue(repo),
     ],
     child: localizedApp(
@@ -867,6 +884,39 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }
+    });
+  });
+
+  group('playlists view', () {
+    testWidgets('歌单列表默认展柜，可切换为列表', (tester) async {
+      _setSize(tester, 400, 800);
+      final repo = _FakePlaylistRepository(
+        playlists: [
+          _playlist(2, 'Road Trip', PlaylistKind.custom),
+          _playlist(3, 'Workout', PlaylistKind.custom),
+        ],
+      );
+
+      await tester.pumpWidget(_app(playlistRepo: repo));
+      await tester.pumpAndSettle();
+      await _openPlaylists(tester);
+
+      // Default for the playlists scope is showcase: favourites + 2 cards.
+      expect(find.byType(PlaylistCard), findsNWidgets(3));
+      expect(find.byType(ListTile), findsNothing);
+
+      await tester.tap(find.byKey(const Key('library_more_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(testL10n().menuView));
+      await tester.pumpAndSettle();
+      // The playlists scope offers no waterfall.
+      expect(find.text(testL10n().viewWaterfall), findsNothing);
+      await tester.tap(find.text(testL10n().viewList));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlaylistCard), findsNothing);
+      expect(find.text('Road Trip'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }
