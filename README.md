@@ -102,11 +102,28 @@
 | 平台 | 优先级 | 说明 |
 | -------- | -------- | ----- |
 | Android | 主推 | 分架构 APK + AAB |
-| Linux | 主推 | 需要系统 `libmpv` |
-| Windows | 次要 | 内置 mpv，开箱即用 |
+| Linux | 主推 | deb / rpm / AppImage / tar.gz；deb/rpm 需要系统 `libmpv` |
+| Windows | 次要 | `setup.exe` 安装器或免安装 zip，均已内置 mpv 与 VC++ 运行时 |
 | macOS | 次要 | **未签名**预览（Apple Silicon / arm64，保留沙盒，仅加网络权限） |
 | iOS | 次要 | **未签名**预览，需自行签名安装；暂不支持本地曲库 |
 | Web | 延后 (v2) | CORS 全阻断，需代理（见架构文档 D11） |
+
+<br />
+
+## ⬇️ 下载与安装
+
+从 [Releases](https://github.com/Q-wind520/flind-player/releases) 选择对应产物：
+
+| 系统 | 推荐产物 | 安装 |
+| --- | -------- | ---- |
+| Debian / Ubuntu | `FlindPlayer-<tag>-linux-x64.deb` | `sudo apt install ./FlindPlayer-<tag>-linux-x64.deb` |
+| Fedora / RHEL | `FlindPlayer-<tag>-linux-x64.rpm` | `sudo dnf install ./FlindPlayer-<tag>-linux-x64.rpm` |
+| 任意 Linux | `FlindPlayer-<tag>-linux-x64.AppImage` | `chmod +x FlindPlayer-<tag>-linux-x64.AppImage && ./FlindPlayer-<tag>-linux-x64.AppImage` |
+| Windows 10/11 x64 | `FlindPlayer-<tag>-windows-x64-setup.exe` | 双击运行（可选「仅我」安装，无需管理员） |
+
+> deb/rpm 需要系统提供 `libmpv.so.2`（Ubuntu 24.04+ / Debian 12+ / Fedora 39+ 一类）。
+> AppImage 需要 FUSE；若提示 `libfuse2` 缺失，用 `APPIMAGE_EXTRACT_AND_RUN=1 ./FlindPlayer-….AppImage` 运行。
+> Windows 安装器未签名，SmartScreen 会提示；免安装 zip 与 deb/rpm 卸载都不会删除你的本地数据（曲库索引、收藏、离线缓存）。
 
 <br />
 
