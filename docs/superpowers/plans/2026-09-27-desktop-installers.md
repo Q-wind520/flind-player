@@ -606,6 +606,8 @@ exec "${APPDIR}/usr/lib/flind-player/flind_player" "$@"
 
 创建 `packaging/linux/build-appimage.sh`：
 
+> **实施修正（构建时发现）**：计划原稿让 linuxdeploy 在**放入 Flutter bundle 之后**、并带 `--executable` 运行，结果它会把 AppDir 里每个 ELF 的依赖都打进去——包括整条 GTK 栈（343 MB），违反 spec §2.5「不打包 GTK」。实际实现改为：先在空的 AppDir 骨架上跑 linuxdeploy（只解析 libmpv 的 FFmpeg 闭包），再用 `--exclude-library` 排除 glib/pango/cairo 等 GTK 共享栈，最后才放入 bundle、建软链。下方代码即**实际发布**的版本。
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -614,7 +616,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 # Pinned tool builds. Bumping a version requires updating its sha256 below;
 # a mismatch aborts the build (fail closed) instead of silently using
-# whatever the moving `continuous` tag points at today.
+# whatever the moving upstream tag points at today.
 LINUXDEPLOY_VERSION="1-alpha-20251107-1"
 LINUXDEPLOY_SHA256="c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d"
 APPIMAGETOOL_VERSION="1.9.1"
@@ -643,17 +645,13 @@ fetch "https://github.com/linuxdeploy/linuxdeploy/releases/download/${LINUXDEPLO
 fetch "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" \
   "${APPIMAGETOOL_SHA256}" "${tools}/appimagetool"
 
-# --- AppDir -----------------------------------------------------------------
+# --- AppDir skeleton --------------------------------------------------------
 install -d "${appdir}/usr/bin"
 install -d "${appdir}/usr/lib"
 install -d "${appdir}/usr/share/applications"
 install -d "${appdir}/usr/share/icons/hicolor/256x256/apps"
 install -d "${appdir}/usr/share/doc/${PKG_NAME}"
 
-cp -a "${BUNDLE_DIR}/." "${appdir}/usr/lib/${PKG_NAME}/"
-rm -rf "${appdir}/usr/lib/${PKG_NAME}/share"
-
-ln -sf "../lib/${PKG_NAME}/${BIN_NAME}" "${appdir}/usr/bin/${BIN_NAME}"
 install -m0644 "${BUNDLE_DIR}/share/applications/${BIN_NAME}.desktop" \
   "${appdir}/usr/share/applications/${BIN_NAME}.desktop"
 install -m0644 "${BUNDLE_DIR}/share/icons/hicolor/256x256/apps/${BIN_NAME}.png" \
@@ -667,20 +665,57 @@ install -m0755 "${PACKAGING_DIR}/appimage/AppRun" "${appdir}/AppRun"
 cp "${appdir}/usr/share/applications/${BIN_NAME}.desktop" "${appdir}/${BIN_NAME}.desktop"
 cp "${appdir}/usr/share/icons/hicolor/256x256/apps/${BIN_NAME}.png" "${appdir}/${BIN_NAME}.png"
 
-# --- deploy dependencies ----------------------------------------------------
+# --- deploy libmpv + its dependency closure ---------------------------------
 # media_kit dlopen()s libmpv, so it is invisible to ldd; --library forces it in
 # and linuxdeploy resolves its (FFmpeg) closure.
+#
+# libmpv's own dependency closure reaches into the GTK/desktop shared stack
+# (librsvg pulls cairo/pango; ffmpeg pulls wayland/xkbcommon and glib). Those
+# must come from the host, not the AppImage: GTK3 is a system dependency by
+# design (spec 2.5), and mixing a bundled glib/pango/cairo with the host GTK3
+# risks ABI skew (undefined symbols, broken theming/IME). Exclude them so only
+# libmpv's non-desktop closure is bundled.
+GTK_SHARED_EXCLUDES=(
+  'libglib-2.0.so*'
+  'libgio-2.0.so*'
+  'libgobject-2.0.so*'
+  'libgmodule-2.0.so*'
+  'libpango-1.0.so*'
+  'libpangocairo-1.0.so*'
+  'libpangoft2-1.0.so*'
+  'libcairo.so*'
+  'libcairo-gobject.so*'
+  'libgdk_pixbuf-2.0.so*'
+  'libwayland-*.so*'
+  'libxkbcommon.so*'
+)
+exclude_args=()
+for pattern in "${GTK_SHARED_EXCLUDES[@]}"; do
+  exclude_args+=(--exclude-library "${pattern}")
+done
+
+# Order matters: linuxdeploy walks EVERY ELF file already present in the AppDir.
+# Running it before the Flutter bundle is copied in keeps the deployment to
+# libmpv's closure only, leaving GTK3 a system dependency by design (spec 2.5)
+# instead of bundling a GTK stack without its loaders/schemas.
 ARCH=x86_64 "${tools}/linuxdeploy" --appimage-extract-and-run \
   --appdir "${appdir}" \
-  --executable "${appdir}/usr/lib/${PKG_NAME}/${BIN_NAME}" \
   --desktop-file "${appdir}/usr/share/applications/${BIN_NAME}.desktop" \
   --icon-file "${appdir}/usr/share/icons/hicolor/256x256/apps/${BIN_NAME}.png" \
-  --library "${LIBMPV_SO}"
+  --library "${LIBMPV_SO}" \
+  "${exclude_args[@]}"
+
+# --- add the application itself ---------------------------------------------
+install -d "${appdir}/usr/lib/${PKG_NAME}"
+cp -a "${BUNDLE_DIR}/." "${appdir}/usr/lib/${PKG_NAME}/"
+rm -rf "${appdir}/usr/lib/${PKG_NAME}/share"
+ln -sf "../lib/${PKG_NAME}/${BIN_NAME}" "${appdir}/usr/bin/${BIN_NAME}"
 
 # --- pack -------------------------------------------------------------------
 out="${OUT_DIR}/FlindPlayer-v${VERSION}-linux-x64.AppImage"
 mkdir -p "${OUT_DIR}"
-ARCH=x86_64 VERSION="${VERSION}" "${tools}/appimagetool" --appimage-extract-and-run -o "${out}" "${appdir}"
+# appimagetool takes SOURCE and DESTINATION positionally (there is no -o flag).
+ARCH=x86_64 VERSION="${VERSION}" "${tools}/appimagetool" --appimage-extract-and-run "${appdir}" "${out}"
 printf 'built %s\n' "${out}"
 ```
 
