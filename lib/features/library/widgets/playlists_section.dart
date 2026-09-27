@@ -26,14 +26,7 @@ import 'package:flind_player/shared/cover_image.dart';
 /// The 歌单 section of the library: a pinned favourites row followed by every
 /// user-created playlist.
 class PlaylistsSection extends ConsumerWidget {
-  const PlaylistsSection({
-    super.key,
-    required this.query,
-    required this.onOpenFavorites,
-  });
-
-  /// Active library search query; filters custom playlists by name.
-  final String query;
+  const PlaylistsSection({super.key, required this.onOpenFavorites});
 
   /// Called when the pinned favourites row is tapped.
   final VoidCallback onOpenFavorites;
@@ -48,18 +41,11 @@ class PlaylistsSection extends ConsumerWidget {
         .value
         ?.length;
 
-    final q = query.trim().toLowerCase();
-    final filtered = q.isEmpty
-        ? custom
-        : custom
-              .where((playlist) => playlist.name.toLowerCase().contains(q))
-              .toList(growable: false);
-
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 4),
       children: [
         _FavoritesRow(trackCount: favoritesCount, onTap: onOpenFavorites),
-        if (filtered.isEmpty)
+        if (custom.isEmpty)
           const _EmptyPlaylists()
         else ...[
           Padding(
@@ -71,7 +57,7 @@ class PlaylistsSection extends ConsumerWidget {
               ),
             ),
           ),
-          for (final playlist in filtered) _PlaylistRow(playlist: playlist),
+          for (final playlist in custom) _PlaylistRow(playlist: playlist),
         ],
       ],
     );

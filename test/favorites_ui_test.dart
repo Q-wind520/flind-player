@@ -238,62 +238,6 @@ void main() {
       expect(find.byType(ListView), findsNothing);
     });
 
-    testWidgets('query filters favourites list', (tester) async {
-      final alpha = _track('Alpha Song');
-      final beta = _track('Beta Song');
-
-      await tester.pumpWidget(
-        _libraryApp(
-          tracks: [alpha, beta],
-          favourites: [alpha, beta],
-          search: (ref, query) async => <Track>[],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Switch to favourites.
-      await tester.tap(find.text('收藏'));
-      await tester.pumpAndSettle();
-
-      // Type a search query.
-      await tester.tap(find.byIcon(Icons.search));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'Alpha');
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Alpha Song'), findsOneWidget);
-      expect(find.text('Beta Song'), findsNothing);
-    });
-
-    testWidgets('query with no matching favourites shows empty state', (
-      tester,
-    ) async {
-      final alpha = _track('Alpha Song');
-
-      await tester.pumpWidget(
-        _libraryApp(
-          tracks: [alpha],
-          favourites: [alpha],
-          search: (ref, query) async => <Track>[],
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Switch to favourites.
-      await tester.tap(find.text('收藏'));
-      await tester.pumpAndSettle();
-
-      // Type a search query that matches nothing.
-      await tester.tap(find.byIcon(Icons.search));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'Nothing');
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pumpAndSettle();
-
-      expect(find.text('没有找到匹配的收藏'), findsOneWidget);
-    });
-
     testWidgets('a favourite without a pool id renders as unavailable', (
       tester,
     ) async {

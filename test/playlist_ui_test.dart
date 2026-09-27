@@ -825,40 +825,33 @@ void main() {
   });
 
   group('header layout', () {
-    testWidgets('more is leftmost, add rightmost, search between, selector '
-        'centred', (tester) async {
+    testWidgets('more is leftmost, add on 歌单, selector centred', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
       await tester.pumpAndSettle();
 
       final more = find.byKey(const Key('library_more_menu'));
-      final search = find.byKey(const Key('library_search_button'));
-      final add = find.byKey(const Key('library_add_playlist'));
       final selector = find.byKey(const Key('library_filter_selector'));
 
       final moreX = tester.getCenter(more).dx;
-      final searchX = tester.getCenter(search).dx;
-      final addX = tester.getCenter(add).dx;
       final selectorX = tester.getCenter(selector).dx;
 
-      // 更多 is the leftmost element.
-      expect(moreX, lessThan(searchX));
-      expect(moreX, lessThan(addX));
+      // 更多 is the leftmost element; the selector is centred on screen.
       expect(moreX, lessThan(selectorX));
-      // 搜索 sits between 更多 and ＋.
-      expect(searchX, greaterThan(moreX));
-      expect(searchX, lessThan(addX));
-      // ＋ is the rightmost element.
-      expect(addX, greaterThan(searchX));
-      expect(addX, greaterThan(selectorX));
-      expect(addX, greaterThan(moreX));
-      // The selector is horizontally centred on screen.
       expect(selectorX, closeTo(200, 1));
 
-      // ＋ stays visible in every section (not only 歌单).
-      await tester.tap(_ringLabel(testL10n().tabFavorites));
+      // The search toggle is gone, and ＋ is hidden outside 歌单.
+      expect(find.byKey(const Key('library_search_button')), findsNothing);
+      expect(find.byKey(const Key('library_add_playlist')), findsNothing);
+
+      // ＋ appears on the 歌单 page, to the right of the selector.
+      await tester.tap(_ringLabel(testL10n().tabPlaylists));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('library_add_playlist')), findsOneWidget);
+      final add = find.byKey(const Key('library_add_playlist'));
+      expect(add, findsOneWidget);
+      expect(tester.getCenter(add).dx, greaterThan(selectorX));
       expect(tester.takeException(), isNull);
     });
 

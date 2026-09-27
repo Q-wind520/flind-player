@@ -84,9 +84,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// selector tap can compute the adjacent page to glide to.
   int _pageIndex = _initialPageIndex;
 
-  /// Whether the inline search field is expanded under the header row.
-  bool _searchOpen = false;
-
   /// Text of the sync bubble currently shown, so identical progress updates do
   /// not re-trigger the notification.
   String? _syncBubbleText;
@@ -122,16 +119,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (_query.isNotEmpty) {
       setState(() => _query = '');
     }
-  }
-
-  /// Expands/collapses the inline search field; collapsing clears the query.
-  void _toggleSearch() {
-    if (_searchOpen) {
-      _debounce?.cancel();
-      _searchController.clear();
-      _query = '';
-    }
-    setState(() => _searchOpen = !_searchOpen);
   }
 
   /// Opens the create-playlist dialog from the header "+" button.
@@ -313,7 +300,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeaderRow(hasLocalLibrary: hasLocalLibrary),
-            if (hasLocalLibrary) _buildSearchField(),
+            if (hasLocalLibrary && _section == LibrarySection.all)
+              _buildSearchField(),
             Expanded(
               child: hasLocalLibrary
                   ? _buildBody()
@@ -350,10 +338,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         height: 48,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Reserve the outer gutters (more-menu on the left, search + ＋
-            // on the right) so the centred ring is capped to the space that
-            // actually remains, even on the narrowest supported viewport.
-            final reserved = 48.0 + (hasLocalLibrary ? 96.0 : 48.0) + 8.0;
+            // Reserve the outer gutters (more-menu on the left, the ＋ button
+            // on the 歌单 page's right) so the centred ring is capped to the
+            // space that actually remains, even on the narrowest viewport.
+            final rightReserved =
+                _section == LibrarySection.playlists ? 48.0 : 0.0;
+            final reserved = 48.0 + rightReserved + 8.0;
             final maxSelectorWidth = (constraints.maxWidth - reserved).clamp(
               0.0,
               double.infinity,
@@ -387,23 +377,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (hasLocalLibrary)
-                        IconButton(
-                          key: const Key('library_search_button'),
-                          icon: Icon(_searchOpen ? Icons.close : Icons.search),
-                          onPressed: _toggleSearch,
-                        ),
-                      IconButton(
-                        key: const Key('library_add_playlist'),
-                        tooltip: '',
-                        icon: const Icon(Icons.add),
-                        onPressed: _createPlaylist,
-                      ),
-                    ],
-                  ),
+                  child: _section == LibrarySection.playlists
+                      ? IconButton(
+                          key: const Key('library_add_playlist'),
+                          tooltip: '',
+                          icon: const Icon(Icons.add),
+                          onPressed: _createPlaylist,
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             );
@@ -527,44 +508,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  /// The inline search field, expanded under the header row.
+  /// The inline search field, shown under the header on the 全部 section.
   Widget _buildSearchField() {
     final l10n = AppLocalizations.of(context);
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      child: _searchOpen
-          ? Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _searchController,
-                builder: (context, value, child) {
-                  return TextField(
-                    controller: _searchController,
-                    textInputAction: TextInputAction.search,
-                    onChanged: _onSearchChanged,
-                    decoration: InputDecoration(
-                      hintText: switch (_section) {
-                        LibrarySection.all => l10n.searchLibrary,
-                        LibrarySection.favorites => l10n.searchFavorites,
-                        LibrarySection.playlists => l10n.searchPlaylists,
-                      },
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: value.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: _clearSearch,
-                            ),
-                      border: const OutlineInputBorder(),
-                      isDense: true,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _searchController,
+        builder: (context, value, child) {
+          return TextField(
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: l10n.searchLibrary,
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: value.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: _clearSearch,
                     ),
-                  );
-                },
-              ),
-            )
-          : const SizedBox(width: double.infinity),
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -683,7 +653,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     if (section == LibrarySection.playlists) {
       return PlaylistsSection(
-        query: _query,
         onOpenFavorites: () => _selectSection(LibrarySection.favorites),
       );
     }
@@ -750,20 +719,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           return const _EmptyFavourites();
         }
         final sorted = sortFavouriteTracks(favourites, sort);
-        if (_query.isNotEmpty) {
-          final lowerQuery = _query.toLowerCase();
-          final filtered = sorted
-              .where(
-                (t) =>
-                    t.title.toLowerCase().contains(lowerQuery) ||
-                    (t.artist?.toLowerCase().contains(lowerQuery) ?? false),
-              )
-              .toList();
-          if (filtered.isEmpty) {
-            return const _NoFavouritesSearchResults();
-          }
-          return _trackDisplay(filtered, currentUri, isPlaying);
-        }
         return _trackDisplay(sorted, currentUri, isPlaying);
       },
     );
@@ -1113,42 +1068,6 @@ class _EmptyFavourites extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               l10n.noFavoritesHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Shown when favourites mode is active, a query is entered, but nothing matches.
-class _NoFavouritesSearchResults extends StatelessWidget {
-  const _NoFavouritesSearchResults();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.noMatchingFavorites, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.tryAnotherKeyword,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
