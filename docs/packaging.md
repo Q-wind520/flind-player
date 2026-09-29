@@ -48,4 +48,4 @@ ISCC.exe /DVersion=0.5.0 /DTag=v0.5.0 /DSourceDir=build\windows\x64\runner\Relea
 
 ## 鸿蒙
 
-见 `docs/superpowers/specs/2026-09-27-desktop-installers-design.md` §11 的探针结论：本项目当前无法构建鸿蒙版（社区分支的 Dart 版本尚未达到本项目要求）。
+见 `docs/archive/spec-desktop-installers-2026-09-27.md` §11 的探针结论：本项目当前无法构建鸿蒙版（社区分支的 Dart 版本尚未达到本项目要求）。

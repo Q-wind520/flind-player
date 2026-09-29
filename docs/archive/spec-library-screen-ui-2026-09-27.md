@@ -1,10 +1,12 @@
 # 设计：曲库界面（LibraryScreen）UI TODO
 
 - 日期：2026-09-27
-- 状态：待实现
+- 状态：**已实现并发布（v0.5.0）** · 2026-09-29 归档
 - 范围：曲库顶栏与菜单结构、单曲菜单操作、按页面持久化的多视图系统、瀑布流布局、本地化与测试
 - 目标读者：实现者
-- 关联：[`lib/features/library/library_screen.dart`](../../../lib/features/library/library_screen.dart)、[`docs/widget-tree.md`](../../widget-tree.md)、[`docs/local-library.md`](../../local-library.md)（离线缓存）
+- 实施记录：[`plan-library-screen-ui-2026-09-27.md`](plan-library-screen-ui-2026-09-27.md)
+- 现行文档：[`docs/widget-tree.md`](../widget-tree.md) LibraryScreen 一节
+- 关联：[`lib/features/library/library_screen.dart`](../../lib/features/library/library_screen.dart)、[`docs/local-library.md`](../local-library.md)（离线缓存）
 
 ## 1. 背景与目标
 

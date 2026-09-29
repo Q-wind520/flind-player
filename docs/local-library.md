@@ -93,10 +93,15 @@
 > 已实现：目录递归遍历、`isolate` 并行元数据提取（N = 核数-1）、批量入库、软删除（`missing_at`）、
 > 封面内容哈希缓存、节流进度流、FTS5 全文检索。
 >
-> 推迟到后续里程碑：
-> 1. **`(mtime, size)` 增量检测** —— 当前按 uri 是否已知来跳过重解析；已入库文件的内容/标签变化不会被发现。需要给 `tracks` 增加 `size`/`mtime_ms` 列（schema v3）。
-> 2. **按根目录的软删除保护** —— 当前"空扫描保护"是全局的，且 schema 没有根目录归属列。某个根目录临时离线时，其曲目仍会被软删除（下次成功扫描会恢复）。规则 3 目前只部分满足。
-> 3. **封面缩放** 已实现（512px JPEG），但**未做**多尺寸/懒加载缩略图。
+> 原先推迟、**现已落地**（2026-09-29 复核）：
+> 1. **`(mtime, size)` 增量检测** —— `tracks` 已加 `size_bytes` / `mtime_ms` 两列（schema v5），
+>    扫描侧用 `FileFingerprint(sizeBytes, mtimeMs, scanRoot)` 比对，内容/标签变化会被重新解析。
+> 2. **按根目录的软删除保护** —— `tracks.scan_root` 列与 `scan_roots` 表已就位，软删除只作用于
+>    本次成功扫描到的根目录（`scanRoot.isNull() | scanRoot.isIn(roots)`），规则 3 已满足。
+>
+> 仍推迟：
+> 3. **封面多尺寸 / 懒加载缩略图** —— 未做。当前内嵌封面按原始字节内容寻址落盘（见 §3），
+>    同一张图在列表与播放页共用同一文件，没有按显示尺寸生成缩略图。
 
 ---
 
@@ -105,10 +110,11 @@
 - 内嵌封面：`audio_metadata_reader` 的 `pictures`
 - Android 系统封面兜底：`on_audio_query_pluse.queryArtwork()`
 - **两遍法**：第一遍不取图（快）；第二遍低优先级按需提取
-- **内容寻址缓存**：图片字节 SHA-1 → `covers/<hash>.webp`（缩放到 256–512px）
+- **内容寻址缓存**：图片字节 SHA-1 → `covers/<sha1>.<ext>`（`<ext>` 由图片 MIME 决定）
   - 存在 `<app support>/covers/`（**不要用临时目录**，系统会清理）
+  - **原样落盘，不缩放、不重编码**（保留原始画质；与 §3.1 的远程封面策略一致）
   - 专辑封面天然去重（同专辑多曲共享 hash）
-- 解码/缩放必须在非 UI isolate
+- 读取、哈希与写盘必须在非 UI isolate（`ArtworkCache._cacheInIsolate`）
 
 ### 3.1 在线（Bilibili）远程封面
 
@@ -292,7 +298,7 @@ ALTER TABLE tracks ADD COLUMN cover_url TEXT;
 
 > **pinned 豁免配额是有意决策**：上限**不再约束总磁盘占用**，用户可无限下载，
 > 需在发布说明注明。代价与风险见
-> [`superpowers/specs/2026-09-26-cache-refactor-design.md`](superpowers/specs/2026-09-26-cache-refactor-design.md) §13。
+> [`archive/spec-cache-refactor-2026-09-26.md`](archive/spec-cache-refactor-2026-09-26.md) §13。
 
 > **离线 / pinned 的管理入口**：设置页新增独立的「**离线缓存**」区块（列表 + 用量 +
 > 单条删除 + 全部清空），与曲库行的下载按钮状态一致。设置页原有的缓存区块**显示不变**，
@@ -330,10 +336,16 @@ Future<StreamInfo> resolveStream(Track track) async {
 
 > **M3 实现现状**
 >
-> 已实现：`audio_cache` 索引表（schema v3，v6 起含 `content_hash`）、内容哈希去重（同一份音频只存/只计一次）、
+> 已实现：`audio_cache` 索引表（**schema v10**，含 `content_hash`）、内容哈希去重（同一份音频只存/只计一次）、
 > LRU 淘汰（pinned 豁免，引用计数删除）、下载器（`.part` 暂存 + 完成才 rename + `Range` 断点续传 + 指数退避重试 +
 > 403/404 立即判定 URL 过期）、单并发下载队列（FIFO）、缓存优先解析器（命中返回 `file:` 且 **headers 为空**）、
 > 缓存设置（唯一项：上限，默认 1 GiB，可自定义 MB/GB）、完整性检查（清理无文件的索引行 + 孤儿文件 + 合并历史重复内容）。
+>
+> **schema v10（随 v0.4.0 发布）已把配额模型从"按资源类型"改为"按歌曲"**：
+> 音频与封面同生共死于层 1（`audio_cache.cover_path`），未缓存歌曲的封面走独立的层 2
+> （固定 256 MiB、启动清空、不计入音频上限）。本块描述的下载器行为未变；
+> 数据模型与配额规则以 §4.4 / §4.5 为准，评审遗留项见 `缓存延期问题.md`。
+> 迁移设计见 [`archive/spec-cache-refactor-2026-09-26.md`](archive/spec-cache-refactor-2026-09-26.md)。
 >
 > 实现细节与偏差：
 > 1. **容量检查分两次**：`StreamInfo` 不含字节数，下载前只能按估算值（未知时为 0）预留；下载完成后按**真实

@@ -1,10 +1,12 @@
 # 设计：桌面安装包（Linux deb/rpm/AppImage + Windows setup.exe）
 
 - 日期：2026-09-27
-- 状态：待实现
+- 状态：**已实现并发布（v0.6.0）** · 2026-09-29 归档
 - 范围：桌面端原生安装包的构建脚本、CI 集成、发布产物与文档
 - 目标读者：实现者
-- 关联：[`.github/workflows/release.yml`](../../../.github/workflows/release.yml)、[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)、[`linux/CMakeLists.txt`](../../../linux/CMakeLists.txt)、[`windows/CMakeLists.txt`](../../../windows/CMakeLists.txt)、[`README.md`](../../../README.md)
+- 实施记录：[`plan-desktop-installers-2026-09-27.md`](plan-desktop-installers-2026-09-27.md)
+- 现行文档：[`docs/packaging.md`](../packaging.md)
+- 关联：[`.github/workflows/release.yml`](../../.github/workflows/release.yml)、[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)、[`linux/CMakeLists.txt`](../../linux/CMakeLists.txt)、[`windows/CMakeLists.txt`](../../windows/CMakeLists.txt)、[`README.md`](../../README.md)
 
 ## 1. 背景与目标
 

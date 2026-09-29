@@ -557,13 +557,25 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | `lib/shared/app_surface.dart` | 统一共享背景表面 + `colorOf` |
 | `lib/features/search/search_screen.dart` | B 站搜索页(无标题栏) |
 | `lib/features/library/library_screen.dart` | 曲库页(三段式选择器/搜索/收藏/歌单/列表/网格) |
+| `lib/core/models/library_view.dart` | 视图模型:`LibraryView`(展柜网格/列表/瀑布流) + `LibraryViewScope`(按段作用域) |
+| `lib/features/library/library_view_provider.dart` | `LibraryViewsNotifier` — 按段持久化的多视图(存设置仓) |
+| `lib/features/library/library_sort_provider.dart` | 曲库排序(标题/艺术家/专辑/最近添加) |
+| `lib/features/library/track_sorting.dart` | 排序比较器与本地化键 |
+| `lib/features/library/cover_aspect_ratio_provider.dart` | 封面宽高比设置(瀑布流用) |
 | `lib/features/library/playlist_detail_screen.dart` | 歌单详情页(头部 + 成员列表) |
+| `lib/features/library/widgets/library_view_menu_button.dart` | 顶部「本地/排序/视图」二级菜单(MenuAnchor + SubmenuButton) |
 | `lib/features/library/widgets/playlists_section.dart` | 歌单区(置顶收藏行 + 自建歌单列表) |
+| `lib/features/library/widgets/playlist_card.dart` | 歌单卡片(封面 + 计数) |
 | `lib/features/library/widgets/playlist_editor_dialog.dart` | 歌单创建/编辑对话框 |
 | `lib/features/library/widgets/playlist_picker_sheet.dart` | 加入歌单底部选择器 |
+| `lib/features/library/widgets/track_view.dart` | 共享曲目渲染(展柜网格 / 列表 / 瀑布流三态) |
+| `lib/features/library/widgets/waterfall_track_card.dart` | 瀑布流曲目卡片 |
 | `lib/features/library/widgets/track_list_items.dart` | 共享曲目行/卡片/来源徽标/封面 |
 | `lib/features/library/widgets/track_actions_button.dart` | 轨道操作弹出菜单(收藏/缓存/存入曲库/加入歌单/移出歌单) |
 | `lib/features/library/widgets/cache_action_button.dart` | 缓存按钮(未挂载) |
+| `lib/data/services/track_deletion_service.dart` | `TrackDeletionService` — 删除曲目的缓存/歌单/曲库三步编排 |
+| `lib/platform/audio_handler.dart` | audio_service + `audio_service_mpris` 后台播放与媒体控制 |
+| `lib/platform/tray/tray_service.dart` | 系统托盘图标 + 关闭到托盘 |
 | `lib/features/settings/settings_screen.dart` | 设置页(通用/播放/曲库/关于) |
 | `lib/features/player/mini_player_bar.dart` | 迷你播放条 |
 | `lib/features/player/player_screen.dart` | 全屏播放页(横竖屏 + 传输控制) |

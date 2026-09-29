@@ -1,6 +1,9 @@
 # 歌单/收藏收敛到单一曲目池 实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **状态：已执行完毕并发布（v0.3.0，schema v9）· 2026-09-29 归档。**
+> 下列步骤保留为实施记录，勾选框未逐条回填；**不要**按本文件重新执行。
+> 设计见 [`spec-playlist-pool-convergence-2026-09-26.md`](spec-playlist-pool-convergence-2026-09-26.md)，
+> 现行描述见 [`docs/local-library.md`](../local-library.md) §5。
 
 **Goal:** 让收藏/歌单成员统一收敛到 `tracks` 单一池，修复 A/B/C/E/F/H/G，并以 schema v9 删除快照列与死 schema。
 
@@ -8,7 +11,7 @@
 
 **Tech Stack:** Flutter 3.47.5 / Dart、drift（SQLite）、Riverpod、flutter_test。代码生成用 `build_runner`。
 
-**Spec:** `docs/superpowers/specs/2026-09-26-playlist-pool-convergence-design.md`
+**Spec:** `docs/archive/spec-playlist-pool-convergence-2026-09-26.md`
 
 ## Global Constraints
 

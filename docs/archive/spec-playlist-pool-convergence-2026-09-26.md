@@ -1,9 +1,11 @@
 # 设计：歌单/收藏收敛到单一曲目池（schema v9）
 
 - 日期：2026-09-26
-- 状态：待实现
+- 状态：**已实现并发布（v0.3.0，schema v9）** · 2026-09-29 归档
 - 范围：数据模型、歌单/收藏仓储、相关 UI、迁移与测试
 - 目标读者：实现者
+- 实施记录：[`plan-playlist-pool-convergence-2026-09-26.md`](plan-playlist-pool-convergence-2026-09-26.md)
+- 现行文档：[`docs/local-library.md`](../local-library.md) §5
 
 ## 1. 背景
 

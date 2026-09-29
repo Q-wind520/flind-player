@@ -1,6 +1,7 @@
 # 主题模块耦合度重构 TODO
 
-> 状态:分析完成,方案已定,尚未动手。
+> 状态:分析完成,方案已定,尚未动手（2026-09-29 复核:`settingsRepositoryProvider` 仍在
+> `cache_providers.dart`,阶段 ① 未执行）。
 > 原则:**不改动任何代码,直到本文件中的某一阶段被显式触发执行。**
 > 所有阶段均为纯结构重构,无行为变化;验证标准见文末。
 
@@ -47,6 +48,12 @@ core/repositories/settings_repository.dart ── 10 方法"上帝接口"       
 | 不动 | `lib/main.dart`、`lib/features/settings/settings_providers.dart`、`lib/features/library/widgets/track_actions_button.dart`、`lib/features/library/widgets/cache_action_button.dart`、`lib/data/providers/playback_providers.dart` —— 均不使用 `settingsRepositoryProvider`,import 保持指向 `cache_providers.dart` |
 
 > 执行时先 grep 逐一确认上述分类后动手(防止依赖漂移)。
+>
+> **命名陷阱(2026-09-29 复核)**:仓库里已存在 `lib/features/settings/settings_providers.dart`
+> (放 `packageInfoProvider` 等,目前 import `cache_providers.dart`)。新建的
+> `lib/data/providers/settings_providers.dart` 与它**同名不同目录**,IDE 补全与
+> `import '.../settings_providers.dart'` 极易指错。建议新文件改名为
+> `settings_repository_provider.dart`,或把 features 侧那个一并迁到 data 层再统一命名。
 
 **成本**:1 个新文件 + 5 处 import 调整。约 **0.5–1 小时**。
 **风险**:低(纯机械 import 替换,测试全绿兜底)。

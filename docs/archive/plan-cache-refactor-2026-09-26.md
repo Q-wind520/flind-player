@@ -1,6 +1,10 @@
 # Cache Refactor Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **状态：已执行完毕并发布（v0.4.0，schema v10）· 2026-09-29 归档。**
+> 下列步骤保留为实施记录，勾选框未逐条回填；**不要**按本文件重新执行。
+> 设计见 [`spec-cache-refactor-2026-09-26.md`](spec-cache-refactor-2026-09-26.md)，
+> 现行描述见 [`docs/local-library.md`](../local-library.md) §3/§4，
+> 评审遗留的延期项见 [`docs/缓存延期问题.md`](../缓存延期问题.md)。
 
 **Goal:** Move the offline/online cache from per-asset-type quota to per-song quota: a cached song's audio and cover live and die together in layer 1, while covers for un-cached songs live in a separate session-scoped layer 2.
 
@@ -8,7 +12,7 @@
 
 **Tech Stack:** Flutter, Dart, `drift` (SQLite), `flutter_riverpod`, `dio`, `shared_preferences`, `flutter_test`.
 
-**Spec:** `docs/superpowers/specs/2026-09-26-cache-refactor-design.md`
+**Spec:** `docs/archive/spec-cache-refactor-2026-09-26.md`
 
 ## Global Constraints
 

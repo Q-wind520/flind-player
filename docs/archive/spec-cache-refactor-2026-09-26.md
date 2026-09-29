@@ -1,10 +1,13 @@
 # 设计：缓存重构 —— 按歌曲配额 + 双配额（schema v10）
 
 - 日期：2026-09-26
-- 状态：待实现
+- 状态：**已实现并发布（v0.4.0，schema v10）** · 2026-09-29 归档
 - 范围：缓存存储布局、数据模型、配额与驱逐、封面生命周期、迁移与测试、设置页离线管理
 - 目标读者：实现者
-- 关联：[`docs/archive/缓存TODO-2026-09-26.md`](../../archive/缓存TODO-2026-09-26.md)、[`docs/local-library.md`](../../local-library.md) §3/§4、[`docs/architecture.md`](../../architecture.md) §7
+- 实施记录：[`plan-cache-refactor-2026-09-26.md`](plan-cache-refactor-2026-09-26.md)
+- 现行文档：[`docs/local-library.md`](../local-library.md) §3/§4
+- 评审遗留的延期项见 [`docs/缓存延期问题.md`](../缓存延期问题.md)
+- 关联：[`docs/archive/缓存TODO-2026-09-26.md`](缓存TODO-2026-09-26.md)、[`docs/local-library.md`](../local-library.md) §3/§4、[`docs/architecture.md`](../architecture.md) §7
 
 ## 1. 背景
 
@@ -179,4 +182,4 @@ DB 迁移只做结构与索引；**文件搬迁属文件系统操作，放在启
 4. **设置页**：清空语义调整 + 离线缓存入口。
 5. **全量回归**：`flutter analyze` + `flutter test`。
 
-> 子智能体派发遵循 [`docs/agent-model-policy.md`](../../agent-model-policy.md)：主智能体负责中高风险/高难度；子智能体按难度+工作量授模型，审阅者不低于实现者，同形小任务批处理，免费端点限量。
+> 子智能体派发遵循 [`docs/agent-model-policy.md`](../agent-model-policy.md)：主智能体负责中高风险/高难度；子智能体按难度+工作量授模型，审阅者不低于实现者，同形小任务批处理，免费端点限量。

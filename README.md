@@ -268,8 +268,12 @@ git push origin v0.2.1
 | [`docs/architecture.md`](docs/architecture.md) | 架构分层、关键决策（ADR）、里程碑与风险 |
 | [`docs/bilibili-source.md`](docs/bilibili-source.md) | Bilibili 适配器：端点、WBI 签名、鉴权、限流、法务 |
 | [`docs/local-library.md`](docs/local-library.md) | 本地曲库：扫描、元数据、drift schema、离线缓存 |
+| [`docs/packaging.md`](docs/packaging.md) | 桌面安装包（deb / rpm / AppImage / setup.exe）构建与发布 |
 | [`docs/widget-tree.md`](docs/widget-tree.md) | 轻量级 Widget 树总览 |
+| [`docs/agent-model-policy.md`](docs/agent-model-policy.md) | Agent 协作与模型使用约定 |
 | [`docs/缓存延期问题.md`](docs/缓存延期问题.md) | 缓存评审遗留的延期小问题（触发条件 / 后果） |
+| [`docs/耦合TODO.md`](docs/耦合TODO.md) | 设置/主题/排序的 provider 耦合重构（阶段 ① 可执行，②③ 等触发） |
+| [`docs/archive/`](docs/archive) | 已完成的设计稿与实施计划（缓存重构、曲目池收敛、安装包、曲库 UI） |
 
 <br />
 
@@ -292,8 +296,9 @@ git push origin v0.2.1
     <td width="50%" valign="top">
       <h4>⏳ 延后</h4>
       <ul>
-        <li>歌词（未排期）</li>
+        <li>歌词（仅占位视图，未接歌词源）</li>
         <li>QR 登录与个人收藏夹（v1.1）</li>
+        <li>自建歌单手动排序（当前按加入时间倒序）</li>
         <li>Web 端（v2）</li>
         <li>Apple 平台签名 / 公证 / TestFlight（长期推迟）</li>
       </ul>
@@ -303,7 +308,8 @@ git push origin v0.2.1
 
 <h4 id="🧪-验证基线">🧪 验证基线</h4>
 
-`flutter analyze` 零问题 · **581** 个单元 / 组件测试通过 · **6** 个集成测试通过 ·
+`flutter analyze` 零问题 · **683** 个单元 / 组件测试通过（CI 的 `flutter test` 门禁）·
+另有 **7** 个 `integration_test/` 冒烟测试，需真机/桌面环境手动 `flutter test integration_test`，**不在 CI 门禁内** ·
 Linux / Android release 构建通过 · CI 与 release 工作流均实测跑通。
 
 <br />

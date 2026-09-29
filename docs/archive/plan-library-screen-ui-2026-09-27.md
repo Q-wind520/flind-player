@@ -1,6 +1,9 @@
 # 曲库界面（LibraryScreen）UI TODO 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **状态：已执行完毕并发布（v0.5.0）· 2026-09-29 归档。**
+> 下列步骤保留为实施记录，勾选框未逐条回填；**不要**按本文件重新执行。
+> 设计见 [`spec-library-screen-ui-2026-09-27.md`](spec-library-screen-ui-2026-09-27.md)，
+> 现行描述见 [`docs/widget-tree.md`](../widget-tree.md) 的 LibraryScreen 一节。
 
 **Goal:** 落地曲库界面的 6 项 UI TODO：离线缓存两态、顶部「本地/排序/视图」二级菜单、搜索与新建歌单按页面收窄、单曲「移出歌单/删除歌曲」、按页面持久化的多视图、小红书式瀑布流。
 
@@ -8,7 +11,7 @@
 
 **Tech Stack:** Flutter 3.47、Dart 3.13、Riverpod 3.4、drift、shared_preferences、flutter_staggered_grid_view。
 
-**Spec:** `docs/superpowers/specs/2026-09-27-library-screen-ui-design.md`（执行者需同时阅读本计划与规格）
+**Spec:** `docs/archive/spec-library-screen-ui-2026-09-27.md`（执行者需同时阅读本计划与规格）
 
 ## Global Constraints
 

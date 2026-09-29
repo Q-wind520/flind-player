@@ -1,6 +1,9 @@
 # 桌面安装包（Linux deb/rpm/AppImage + Windows setup.exe）实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **状态：已执行完毕并发布（v0.6.0）· 2026-09-29 归档。**
+> 下列步骤保留为实施记录，勾选框未逐条回填；**不要**按本文件重新执行。
+> 设计见 [`spec-desktop-installers-2026-09-27.md`](spec-desktop-installers-2026-09-27.md)，
+> 现行描述见 [`docs/packaging.md`](../packaging.md)。
 
 **Goal:** 为 Flind Player 的桌面端新增 `.deb`、`.rpm`、`.AppImage` 与 Windows `.setup.exe` 四类安装包，并接入现有发布流程。
 
@@ -8,7 +11,7 @@
 
 **Tech Stack:** Bash 脚本、`dpkg-deb`、`rpmbuild`、linuxdeploy `1-alpha-20251107-1`、appimagetool `1.9.1`、Inno Setup `7.1.0`、PowerShell、GitHub Actions。
 
-**Spec:** `docs/superpowers/specs/2026-09-27-desktop-installers-design.md`
+**Spec:** `docs/archive/spec-desktop-installers-2026-09-27.md`
 
 ## Global Constraints
 
@@ -1226,7 +1229,7 @@ ISCC.exe /DVersion=0.5.0 /DTag=v0.5.0 /DSourceDir=build\windows\x64\runner\Relea
 
 ## 鸿蒙
 
-见 `docs/superpowers/specs/2026-09-27-desktop-installers-design.md` §11 的探针结论：本项目当前无法构建鸿蒙版（社区分支的 Dart 版本尚未达到本项目要求）。
+见 `docs/archive/spec-desktop-installers-2026-09-27.md` §11 的探针结论：本项目当前无法构建鸿蒙版（社区分支的 Dart 版本尚未达到本项目要求）。
 ```
 
 - [ ] **Step 2: 更新 `README.md` 的支持平台表**
