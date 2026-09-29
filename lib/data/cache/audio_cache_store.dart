@@ -116,7 +116,7 @@ class AudioCacheStore {
   AudioCacheStore({
     required AppDatabase database,
     required Directory baseDir,
-    required SettingsRepository settings,
+    required CacheSettingsRepository settings,
   }) : _db = database,
        _settings = settings, // ignore: prefer_initializing_formals
        _baseDir = baseDir, // ignore: prefer_initializing_formals
@@ -130,7 +130,7 @@ class AudioCacheStore {
   /// `ArtworkCache.lazy`).
   AudioCacheStore.lazy({
     required AppDatabase database,
-    required SettingsRepository settings,
+    required CacheSettingsRepository settings,
     required Future<Directory> Function() resolveBaseDir,
   }) : _db = database,
        _settings = settings, // ignore: prefer_initializing_formals
@@ -159,7 +159,7 @@ class AudioCacheStore {
   }
 
   final AppDatabase _db;
-  final SettingsRepository _settings;
+  final CacheSettingsRepository _settings;
   final Future<Directory> Function()? _resolveBaseDir;
 
   Directory? _baseDir;

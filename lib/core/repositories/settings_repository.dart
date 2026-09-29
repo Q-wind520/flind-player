@@ -52,8 +52,8 @@ class CacheSettings {
   String toString() => 'CacheSettings(limitBytes: $limitBytes)';
 }
 
-/// Persistence for user settings.
-abstract interface class SettingsRepository {
+/// Offline-cache settings slice of [SettingsRepository].
+abstract interface class CacheSettingsRepository {
   /// The current cache settings, falling back to [CacheSettings.defaults].
   Future<CacheSettings> cacheSettings();
 
@@ -62,7 +62,10 @@ abstract interface class SettingsRepository {
 
   /// Emits the current value on subscribe and again after every update.
   Stream<CacheSettings> watchCacheSettings();
+}
 
+/// Library presentation settings slice of [SettingsRepository].
+abstract interface class LibrarySettingsRepository {
   /// The persisted library sort order, falling back to
   /// [TrackSort.recentlyAdded].
   Future<TrackSort> librarySort();
@@ -75,7 +78,10 @@ abstract interface class SettingsRepository {
 
   /// Persists [view] for [scope] (sanitized for that scope).
   Future<void> setLibraryView(LibraryViewScope scope, LibraryView view);
+}
 
+/// Appearance (language and theme) settings slice of [SettingsRepository].
+abstract interface class AppearanceSettingsRepository {
   /// The persisted UI language, falling back to [AppLanguage.system].
   Future<AppLanguage> appLanguage();
 
@@ -88,3 +94,14 @@ abstract interface class SettingsRepository {
   /// Persists [mode] as the app appearance.
   Future<void> setAppThemeMode(AppThemeMode mode);
 }
+
+/// The full settings surface, composed of the three narrow slices.
+///
+/// Consumers should depend on the narrowest slice they use; this composition
+/// stays the single provider's type and the prefs-backed implementation's
+/// contract, so the override point is unchanged.
+abstract interface class SettingsRepository
+    implements
+        CacheSettingsRepository,
+        LibrarySettingsRepository,
+        AppearanceSettingsRepository {}
