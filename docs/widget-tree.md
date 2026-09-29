@@ -113,7 +113,7 @@ SearchScreen (搜索页 ConsumerStatefulWidget)
 ## 曲库页 LibraryScreen(全部 / 收藏 / 歌单)
 
 无标题栏;最顶一行: 更多菜单(最左) / 三段轮盘选择器(屏幕居中) / 新建歌单「+」(仅「歌单」段, 最右)。
-搜索框**仅在「全部」段常显**(头部下方, 已无搜索开关按钮);「收藏」「歌单」段无搜索框。
+搜索框**属于「全部」页本身**(位于环形 `PageView` 内),随该页左右滑动而非在切换时突然显隐;「收藏」「歌单」页无搜索框。
 三段主体位于环形无缝 `PageView` 中(右划前进: 全部 → 收藏 → 歌单 → 全部,两端皆可循环);
 视图按段独立持久化(见「视图系统」)。
 扫描/保存进度以 SnackBar 气泡通知;无 `_SyncStatus` 常驻条。
@@ -137,11 +137,13 @@ LibraryScreen (曲库页 ConsumerStatefulWidget)
       │        ├─ 「排序」 SubmenuButton → 标题/艺术家/专辑/最近添加 (当前项打勾, 默认「最近添加」)
       │        ├─ 「视图」 SubmenuButton → 当前段的可用视图 (当前项打勾)
       │        └─ 「浏览 B 站收藏夹」 → 推入 BilibiliFavoritesScreen
-      ├─ {支持本地曲库 且 当前为「全部」段} _buildSearchField (常显内联搜索框)
-      │  └─ Padding → ValueListenableBuilder → TextField
-      │     (250ms 防抖搜索, 清空后缀按钮, 提示「搜索曲库」)
       └─ Expanded
          ├─ {支持本地曲库} _buildBody (环形 PageView: 右划前进 / 左划后退)
+         │  └─ {「全部」页} Column (搜索框随本页一起滑动)
+         │     ├─ _buildSearchField (内联搜索框)
+         │     │  └─ Padding → ValueListenableBuilder → TextField
+         │     │     (250ms 防抖搜索, 清空后缀按钮, 提示「搜索曲库」)
+         │     └─ Expanded → _buildAllBody (搜索 / 全部曲目)
          └─ {iOS 等无本地曲库} _UnsupportedLibraryNotice (不支持提示)
 
 主体 (按段分支, 曲目列表统一委托 TrackView):
@@ -250,12 +252,12 @@ PlaylistPickerSheet (加入歌单底部选择器 ConsumerStatefulWidget)
 
 ## 设置页 SettingsScreen(设置)
 
-无标题栏;`ListView` 分区滚动。「通用」分区新增 **外观(主题模式)** 切换。
+无标题栏;`ListView` 分区滚动;`SafeArea(bottom: false)` 保证「通用」标题不被状态栏遮挡。「通用」分区新增 **外观(主题模式)** 切换。
 
 ```
 SettingsScreen (设置页 ConsumerWidget)
 └─ Scaffold (background: AppSurface.colorOf)
-   └─ body: ListView (滚动列表)
+   └─ body: SafeArea(bottom: false) → ListView (滚动列表)
       ├─ _SectionHeader (「通用」)
       ├─ _GeneralSection (通用)
       │  ├─ ListTile (语言 → SimpleDialog: 跟随系统/中文/英文)
@@ -338,8 +340,8 @@ _PortraitBody (竖屏正文)
    │  └─ {折叠} _PortraitNormal
    │     └─ Column
    │        ├─ Expanded → _CoverArt (自适应封面)
-   │        │  └─ LayoutBuilder (size = min(w×0.7, h×0.8).clamp(80, 320))
-   │        │     └─ ResponsiveCenter → Padding → _PlayerCover
+   │        │  └─ LayoutBuilder (edge = min(w, h); size = (edge×0.65).clamp(min(80,edge), 480))
+   │        │     └─ Center → Padding(水平 24) → _PlayerCover
    │        └─ SizedBox (5 行歌词高度) → LyricsPreview (歌词 teaser 条, 点击展开)
    ├─ _ProgressBar (进度条, 见下)
    ├─ _TransportControls (传输控制区, 见下)
@@ -349,8 +351,9 @@ _LandscapeBody (横屏正文 — 左右等宽双栏, 无分隔线)
 └─ Row
    ├─ Expanded → MiniMain (左栏: 迷你主视图)
    │  └─ Column
-   │     ├─ Expanded → LayoutBuilder (coverSize = min(w×0.7, h).clamp(80, 280))
-   │     │  └─ ResponsiveCenter → _PlayerCover (封面随窗口缩放)
+   │     ├─ Expanded → LayoutBuilder (与竖屏同一公式: edge = min(w, h);
+   │     │  │   size = (edge×0.65).clamp(min(80,edge), 480))
+   │     │  └─ Center → _PlayerCover (封面随窗口缩放)
    │     ├─ _ProgressBar
    │     ├─ _TransportControls
    │     ├─ SizedBox(16)
@@ -368,13 +371,16 @@ _ProgressBar (可拖动进度条 ConsumerStatefulWidget — 拖动本地跟手, 
    │  └─ Slider (value/max 由 duration 决定, 无时长时禁用)
    └─ Text (总时长)
 
-_TransportControls (传输控制 — 居中成组而非平铺)
-└─ Row (mainAxisAlignment: center)
-   ├─ {无曲目} SizedBox.shrink | _FavoriteButton (收藏心形 — 已收藏恒为红色)
-   ├─ IconButton (上一首, 无则禁用)
-   ├─ IconButton.filled (播放/暂停 — 38px 图标, 44px 最小点击区)
-   ├─ IconButton (下一首, 无则禁用)
-   └─ IconButton (queue_music 播放队列 → showPlayerPanel(PlaylistPanel))
+_TransportControls (传输控制 — 居中成组的三级尺寸层级, 禁止 spaceBetween)
+└─ LayoutBuilder (可用宽 ≥340 用舒适布局; <340 回退紧凑布局, 任何尺寸都不 overflow)
+   └─ Row (mainAxisAlignment: center)
+      ├─ {无曲目} SizedBox.shrink | _FavoriteButton (收藏 44/26 — 已收藏红, 未收藏 onSurfaceVariant)
+      ├─ gap 20 → IconButton (上一首 52/32, 无则禁用)
+      ├─ gap 10 → IconButton.filled (播放/暂停 64/36 — 主按钮, 突出)
+      ├─ gap 10 → IconButton (下一首 52/32, 无则禁用)
+      └─ gap 20 → IconButton (queue_music 播放队列 44/26, onSurfaceVariant → showPlayerPanel)
+   舒适总宽 316 (44+20+52+10+64+10+52+20+44);
+   紧凑回退全部 44 + gap 4 = 236 (适配 480×320 横屏的 240px 左栏)。
 ```
 
 ### MiniSettings(底部设置条)与 VolumeBar
