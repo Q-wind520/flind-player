@@ -299,8 +299,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildHeaderRow(hasLocalLibrary: hasLocalLibrary),
-            if (hasLocalLibrary && _section == LibrarySection.all)
-              _buildSearchField(),
             Expanded(
               child: hasLocalLibrary
                   ? _buildBody()
@@ -645,8 +643,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// so neighbour pages built mid-swipe render the right content. Providers,
   /// sorting, search filtering and the empty/error/loading states are
   /// unchanged from the previous per-section branches.
+  ///
+  /// The 全部 page owns its inline search field, so the field travels with the
+  /// page during a swipe rather than appearing and disappearing above the
+  /// pager as the selected section changes.
   Widget _buildSectionBody(LibrarySection section) {
-    final l10n = AppLocalizations.of(context);
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
@@ -665,6 +666,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       return _buildFavouritesBody(currentUri, isPlaying);
     }
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSearchField(),
+        Expanded(child: _buildAllBody(currentUri, isPlaying)),
+      ],
+    );
+  }
+
+  /// The 全部 section's track area: search results when a query is active,
+  /// otherwise the full library.
+  Widget _buildAllBody(String? currentUri, bool isPlaying) {
+    final l10n = AppLocalizations.of(context);
     if (_query.isNotEmpty) {
       final resultsAsync = ref.watch(librarySearchProvider(_query));
       return resultsAsync.when(
@@ -678,7 +692,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           if (tracks.isEmpty) {
             return const _NoSearchResults();
           }
-          return _trackDisplay(tracks, currentUri, isPlaying, section);
+          return _trackDisplay(
+            tracks,
+            currentUri,
+            isPlaying,
+            LibrarySection.all,
+          );
         },
       );
     }
@@ -694,7 +713,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         if (tracks.isEmpty) {
           return _EmptyLibrary(onImport: _importFiles, onAddFolder: _addFolder);
         }
-        return _trackDisplay(tracks, currentUri, isPlaying, section);
+        return _trackDisplay(
+          tracks,
+          currentUri,
+          isPlaying,
+          LibrarySection.all,
+        );
       },
     );
   }

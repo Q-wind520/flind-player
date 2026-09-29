@@ -572,6 +572,36 @@ void main() {
     expect(find.text('Search Hit'), findsOneWidget);
   });
 
+  testWidgets('the search field rides along with the 全部 page on a swipe', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
+    await tester.pumpAndSettle();
+
+    final field = find.byType(TextField);
+    expect(field, findsOneWidget);
+    final restingX = tester.getTopLeft(field).dx;
+
+    // Drag the pager leftwards without releasing, so the 全部 page is
+    // mid-transition; the field must travel with that page.
+    final page = tester.getRect(find.byType(PageView));
+    final gesture = await tester.startGesture(
+      Offset(page.center.dx, page.bottom - 40),
+    );
+    await tester.pump();
+    for (var i = 0; i < 10; i++) {
+      await gesture.moveBy(const Offset(-50, 0));
+      await tester.pump();
+    }
+
+    expect(tester.getTopLeft(field).dx, lessThan(restingX));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    // Once the swipe settles on 收藏 the field has left with its page.
+    expect(find.byType(TextField), findsNothing);
+  });
+
   testWidgets('the header row shows the selector and two icons', (
     tester,
   ) async {
