@@ -20,7 +20,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -265,7 +264,6 @@ class _PortraitBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = AppBreakpoints.isCompact(MediaQuery.sizeOf(context));
     return Column(
       children: [
         Expanded(
@@ -293,7 +291,6 @@ class _PortraitBody extends StatelessWidget {
                 : _PortraitNormal(
                     key: const ValueKey('normal'),
                     track: track,
-                    compact: compact,
                     onLyricsTap: onLyricsTap,
                   ),
           ),
@@ -315,12 +312,10 @@ class _PortraitNormal extends StatelessWidget {
   const _PortraitNormal({
     super.key,
     required this.track,
-    required this.compact,
     required this.onLyricsTap,
   });
 
   final Track track;
-  final bool compact;
   final VoidCallback onLyricsTap;
 
   @override
@@ -334,9 +329,7 @@ class _PortraitNormal extends StatelessWidget {
     final lyricsStripHeight = lineHeight * 5;
     return Column(
       children: [
-        Expanded(
-          child: _CoverArt(track: track, compact: compact),
-        ),
+        Expanded(child: _CoverArt(track: track)),
         SizedBox(
           height: lyricsStripHeight,
           child: LyricsPreview(onTap: onLyricsTap),
@@ -374,6 +367,19 @@ class _LandscapeBody extends StatelessWidget {
   }
 }
 
+/// The edge length of the square cover art that fits [constraints].
+///
+/// Both the landscape left pane and the portrait cover use this single
+/// formula: the artwork is 65 % of the smaller available edge, leaving a
+/// ~17.5 % breathing margin on each side. A higher fraction made the cover
+/// crowd the pane at 4:3 / 9:16 windows. The 80 px floor is itself bounded by
+/// [edge] so a tiny pane still lays out. The 480 px ceiling keeps the artwork
+/// from dominating a very large window.
+double _coverSizeFor(BoxConstraints constraints) {
+  final edge = math.min(constraints.maxWidth, constraints.maxHeight);
+  return (edge * 0.65).clamp(math.min(80.0, edge), 480.0);
+}
+
 /// The landscape left pane: cover, progress, transport and the docked
 /// [MiniSettings]. The track title and artist live in the shared header row
 /// above both panes.
@@ -398,14 +404,11 @@ class MiniMain extends StatelessWidget {
         Expanded(
           child: LayoutBuilder(
             builder: (context, coverConstraints) {
-              final coverSize = math
-                  .min(
-                    coverConstraints.maxWidth * 0.7,
-                    coverConstraints.maxHeight,
-                  )
-                  .clamp(80.0, 280.0);
-              return ResponsiveCenter(
-                child: _PlayerCover(track: track, size: coverSize),
+              return Center(
+                child: _PlayerCover(
+                  track: track,
+                  size: _coverSizeFor(coverConstraints),
+                ),
               );
             },
           ),
@@ -420,28 +423,27 @@ class MiniMain extends StatelessWidget {
   }
 }
 
-/// Centred cover art that scales with the available space, scroll-safe on
-/// short viewports.
+/// Centred cover art that scales with the available space.
+///
+/// The cover uses the same [_coverSizeFor] formula as the landscape pane, so
+/// it grows with the smaller window edge; the fixed 24 px horizontal padding
+/// keeps it clear of the screen edges.
 class _CoverArt extends StatelessWidget {
-  const _CoverArt({required this.track, required this.compact});
+  const _CoverArt({required this.track});
 
   final Track track;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final coverSize = math
-            .min(constraints.maxWidth * 0.7, constraints.maxHeight * 0.8)
-            .clamp(80.0, 320.0);
-        return ResponsiveCenter(
+        return Center(
           child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: compact ? 24 : 48,
-              vertical: 8,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: _PlayerCover(
+              track: track,
+              size: _coverSizeFor(constraints),
             ),
-            child: _PlayerCover(track: track, size: coverSize),
           ),
         );
       },
@@ -565,7 +567,10 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
 /// Favourite / previous / play-pause / next / playlist controls.
 ///
 /// The five controls sit grouped in the centre rather than stretched
-/// edge-to-edge; the play-mode cycler lives in [MiniSettings] below.
+/// edge-to-edge, in a three-step size hierarchy that highlights play/pause
+/// (64 px) over previous/next (52 px) and the favourite/playlist assists
+/// (44 px). Narrow panes drop to an all-44 layout so the row cannot overflow;
+/// the play-mode cycler lives in [MiniSettings] below.
 class _TransportControls extends ConsumerWidget {
   const _TransportControls({required this.state});
 
@@ -575,57 +580,98 @@ class _TransportControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(playbackControllerProvider);
     final track = state.currentTrack;
+    final scheme = Theme.of(context).colorScheme;
+    // The M3 default padded tap target would force every button to at least
+    // 48 px and blow the compact 236 px row; shrink it so the tight sizes
+    // below are honoured exactly.
+    final tapTargetStyle = IconButton.styleFrom(
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
 
-    // Compact buttons (44 px minimum, no padding) so the grouped row still
-    // fits the 240 px-wide landscape left pane at 480×320.
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        if (track == null)
-          const SizedBox.shrink()
-        else
-          _FavoriteButton(track: track),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: state.hasPrevious ? controller.previous : null,
-          icon: const Icon(Icons.skip_previous),
-          iconSize: 40,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        ),
-        const SizedBox(width: 4),
-        IconButton.filled(
-          onPressed: controller.togglePlayPause,
-          icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-          iconSize: 40,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        ),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: state.hasNext ? controller.next : null,
-          icon: const Icon(Icons.skip_next),
-          iconSize: 40,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        ),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: () => showPlayerPanel<void>(
-            context,
-            builder: (_) => const PlaylistPanel(),
-          ),
-          icon: const Icon(Icons.queue_music),
-          iconSize: 40,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        ),
-      ],
+    // A three-step size hierarchy highlights play/pause and keeps the row
+    // grouped in the centre (never spaceBetween). Comfortable widths get the
+    // 316 px layout; anything narrower — e.g. the 240 px landscape left pane
+    // at 480×320 — falls back to all-44 with 4 px gaps (236 px) so the row
+    // can never overflow.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final comfortable = constraints.maxWidth >= 340;
+        final playSize = comfortable ? 64.0 : 44.0;
+        final skipSize = comfortable ? 52.0 : 44.0;
+        const assistSize = 44.0;
+        final outerGap = comfortable ? 20.0 : 4.0;
+        final innerGap = comfortable ? 10.0 : 4.0;
+        final playIcon = comfortable ? 36.0 : 32.0;
+        final skipIcon = comfortable ? 32.0 : 28.0;
+        final assistIcon = comfortable ? 26.0 : 22.0;
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            if (track == null)
+              const SizedBox.shrink()
+            else
+              _FavoriteButton(
+                track: track,
+                size: assistSize,
+                iconSize: assistIcon,
+              ),
+            SizedBox(width: outerGap),
+            IconButton(
+              onPressed: state.hasPrevious ? controller.previous : null,
+              icon: const Icon(Icons.skip_previous),
+              iconSize: skipIcon,
+              style: tapTargetStyle,
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints.tightFor(
+                width: skipSize,
+                height: skipSize,
+              ),
+            ),
+            SizedBox(width: innerGap),
+            IconButton.filled(
+              onPressed: controller.togglePlayPause,
+              icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+              iconSize: playIcon,
+              style: tapTargetStyle,
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints.tightFor(
+                width: playSize,
+                height: playSize,
+              ),
+            ),
+            SizedBox(width: innerGap),
+            IconButton(
+              onPressed: state.hasNext ? controller.next : null,
+              icon: const Icon(Icons.skip_next),
+              iconSize: skipIcon,
+              style: tapTargetStyle,
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints.tightFor(
+                width: skipSize,
+                height: skipSize,
+              ),
+            ),
+            SizedBox(width: outerGap),
+            IconButton(
+              onPressed: () => showPlayerPanel<void>(
+                context,
+                builder: (_) => const PlaylistPanel(),
+              ),
+              icon: const Icon(Icons.queue_music),
+              iconSize: assistIcon,
+              color: scheme.onSurfaceVariant,
+              style: tapTargetStyle,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(
+                width: assistSize,
+                height: assistSize,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -634,17 +680,28 @@ class _TransportControls extends ConsumerWidget {
 ///
 /// Hidden when nothing is playing (no track). The filled heart is always red,
 /// regardless of the theme, so a favourited track reads the same in light and
-/// dark mode.
+/// dark mode; the un-favourited outline is muted like the other assists.
 class _FavoriteButton extends ConsumerWidget {
-  const _FavoriteButton({required this.track});
+  const _FavoriteButton({
+    required this.track,
+    required this.size,
+    required this.iconSize,
+  });
 
   final Track track;
+
+  /// The diameter of the round tap target.
+  final double size;
+
+  /// The icon glyph size inside the tap target.
+  final double iconSize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isFavourite =
         ref.watch(isFavoriteProvider(track.uri)).value ?? false;
     final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return IconButton(
       onPressed: () async {
@@ -664,11 +721,15 @@ class _FavoriteButton extends ConsumerWidget {
         }
       },
       icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
-      iconSize: 40,
-      color: isFavourite ? Colors.red : null,
-      visualDensity: VisualDensity.compact,
+      iconSize: iconSize,
+      // Active favourites stay red in every theme; the inactive heart is a
+      // muted assist control, matching the playlist button.
+      color: isFavourite ? Colors.red : scheme.onSurfaceVariant,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      constraints: BoxConstraints.tightFor(width: size, height: size),
     );
   }
 }

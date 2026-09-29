@@ -272,4 +272,114 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('Player layout', () {
+    /// The rendered size of the [IconButton] wrapping [icon].
+    double buttonSize(WidgetTester tester, IconData icon) {
+      final button = find.ancestor(
+        of: find.byIcon(icon),
+        matching: find.byType(IconButton),
+      );
+      return tester.getSize(button).width;
+    }
+
+    testWidgets('transport builds a size hierarchy around play/pause', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final controller = _FakePlaybackController(_playingState());
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+
+      final play = buttonSize(tester, Icons.play_arrow);
+      final previous = buttonSize(tester, Icons.skip_previous);
+      final next = buttonSize(tester, Icons.skip_next);
+      final favourite = buttonSize(tester, Icons.favorite_border);
+      final playlist = buttonSize(tester, Icons.queue_music);
+
+      expect(play, 64);
+      expect(previous, 52);
+      expect(next, 52);
+      expect(favourite, 44);
+      expect(playlist, 44);
+
+      expect(play, greaterThan(previous));
+      expect(previous, greaterThan(favourite));
+      expect(next, greaterThan(playlist));
+    });
+
+    testWidgets('480×320 landscape left pane fits without overflow', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(480, 320);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final controller = _FakePlaybackController(_playingState());
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      expect(find.byIcon(Icons.skip_previous), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next), findsOneWidget);
+      expect(find.byIcon(Icons.queue_music), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('short portrait window fits without overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 480);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final controller = _FakePlaybackController(_playingState());
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cover art grows with the window', (tester) async {
+      double coverSize() {
+        final container = find.ancestor(
+          of: find.byIcon(Icons.music_note),
+          matching: find.byType(Container),
+        );
+        return tester.getSize(container).width;
+      }
+
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final controller = _FakePlaybackController(_playingState());
+
+      tester.view.physicalSize = const Size(400, 800);
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+      final small = coverSize();
+
+      // In portrait the 400 px width is the limiting edge (the cover area is
+      // taller), so the cover is 65 % of it: 400 × 0.65 = 260.
+      expect(small, closeTo(260, 2));
+
+      // A large landscape window: the old landscape formula capped the cover
+      // at 280 here, so this also guards against landscape shrinking it.
+      tester.view.physicalSize = const Size(1200, 800);
+      await tester.pumpAndSettle();
+      final large = coverSize();
+
+      expect(small, greaterThan(0));
+      expect(large, greaterThan(small));
+      expect(large, greaterThan(300));
+
+      // Very large windows stay bounded by the 480 px ceiling.
+      tester.view.physicalSize = const Size(3000, 2000);
+      await tester.pumpAndSettle();
+      expect(coverSize(), 480);
+    });
+  });
 }
