@@ -53,31 +53,37 @@ class SettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppSurface.colorOf(context),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          _SectionHeader(l10n.general),
-          const _GeneralSection(),
+      // The shell renders this screen edge-to-edge on compact layouts, so the
+      // body must keep its own status-bar inset or the first section heading
+      // renders underneath the system status bar.
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            _SectionHeader(l10n.general),
+            const _GeneralSection(),
 
-          // ── 播放 ──
-          _SectionHeader(l10n.sectionPlayback),
-          const _PlaybackSection(),
+            // ── 播放 ──
+            _SectionHeader(l10n.sectionPlayback),
+            const _PlaybackSection(),
 
-          // ── 离线缓存 ──
-          _SectionHeader(l10n.offlineCache),
-          const _OfflineCacheSection(),
+            // ── 离线缓存 ──
+            _SectionHeader(l10n.offlineCache),
+            const _OfflineCacheSection(),
 
-          // ── 曲库 ──
-          _SectionHeader(l10n.sectionLibrary),
-          if (supportsLocalLibrary)
-            const _LibrarySection()
-          else
-            const _UnsupportedLibraryNotice(),
+            // ── 曲库 ──
+            _SectionHeader(l10n.sectionLibrary),
+            if (supportsLocalLibrary)
+              const _LibrarySection()
+            else
+              const _UnsupportedLibraryNotice(),
 
-          // ── 关于 ──
-          _SectionHeader(l10n.about),
-          const _AboutSection(),
-        ],
+            // ── 关于 ──
+            _SectionHeader(l10n.about),
+            const _AboutSection(),
+          ],
+        ),
       ),
     );
   }

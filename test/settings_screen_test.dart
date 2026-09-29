@@ -396,6 +396,7 @@ Widget _app({
   List<Track> tracks = const [],
   LibrarySyncState syncState = LibrarySyncState.idle,
   PackageInfo? packageInfo,
+  EdgeInsets mediaPadding = EdgeInsets.zero,
 }) {
   return ProviderScope(
     overrides: [
@@ -453,7 +454,14 @@ Widget _app({
             ),
       ),
     ],
-    child: localizedApp(const SettingsScreen()),
+    child: localizedApp(
+      Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(padding: mediaPadding),
+          child: const SettingsScreen(),
+        ),
+      ),
+    ),
   );
 }
 
@@ -560,6 +568,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AppBar), findsNothing);
+  });
+
+  testWidgets('the first section clears the status-bar inset', (tester) async {
+    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        settings: settings,
+        store: store,
+        mediaPadding: const EdgeInsets.only(top: 24),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The status-bar inset (24) must push the 通用 header below it instead of
+    // letting the text render underneath it.
+    expect(tester.getTopLeft(find.text('通用')).dy, greaterThanOrEqualTo(24));
   });
 
   testWidgets('theme follows the system by default and can switch', (
