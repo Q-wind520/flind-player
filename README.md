@@ -272,7 +272,7 @@ git push origin v0.2.1
 | [`docs/widget-tree.md`](docs/widget-tree.md) | 轻量级 Widget 树总览 |
 | [`docs/agent-model-policy.md`](docs/agent-model-policy.md) | Agent 协作与模型使用约定 |
 | [`docs/缓存延期问题.md`](docs/缓存延期问题.md) | 缓存评审遗留的延期小问题（触发条件 / 后果） |
-| [`docs/耦合TODO.md`](docs/耦合TODO.md) | 设置/主题/排序的 provider 耦合重构（阶段 ① 可执行，②③ 等触发） |
+| [`docs/耦合TODO.md`](docs/耦合TODO.md) | 设置/主题/排序的 provider 耦合重构（三阶段已落地 + 复核遗留 minor） |
 | [`docs/archive/`](docs/archive) | 已完成的设计稿与实施计划（缓存重构、曲目池收敛、安装包、曲库 UI） |
 
 <br />
@@ -308,7 +308,7 @@ git push origin v0.2.1
 
 <h4 id="🧪-验证基线">🧪 验证基线</h4>
 
-`flutter analyze` 零问题 · **683** 个单元 / 组件测试通过（CI 的 `flutter test` 门禁）·
+`flutter analyze` 零问题 · **688** 个单元 / 组件测试通过（CI 的 `flutter test` 门禁）·
 另有 **7** 个 `integration_test/` 冒烟测试，需真机/桌面环境手动 `flutter test integration_test`，**不在 CI 门禁内** ·
 Linux / Android release 构建通过 · CI 与 release 工作流均实测跑通。
 
