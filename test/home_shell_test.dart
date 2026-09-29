@@ -34,6 +34,7 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';

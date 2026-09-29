@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/app_theme_mode.dart';
-import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 
 /// The [ThemeMode] for [mode], or `null`-free mapping to Flutter's enum.
 ThemeMode themeModeForAppThemeMode(AppThemeMode mode) => switch (mode) {

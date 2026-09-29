@@ -39,6 +39,7 @@ import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/data/sources/local/artwork_cache.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';

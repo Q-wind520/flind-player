@@ -8,7 +8,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/library_view.dart';
-import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 
 /// Persisted per-scope library views, seeded from [SettingsRepository].
 class LibraryViewsNotifier extends AsyncNotifier<LibraryViews> {

@@ -17,7 +17,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 
 /// The [Locale] for [language], or `null` to follow the system locale.
 Locale? localeForAppLanguage(AppLanguage language) => switch (language) {

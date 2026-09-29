@@ -33,6 +33,7 @@ import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/offline_cache_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';

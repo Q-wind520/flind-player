@@ -6,7 +6,7 @@ import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
-import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/features/library/library_view_provider.dart';
 
 class _FakeSettings implements SettingsRepository {

@@ -27,16 +27,9 @@ import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
-import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
+import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/sources/composite_stream_resolver.dart';
 import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
-
-/// Persisted user settings, including the offline cache configuration.
-final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
-  final repository = PrefsSettingsRepository();
-  ref.onDispose(repository.dispose);
-  return repository;
-});
 
 /// Offline audio cache index rooted at `<app support>/cache/audio`.
 ///
