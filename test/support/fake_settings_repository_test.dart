@@ -19,8 +19,12 @@ import 'package:flind_player/core/repositories/settings_repository.dart';
 
 import 'fake_settings_repository.dart';
 
-/// Implements only the library slice: the rest must fall through to
+/// Slice-only fakes: everything outside the mixed-in slice must fall through to
 /// `noSuchMethod` so a stray call fails loudly.
+class _CacheOnly extends FakeSettingsBase with FakeCacheSettings {}
+
+class _AppearanceOnly extends FakeSettingsBase with FakeAppearanceSettings {}
+
 class _LibraryOnly extends FakeSettingsBase with FakeLibrarySettings {}
 
 void main() {
@@ -32,10 +36,26 @@ void main() {
     expect(fake, isA<AppearanceSettingsRepository>());
   });
 
-  test('a slice-only fake throws outside its slice', () {
-    final SettingsRepository fake = _LibraryOnly();
+  test('a slice-only fake throws for every method outside its slice', () {
+    final SettingsRepository cache = _CacheOnly();
+    final SettingsRepository appearance = _AppearanceOnly();
+    final SettingsRepository library = _LibraryOnly();
 
-    expect(fake, isA<LibrarySettingsRepository>());
-    expect(() => fake.cacheSettings(), throwsNoSuchMethodError);
+    // Cache-only fake: appearance and library calls must throw.
+    expect(() => cache.appLanguage(), throwsNoSuchMethodError);
+    expect(() => cache.appThemeMode(), throwsNoSuchMethodError);
+    expect(() => cache.librarySort(), throwsNoSuchMethodError);
+    expect(() => cache.libraryViews(), throwsNoSuchMethodError);
+
+    // Appearance-only fake: cache and library calls must throw.
+    expect(() => appearance.cacheSettings(), throwsNoSuchMethodError);
+    expect(() => appearance.watchCacheSettings(), throwsNoSuchMethodError);
+    expect(() => appearance.librarySort(), throwsNoSuchMethodError);
+
+    // Library-only fake: cache and appearance calls must throw.
+    expect(() => library.cacheSettings(), throwsNoSuchMethodError);
+    expect(() => library.updateCacheSettings(CacheSettings.defaults),
+        throwsNoSuchMethodError);
+    expect(() => library.appThemeMode(), throwsNoSuchMethodError);
   });
 }

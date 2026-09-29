@@ -27,6 +27,14 @@ import 'package:flind_player/core/repositories/settings_repository.dart';
 /// [SettingsRepository] without defining the other slices; a call outside the
 /// implemented slice throws, surfacing accidental cross-slice use instead of
 /// silently returning a default.
+///
+/// Because the base claims the whole [SettingsRepository] interface (the single
+/// provider is typed as the composite), a partial fake is still
+/// `isA<SettingsRepository>()` and overrides cleanly. It is only valid in a
+/// test whose exercised path stays inside the mixed-in slice(s): an out-of-slice
+/// call throws a `NoSuchMethodError`, which Riverpod may surface as an
+/// `AsyncError` rather than an uncaught test failure. When a test drives the
+/// provider graph, prefer the full [FakeSettingsRepository].
 class FakeSettingsBase implements SettingsRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
