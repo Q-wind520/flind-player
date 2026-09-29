@@ -26,7 +26,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
@@ -51,69 +50,12 @@ import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 
+import 'support/fake_settings_repository.dart';
 import 'support/l10n.dart';
 
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
-
-/// In-memory [SettingsRepository] that records writes and replays them through
-/// its watch stream.
-class _FakeSettingsRepository implements SettingsRepository {
-  _FakeSettingsRepository(this.current);
-
-  CacheSettings current;
-  AppLanguage language = AppLanguage.system;
-  AppThemeMode themeMode = AppThemeMode.system;
-  final List<CacheSettings> writes = <CacheSettings>[];
-  final StreamController<CacheSettings> _updates =
-      StreamController<CacheSettings>.broadcast();
-
-  @override
-  Future<CacheSettings> cacheSettings() async => current;
-
-  @override
-  Future<AppLanguage> appLanguage() async => language;
-
-  @override
-  Future<void> setAppLanguage(AppLanguage value) async => language = value;
-
-  @override
-  Future<AppThemeMode> appThemeMode() async => themeMode;
-
-  @override
-  Future<void> setAppThemeMode(AppThemeMode value) async => themeMode = value;
-
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.title;
-
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-
-  @override
-  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
-
-  @override
-  Future<void> setLibraryView(
-    LibraryViewScope scope,
-    LibraryView view,
-  ) async {}
-
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {
-    current = settings;
-    writes.add(settings);
-    _updates.add(settings);
-  }
-
-  @override
-  Stream<CacheSettings> watchCacheSettings() async* {
-    yield current;
-    yield* _updates.stream;
-  }
-
-  Future<void> dispose() => _updates.close();
-}
 
 /// [AudioCacheStore] stand-in that records destructive calls and never touches
 /// a database or the filesystem.
@@ -385,7 +327,7 @@ class _MaintenanceLog {
 /// [useRealMaintenance] keeps the production [cacheMaintenanceProvider] so a
 /// test can observe which store operation the clear action routes to.
 Widget _app({
-  required _FakeSettingsRepository settings,
+  required FakeSettingsRepository settings,
   required _FakeCacheStore store,
   int usageBytes = 0,
   _UsageLog? usageLog,
@@ -517,7 +459,7 @@ void main() {
   // -- Section headings --
 
   testWidgets('renders the section headings', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -537,7 +479,7 @@ void main() {
   testWidgets('language follows the system by default and can switch', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -561,7 +503,7 @@ void main() {
   });
 
   testWidgets('renders no AppBar', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -572,7 +514,7 @@ void main() {
   });
 
   testWidgets('the first section clears the status-bar inset', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -593,7 +535,7 @@ void main() {
   testWidgets('theme follows the system by default and can switch', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -619,7 +561,7 @@ void main() {
   // -- 播放 section (two cache rows) --
 
   testWidgets('the cache rows show location, usage, and limit', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -643,7 +585,7 @@ void main() {
   });
 
   testWidgets('tapping 缓存位置 opens the cache-location dialog', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -668,7 +610,7 @@ void main() {
   });
 
   testWidgets('tapping 缓存上限 opens the custom-limit dialog', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -690,7 +632,7 @@ void main() {
   testWidgets(
     'entering 2048 MB and confirming persists limitBytes and enforces the limit',
     (tester) async {
-      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final settings = FakeSettingsRepository(CacheSettings.defaults);
       final store = _FakeCacheStore();
       final maintenance = _MaintenanceLog();
       addTearDown(settings.dispose);
@@ -720,7 +662,7 @@ void main() {
   testWidgets('lowering the cap enforces the limit on both caches', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     final maintenance = _MaintenanceLog();
     addTearDown(settings.dispose);
@@ -748,7 +690,7 @@ void main() {
   testWidgets(
     'clearing from the path dialog clears both caches after confirmation',
     (tester) async {
-      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final settings = FakeSettingsRepository(CacheSettings.defaults);
       final store = _FakeCacheStore();
       final maintenance = _MaintenanceLog();
       addTearDown(settings.dispose);
@@ -796,7 +738,7 @@ void main() {
   testWidgets('the cache enable / auto-cache switches are removed', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -808,7 +750,7 @@ void main() {
   });
 
   testWidgets('no Divider widgets remain in the settings list', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -823,7 +765,7 @@ void main() {
   testWidgets('离线缓存 shows an empty hint when nothing is downloaded', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -840,7 +782,7 @@ void main() {
   testWidgets('离线缓存 lists the downloads and hides the online rows', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore()
       ..rows = [
         _cachedRow(1, pinned: true, bytes: 5 * 1024 * 1024),
@@ -871,7 +813,7 @@ void main() {
   testWidgets('deleting a download asks for confirmation first', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore()
       ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
     addTearDown(settings.dispose);
@@ -921,7 +863,7 @@ void main() {
   testWidgets('removing a download refreshes the top-of-screen usage', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore()
       ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
     final usageLog = _UsageLog();
@@ -963,7 +905,7 @@ void main() {
   testWidgets('clearing the offline cache asks for confirmation first', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore()
       ..rows = [_cachedRow(1, pinned: true), _cachedRow(2, pinned: true)];
     addTearDown(settings.dispose);
@@ -999,7 +941,7 @@ void main() {
   testWidgets('清空缓存 clears the online layer only, keeping downloads', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore()..rows = [_cachedRow(1, pinned: true)];
     // The real maintenance provider runs, so the test observes which store
     // operation the clear action reaches.
@@ -1055,7 +997,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     try {
-      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final settings = FakeSettingsRepository(CacheSettings.defaults);
       final store = _FakeCacheStore();
       addTearDown(settings.dispose);
 
@@ -1084,7 +1026,7 @@ void main() {
   // -- 曲库 section --
 
   testWidgets('shows track count from libraryTracksProvider', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1104,7 +1046,7 @@ void main() {
   });
 
   testWidgets('shows cached-track count when > 0', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1119,7 +1061,7 @@ void main() {
   // -- Scan root management --
 
   testWidgets('renders scan root basenames and full paths', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1143,7 +1085,7 @@ void main() {
   testWidgets(
     'deleting a scan root asks for confirmation then calls removeScanRoot',
     (tester) async {
-      final settings = _FakeSettingsRepository(CacheSettings.defaults);
+      final settings = FakeSettingsRepository(CacheSettings.defaults);
       final store = _FakeCacheStore();
       addTearDown(settings.dispose);
 
@@ -1193,7 +1135,7 @@ void main() {
   );
 
   testWidgets('shows 未配置 when scan roots are empty', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1208,7 +1150,7 @@ void main() {
   // -- 添加文件夹 --
 
   testWidgets('添加文件夹 calls the picker flow and adds root', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1232,7 +1174,7 @@ void main() {
   testWidgets('scan-root header add button runs the picker flow', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1259,7 +1201,7 @@ void main() {
   });
 
   testWidgets('添加文件夹 does nothing when picker is cancelled', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1282,7 +1224,7 @@ void main() {
   // -- 重新扫描 --
 
   testWidgets('重新扫描 is enabled when idle', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1296,7 +1238,7 @@ void main() {
   });
 
   testWidgets('重新扫描 is disabled while a sync is running', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1318,7 +1260,7 @@ void main() {
   });
 
   testWidgets('重新扫描 shows sync progress while scanning', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1343,7 +1285,7 @@ void main() {
   testWidgets('renders version string from packageInfoProvider', (
     tester,
   ) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1371,7 +1313,7 @@ void main() {
   });
 
   testWidgets('renders 开源许可 tile', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1387,7 +1329,7 @@ void main() {
   });
 
   testWidgets('tapping 开源许可 opens the Flutter license page', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1404,7 +1346,7 @@ void main() {
   });
 
   testWidgets('renders project homepage URL', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 
@@ -1423,7 +1365,7 @@ void main() {
   });
 
   testWidgets('renders GPL-3.0 notice', (tester) async {
-    final settings = _FakeSettingsRepository(CacheSettings.defaults);
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
 

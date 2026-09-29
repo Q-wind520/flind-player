@@ -28,7 +28,7 @@ import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/offline_cache_providers.dart';
 
-import 'audio_cache_store_test.dart' show FakeSettingsRepository;
+import 'support/fake_settings_repository.dart';
 
 void main() {
   late Directory root;

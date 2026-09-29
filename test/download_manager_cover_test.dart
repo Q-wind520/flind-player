@@ -27,7 +27,7 @@ import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/database/app_database.dart';
 
-import 'audio_cache_store_test.dart' show FakeSettingsRepository;
+import 'support/fake_settings_repository.dart';
 
 class _StubResolver implements StreamResolver {
   @override

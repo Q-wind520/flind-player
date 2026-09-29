@@ -24,7 +24,7 @@ import 'package:flind_player/data/cache/cache_relocator.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
 
-import 'audio_cache_store_test.dart' show FakeSettingsRepository;
+import 'support/fake_settings_repository.dart';
 
 void main() {
   test('moves legacy audio files into the new root and rewrites paths', () async {

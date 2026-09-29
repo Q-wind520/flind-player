@@ -1,44 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/library_view.dart';
-import 'package:flind_player/core/models/track_sort.dart';
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/features/library/library_view_provider.dart';
 
-class _FakeSettings implements SettingsRepository {
-  LibraryViews _views = LibraryViews.defaults;
+import 'support/fake_settings_repository.dart';
 
-  @override
-  Future<LibraryViews> libraryViews() async => _views;
-
-  @override
-  Future<void> setLibraryView(LibraryViewScope scope, LibraryView view) async {
-    _views = _views.withView(scope, view);
-  }
-
-  @override
-  Future<CacheSettings> cacheSettings() async => CacheSettings.defaults;
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {}
-  @override
-  Stream<CacheSettings> watchCacheSettings() => const Stream.empty();
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.recentlyAdded;
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-}
+/// Implements only the library-view slice: the rest of the settings surface is
+/// left unimplemented (throwing) so accidental cross-slice use is caught.
+class _FakeSettings extends FakeSettingsBase with FakeLibrarySettings {}
 
 void main() {
   test('build reads the persisted views', () async {

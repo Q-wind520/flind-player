@@ -20,9 +20,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/models/library_view.dart';
-import 'package:flind_player/core/models/track_sort.dart';
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
@@ -31,8 +28,8 @@ import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/cached_stream_resolver.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/database/app_database.dart';
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
+
+import 'support/fake_settings_repository.dart';
 
 /// Polls until [condition] is true, failing after [timeout].
 Future<void> _waitFor(
@@ -46,50 +43,6 @@ Future<void> _waitFor(
     }
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
-}
-
-/// In-memory [SettingsRepository] whose value the test can mutate.
-class _FakeSettingsRepository implements SettingsRepository {
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-
-  CacheSettings current = CacheSettings.defaults;
-
-  @override
-  Future<CacheSettings> cacheSettings() async => current;
-
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {
-    current = settings;
-  }
-
-  @override
-  Stream<CacheSettings> watchCacheSettings() =>
-      const Stream<CacheSettings>.empty();
-
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.title;
-
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-
-  @override
-  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
-
-  @override
-  Future<void> setLibraryView(
-    LibraryViewScope scope,
-    LibraryView view,
-  ) async {}
 }
 
 /// Inner resolver that records its calls.
@@ -159,7 +112,7 @@ class _ThrowingStore extends AudioCacheStore {
 void main() {
   late Directory root;
   late AppDatabase db;
-  late _FakeSettingsRepository settings;
+  late FakeSettingsRepository settings;
   late AudioCacheStore store;
   late _SpyManager manager;
   late _RecordingInner inner;
@@ -174,7 +127,7 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('flind_cached_resolver');
     db = AppDatabase(NativeDatabase.memory());
-    settings = _FakeSettingsRepository();
+    settings = FakeSettingsRepository();
     store = AudioCacheStore(database: db, baseDir: root, settings: settings);
     manager = _SpyManager(
       store: store,

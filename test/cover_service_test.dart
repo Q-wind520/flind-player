@@ -32,7 +32,7 @@ import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/services/cover_service.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
-import 'audio_cache_store_test.dart' show FakeSettingsRepository;
+import 'support/fake_settings_repository.dart';
 
 // ---------------------------------------------------------------------------
 // Fakes

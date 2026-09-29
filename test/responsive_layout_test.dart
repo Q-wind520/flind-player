@@ -25,7 +25,6 @@ import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
@@ -51,9 +50,8 @@ import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
 
+import 'support/fake_settings_repository.dart';
 import 'support/l10n.dart';
 
 // ---------------------------------------------------------------------------
@@ -133,54 +131,6 @@ PlaybackState _playingState([Track? track]) => PlaybackState(
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
-
-class _FakeSettingsRepository implements SettingsRepository {
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-
-  _FakeSettingsRepository(this.current);
-
-  CacheSettings current;
-
-  @override
-  Future<CacheSettings> cacheSettings() async => current;
-
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {
-    current = settings;
-  }
-
-  @override
-  Stream<CacheSettings> watchCacheSettings() async* {
-    yield current;
-  }
-
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.title;
-
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-
-  @override
-  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
-
-  @override
-  Future<void> setLibraryView(
-    LibraryViewScope scope,
-    LibraryView view,
-  ) async {}
-
-  Future<void> dispose() async {}
-}
 
 class _FakeCacheStore implements AudioCacheStore {
   @override
@@ -384,7 +334,7 @@ Widget _app({
   RemotePlaylistSource? remoteSource,
 }) {
   _installErrorCapture();
-  final settings = _FakeSettingsRepository(CacheSettings.defaults);
+  final settings = FakeSettingsRepository(CacheSettings.defaults);
   final store = _FakeCacheStore();
   final favorites = _FakeFavoritesRepository();
   final playbackState = playback ?? PlaybackState.idle;

@@ -22,8 +22,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/models/library_view.dart';
-import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
@@ -32,52 +30,8 @@ import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/database/app_database.dart';
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
 
-/// In-memory [SettingsRepository] whose value the test can mutate.
-class _FakeSettingsRepository implements SettingsRepository {
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-
-  CacheSettings current = CacheSettings.defaults;
-
-  @override
-  Future<CacheSettings> cacheSettings() async => current;
-
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {
-    current = settings;
-  }
-
-  @override
-  Stream<CacheSettings> watchCacheSettings() =>
-      const Stream<CacheSettings>.empty();
-
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.title;
-
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-
-  @override
-  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
-
-  @override
-  Future<void> setLibraryView(
-    LibraryViewScope scope,
-    LibraryView view,
-  ) async {}
-}
+import 'support/fake_settings_repository.dart';
 
 /// Records resolve calls and returns a fixed [StreamInfo].
 class _FakeResolver implements StreamResolver {
@@ -148,7 +102,7 @@ class _FakeDownloader extends AudioDownloader {
 void main() {
   late Directory root;
   late AppDatabase db;
-  late _FakeSettingsRepository settings;
+  late FakeSettingsRepository settings;
   late AudioCacheStore store;
   late _FakeResolver resolver;
   late _FakeDownloader downloader;
@@ -164,7 +118,7 @@ void main() {
   setUp(() {
     root = Directory.systemTemp.createTempSync('flind_download_manager');
     db = AppDatabase(NativeDatabase.memory());
-    settings = _FakeSettingsRepository();
+    settings = FakeSettingsRepository();
     store = AudioCacheStore(database: db, baseDir: root, settings: settings);
     resolver = _FakeResolver();
     downloader = _FakeDownloader();

@@ -19,57 +19,11 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flind_player/core/models/library_view.dart';
-import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
 
-/// In-memory [SettingsRepository] whose value the test can mutate.
-class FakeSettingsRepository implements SettingsRepository {
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-
-  CacheSettings current = CacheSettings.defaults;
-
-  @override
-  Future<CacheSettings> cacheSettings() async => current;
-
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {
-    current = settings;
-  }
-
-  @override
-  Stream<CacheSettings> watchCacheSettings() =>
-      const Stream<CacheSettings>.empty();
-
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.title;
-
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-
-  @override
-  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
-
-  @override
-  Future<void> setLibraryView(
-    LibraryViewScope scope,
-    LibraryView view,
-  ) async {}
-}
+import 'support/fake_settings_repository.dart';
 
 void main() {
   late Directory root;

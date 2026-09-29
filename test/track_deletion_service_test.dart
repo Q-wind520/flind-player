@@ -3,12 +3,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flind_player/core/models/app_language.dart';
-import 'package:flind_player/core/models/app_theme_mode.dart';
-import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/models/track_sort.dart';
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/cache_keys.dart';
@@ -18,30 +13,9 @@ import 'package:flind_player/data/repositories/drift_music_library_repository.da
 import 'package:flind_player/data/repositories/drift_playlist_repository.dart';
 import 'package:flind_player/data/services/track_deletion_service.dart';
 
-class _NoopSettings implements SettingsRepository {
-  @override
-  Future<CacheSettings> cacheSettings() async => CacheSettings.defaults;
-  @override
-  Future<void> updateCacheSettings(CacheSettings settings) async {}
-  @override
-  Stream<CacheSettings> watchCacheSettings() => const Stream.empty();
-  @override
-  Future<TrackSort> librarySort() async => TrackSort.recentlyAdded;
-  @override
-  Future<void> setLibrarySort(TrackSort sort) async {}
-  @override
-  Future<LibraryViews> libraryViews() async => LibraryViews.defaults;
-  @override
-  Future<void> setLibraryView(LibraryViewScope scope, LibraryView view) async {}
-  @override
-  Future<AppLanguage> appLanguage() async => AppLanguage.system;
-  @override
-  Future<void> setAppLanguage(AppLanguage language) async {}
-  @override
-  Future<AppThemeMode> appThemeMode() async => AppThemeMode.system;
-  @override
-  Future<void> setAppThemeMode(AppThemeMode mode) async {}
-}
+import 'support/fake_settings_repository.dart';
+
+class _NoopSettings extends FakeSettingsBase with FakeCacheSettings {}
 
 Track _track({int? id}) => Track(
   id: id,
