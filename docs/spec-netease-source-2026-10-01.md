@@ -290,15 +290,23 @@ abstract interface class LyricsProvider {
 
 ```dart
 // data/providers/lyrics_providers.dart
-final lyricsProvider = Provider<LyricsProvider?>((ref) {
+/// 该源的适配器是否实现 LyricsProvider（决定占位文案）。
+final sourceSupportsLyricsProvider = Provider.family<bool, String>((ref, sourceId) {
   for (final d in ref.watch(onlineSourcesProvider)) {
-    if (d.source is LyricsProvider) return d.source as LyricsProvider;
+    if (d.id == sourceId) return d.source is LyricsProvider;
   }
-  return null;
+  return false;
 });
 
+/// 按 track.source 路由到注册表中对应的 LyricsProvider。
 final trackLyricsProvider = FutureProvider.family<Lyric?, Track>((ref, track) async {
-  final provider = ref.watch(lyricsProvider);
+  LyricsProvider? provider;
+  for (final d in ref.watch(onlineSourcesProvider)) {
+    if (d.id == track.source && d.source is LyricsProvider) {
+      provider = d.source as LyricsProvider;
+      break;
+    }
+  }
   if (provider == null) return null;
   try {
     return await provider.lyricsFor(track);
@@ -309,7 +317,8 @@ final trackLyricsProvider = FutureProvider.family<Lyric?, Track>((ref, track) as
 ```
 
 - 以 `Track` 为 family key（`Track` 具值相等性；展示字段 `coverUrl` 已排除），按曲目缓存。
-- 当前只有 `netease` 实现该接口；`bilibili` / `local` 得到 `null` → 占位。
+- 当前只有 `netease` 实现该接口；`bilibili` / `local` 无 provider → `null` → 占位。
+- 路由按 `track.source` 精确匹配，避免「注册表里第一个 LyricsProvider」被错误用于不支持的源。
 
 ### 11.5 UI
 
