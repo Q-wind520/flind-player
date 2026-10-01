@@ -78,12 +78,25 @@ class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
       throw StateError('No stream available for ${track.uri}');
     }
     return StreamInfo(
-      url: Uri.parse(url),
+      url: _streamUri(url),
       headers: const <String, String>{
         'Referer': kNeteaseReferer,
       },
       qualityId: dto?.level ?? 'standard',
     );
+  }
+
+  /// Upgrades a NetEase CDN `http` stream URL to `https`.
+  ///
+  /// NetEase returns cleartext `http://...music.126.net/...` URLs, which
+  /// Android blocks by default; the same URL serves `https` and carries the
+  /// same auth query. Non-NetEase or already-secure URLs pass through.
+  static Uri _streamUri(String raw) {
+    final uri = Uri.parse(raw);
+    if (uri.scheme == 'http' && uri.host.endsWith('music.126.net')) {
+      return uri.replace(scheme: 'https');
+    }
+    return uri;
   }
 
   @override

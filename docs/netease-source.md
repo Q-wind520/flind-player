@@ -37,6 +37,7 @@
 - **搜索为何不用 cloudsearch**：`/weapi/cloudsearch/get/web`（及 `eapi`/明文 GET 变体）会被服务端以 `code: 50000005` 拒绝；`/weapi/search/get` 可用但不含封面字段。故搜索走 `search/get` 拿到 id，再用 `/weapi/v3/song/detail` 批量富化为规范字段（`ar`/`al.picUrl`/`dt`）；详情富化返回空时回退到 `search/get` 原始行（此时无封面）。
 - 歌词响应字段：`lrc.lyric`（原文）、`tlyric.lyric`（翻译）、`romalrc.lyric`（罗马音，不用）、`klyric.lyric`（逐字，不用）。
 - 流地址 `data[]` 为空或 `url` 为 `null` 视为不可播放（见 §5）。
+- 网易云返回的 `http://...music.126.net/...` 流地址会被升级为 `https`（同一 URL、同一鉴权 query，CDN 支持；避免 Android 默认拦截明文 http）。
 
 ---
 

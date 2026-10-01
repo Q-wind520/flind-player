@@ -72,6 +72,29 @@ void main() {
     expect(info.headers['Referer'], 'https://music.163.com');
   });
 
+  test('resolveStream upgrades a NetEase CDN http stream to https', () async {
+    final source = NeteaseSource(
+      api: _FakeApi(
+        url: const NeteaseUrlDto(
+          url: 'http://m801.music.126.net/x.mp3?auth=1',
+          level: 'standard',
+        ),
+      ),
+    );
+    final info = await source.resolveStream(
+      const Track(
+        source: 'netease',
+        sourceTrackId: NeteaseTrackId(songId: 42),
+        uri: 'netease:42',
+        title: 'T',
+      ),
+    );
+    // Android blocks cleartext http by default; the CDN serves https too.
+    expect(info.url.scheme, 'https');
+    expect(info.url.host, 'm801.music.126.net');
+    expect(info.url.query, 'auth=1');
+  });
+
   test('resolveStream throws when the song has no stream (VIP/region)', () async {
     final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto()));
     expect(
