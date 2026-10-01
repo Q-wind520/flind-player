@@ -118,9 +118,11 @@ class NeteaseClient {
     final json = Map<String, dynamic>.from(data);
     final code = (json['code'] as num?)?.toInt() ?? 200;
     if (code != 200) {
+      final message = json['message'];
+      final msg = json['msg'];
       throw NeteaseApiException.fromCode(
         code,
-        json['message'] as String? ?? json['msg'] as String?,
+        message is String ? message : msg is String ? msg : null,
       );
     }
     return json;

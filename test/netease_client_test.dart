@@ -63,6 +63,7 @@ void main() {
     final request = adapter.lastRequest!;
     expect(request.headers['Referer'], kNeteaseReferer);
     expect(request.headers.containsKey('Origin'), isFalse);
+    expect(request.contentType ?? '', contains('form-urlencoded'));
     final data = request.data as Map;
     expect(data['params'], isA<String>());
     expect(data['encSecKey'], isA<String>());
@@ -74,9 +75,12 @@ void main() {
     await _client(adapter).postEapi('/song/enhance/player/url/v1', <String, dynamic>{'ids': '[1]'});
 
     final request = adapter.lastRequest!;
+    expect(request.uri.host, 'interface3.music.163.com');
     expect(request.uri.path, '/eapi/song/enhance/player/url/v1');
+    expect(request.headers['Referer'], kNeteaseReferer);
     expect(request.headers['Cookie'], contains('os=pc'));
     expect(request.headers.containsKey('Origin'), isFalse);
+    expect(request.contentType ?? '', contains('form-urlencoded'));
 
     final params = (request.data as Map)['params'] as String;
     final bytes = Uint8List.fromList(
