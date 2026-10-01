@@ -235,6 +235,7 @@ class SourceBadge extends StatelessWidget {
     final label = switch (source) {
       'local' => l10n.sourceLocal,
       'bilibili' => l10n.sourceBilibili,
+      'netease' => l10n.sourceNetease,
       _ => source,
     };
 

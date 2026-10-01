@@ -24,7 +24,7 @@
 
 ## 2. 端点清单
 
-全部为**匿名**（无 Cookie 凭证、无登录态），全部为 `POST`，响应为明文 JSON（不请求 `e_r=1` 加密返回），成功时主体 `code == 200`。
+全部为**匿名**：不携带任何凭证 / 登录 Cookie（如 `MUSIC_U`），无登录态——但协议要求的匿名 `Cookie` 头仍会发送（见 §4）。全部为 `POST`，响应为明文 JSON（不请求 `e_r=1` 加密返回），成功时主体 `code == 200`。
 
 | 用途 | 协议 | 主机 / 路径 | 请求体 |
 |---|---|---|---|
@@ -68,13 +68,13 @@ encSecKey = hex( reverse(secretKey) 左补零到 128 字节 后做 m^e mod n )  
 ### 3.2 eapi（流地址）
 
 ```
-text   = json(body + {header: cookies})            # 紧凑分隔符 (',', ':')
+text   = json(body + {header: {os: 'pc'}})         # 紧凑分隔符 (',', ':')
 digest = md5( "nobody" + path + "use" + text + "md5forencrypt" )
 params = UPPERHEX( AES-128-ECB( path + "-36cd479b6b5-" + text + "-36cd479b6b5-" + digest, eapiKey ) )
 ```
 
 - `path` 带 `/api` 前缀，如 `/api/song/enhance/player/url/v1`。
-- `header` 为匿名占位 Cookie 集（`os=pc` 等，见 §4），既进加密体也进 `Cookie` 头。
+- `header` **仅**为 `{'os': 'pc'}`——只进 AES 加密体；完整的匿名 Cookie 串（`_anonCookie`，见 §4）只作为 HTTP `Cookie` 头发送，**不进加密体**。两者是互不相同的两件事。
 - 请求：`POST`，`Content-Type: application/x-www-form-urlencoded`，body `params=…`，发往 `interface3.music.163.com`。
 - `NeteaseCrypto.eapiDecrypt` 提供对称解密，供往返测试。
 
@@ -94,7 +94,7 @@ Cookie (eapi):   os=pc; appver=8.0.0; versioncode=140; mobilename=undefined;
                  buildver=…; resolution=1920x1080; __csrf=; channel=undefined
 ```
 
-- **`os=pc` 是 eapi 的硬性要求**：匿名 eapi 必须带，另补空占位 `appver` / `deviceId` / `versioncode` / `mobilename` / `buildver` / `resolution` / `__csrf` / `channel`（参照 `yt-dlp` 匿名样本），否则可能被降级或拒绝。
+- **`os=pc` 是 eapi 的硬性要求**：匿名 eapi 必须带，另补空占位 `appver` / `versioncode` / `mobilename` / `buildver` / `resolution` / `__csrf` / `channel`（参照 `yt-dlp` 匿名样本），否则可能被降级或拒绝。
 - **禁 `Origin`**：与 Bilibili 客户端同一纪律——第三方 Origin 会被 WAF 拦截。
 - 非 JSON 响应或 `code != 200` 抛 `NeteaseApiException`（类型化，含 `code` / `message`，`toString` 仿 `BiliApiException`）；`-462` 归为「需登录」，UI 走 `errLoginRequired`，其余走 `errNeteaseApi(code)`。
 
