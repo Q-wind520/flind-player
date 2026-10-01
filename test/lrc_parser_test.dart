@@ -30,8 +30,23 @@ void main() {
 
   test('parses hundredths and thousandths fractions', () {
     final lyric = parseLrc('[00:00.05]A\n[00:00.005]B')!;
-    expect(lyric.lines[0].timestamp, const Duration(milliseconds: 50));
-    expect(lyric.lines[1].timestamp, const Duration(milliseconds: 5));
+    expect(
+      lyric.lines.map((l) => l.timestamp),
+      <Duration>[const Duration(milliseconds: 5), const Duration(milliseconds: 50)],
+    );
+    expect(lyric.lines.map((l) => l.text), <String>['B', 'A']);
+  });
+
+  test('keeps lines ascending for out-of-order sub-second input', () {
+    final lyric = parseLrc('[00:00.05]A\n[00:00.005]B')!;
+    for (var i = 1; i < lyric.lines.length; i++) {
+      expect(
+        lyric.lines[i - 1].timestamp,
+        lessThanOrEqualTo(lyric.lines[i].timestamp),
+      );
+    }
+    final atTen = lyric.indexAt(const Duration(milliseconds: 10));
+    expect(lyric.lines[atTen!].timestamp, const Duration(milliseconds: 5));
   });
 
   test('applies [offset:±ms] and ignores metadata tags', () {

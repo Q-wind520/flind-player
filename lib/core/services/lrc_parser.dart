@@ -68,13 +68,13 @@ List<MapEntry<int, String>> _parseTimed(String raw) {
       entries.add(MapEntry(total < 0 ? 0 : total, text));
     }
   }
-  // Order by whole seconds only; lines sharing a second keep document order
-  // (Dart's List.sort is not stable, so break ties by input position).
+  // Ascending by full millisecond timestamp, as Lyric's contract requires
+  // (indexAt binary-searches). Dart's List.sort is unstable, so break ties
+  // between exactly-equal timestamps by input position.
   final order = List<int>.generate(entries.length, (i) => i);
   order.sort((i, j) {
-    final si = entries[i].key ~/ 1000;
-    final sj = entries[j].key ~/ 1000;
-    return si == sj ? i.compareTo(j) : si.compareTo(sj);
+    final byTime = entries[i].key.compareTo(entries[j].key);
+    return byTime != 0 ? byTime : i.compareTo(j);
   });
   return [for (final i in order) entries[i]];
 }
