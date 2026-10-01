@@ -28,12 +28,13 @@
 
 | 用途 | 协议 | 主机 / 路径 | 请求体 |
 |---|---|---|---|
-| 搜索 | weapi | `music.163.com/weapi/cloudsearch/get/web?csrf_token=` | `{s, type: 1, limit: 30, offset: (page-1)*30, total: true, csrf_token: ''}` |
+| 搜索 | weapi | `music.163.com/weapi/search/get?csrf_token=` | `{s, type: 1, limit: 30, offset: (page-1)*30, total: true, csrf_token: ''}` |
 | 歌曲详情 | weapi | `music.163.com/weapi/v3/song/detail?csrf_token=` | `{c: jsonEncode([{id: songId}])}` |
 | 流地址 | eapi | `interface3.music.163.com/eapi/song/enhance/player/url/v1` | `{ids: "[songId]", level: "standard", encodeType: "flac"}` |
 | 歌词 | weapi | `music.163.com/weapi/song/lyric?csrf_token=` | `{id, lv: -1, tv: -1, rv: -1, kv: -1, csrf_token: ''}` |
 
 - 搜索分页固定 `limit: 30`（`NeteaseApi.searchPageSize`），`offset` 按页递增。
+- **搜索为何不用 cloudsearch**：`/weapi/cloudsearch/get/web`（及 `eapi`/明文 GET 变体）会被服务端以 `code: 50000005` 拒绝；`/weapi/search/get` 可用但不含封面字段。故搜索走 `search/get` 拿到 id，再用 `/weapi/v3/song/detail` 批量富化为规范字段（`ar`/`al.picUrl`/`dt`）；详情富化返回空时回退到 `search/get` 原始行（此时无封面）。
 - 歌词响应字段：`lrc.lyric`（原文）、`tlyric.lyric`（翻译）、`romalrc.lyric`（罗马音，不用）、`klyric.lyric`（逐字，不用）。
 - 流地址 `data[]` 为空或 `url` 为 `null` 视为不可播放（见 §5）。
 

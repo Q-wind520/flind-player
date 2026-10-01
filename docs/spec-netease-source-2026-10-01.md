@@ -97,7 +97,7 @@ params = UPPERHEX( AES-128-ECB( path + "-36cd479b6b5-" + text + "-36cd479b6b5-" 
 
 | 用途 | 方法 | 主机 / 路径 | 请求体 |
 |---|---|---|---|
-| 搜索 | weapi POST | `music.163.com/weapi/cloudsearch/get/web?csrf_token=` | `{s: query, type: 1, limit: 30, offset: (page-1)*30, total: true, csrf_token: ''}` |
+| 搜索 | weapi POST | `music.163.com/weapi/search/get?csrf_token=` | `{s: query, type: 1, limit: 30, offset: (page-1)*30, total: true, csrf_token: ''}` |
 | 歌曲详情 | weapi POST | `music.163.com/weapi/v3/song/detail?csrf_token=` | `{c: jsonEncode([{id: songId}])}` |
 | 流地址 | eapi POST | `interface3.music.163.com/eapi/song/enhance/player/url/v1` | `{ids: "[songId]", level: "standard", encodeType: "flac"}` |
 | 歌词 | weapi POST | `music.163.com/weapi/song/lyric?csrf_token=` | `{id: songId, lv: -1, tv: -1, rv: -1, kv: -1, csrf_token: ''}` |
@@ -131,7 +131,7 @@ data/codec/
 data/sources/netease/
   netease_crypto.dart                      # weapi / eapi / decrypt（纯函数）
   netease_client.dart                      # Dio + 错误映射
-  netease_api.dart                         # cloudsearch / song detail / song url v1 / lyric
+  netease_api.dart                         # search/get + song detail 富化 / song url v1 / lyric
   netease_models.dart                      # DTO（含 lyric DTO）
   netease_mappers.dart                     # DTO → Track
   netease_source.dart                      # MusicSource + StreamResolver + LyricsProvider

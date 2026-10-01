@@ -13,7 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-/// One song from cloudsearch or `/weapi/v3/song/detail`.
+/// One song from `/weapi/search/get` (legacy shape: `artists`/`album`/
+/// `duration`) or `/weapi/v3/song/detail` (canonical shape: `ar`/`al`/`dt`).
 class NeteaseSongDto {
   final int id;
   final String name;
@@ -32,7 +33,7 @@ class NeteaseSongDto {
   });
 
   factory NeteaseSongDto.fromJson(Map<String, dynamic> json) {
-    final rawArtists = json['ar'];
+    final rawArtists = json['ar'] ?? json['artists'];
     final artists = rawArtists is List
         ? rawArtists
               .whereType<Map>()
@@ -40,14 +41,14 @@ class NeteaseSongDto {
               .where((name) => name.isNotEmpty)
               .toList(growable: false)
         : const <String>[];
-    final album = json['al'];
+    final album = json['al'] ?? json['album'];
     final cover = album is Map ? album['picUrl'] : null;
     return NeteaseSongDto(
       id: (json['id'] as num?)?.toInt() ?? 0,
       name: json['name'] as String? ?? '',
       artists: artists,
       album: album is Map ? album['name'] as String? ?? '' : '',
-      durationMs: (json['dt'] as num?)?.toInt() ?? 0,
+      durationMs: ((json['dt'] ?? json['duration']) as num?)?.toInt() ?? 0,
       coverUrl: (cover is String && cover.isNotEmpty) ? cover : null,
     );
   }

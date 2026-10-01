@@ -21,12 +21,12 @@ import 'package:flind_player/data/sources/netease/netease_models.dart';
 
 /// Typed access to the NetEase endpoints the adapter needs.
 class NeteaseApi {
-  static const String _searchPath = '/weapi/cloudsearch/get/web?csrf_token=';
+  static const String _searchPath = '/weapi/search/get?csrf_token=';
   static const String _detailPath = '/weapi/v3/song/detail?csrf_token=';
   static const String _urlPath = '/song/enhance/player/url/v1';
   static const String _lyricPath = '/weapi/song/lyric?csrf_token=';
 
-  /// Page size used by the web cloud-search client.
+  /// Page size used by the search client.
   static const int searchPageSize = 30;
 
   final NeteaseClient _client;
@@ -36,6 +36,13 @@ class NeteaseApi {
     : _client = client, // ignore: prefer_initializing_formals
       _rateLimiter = rateLimiter; // ignore: prefer_initializing_formals
 
+  /// Searches songs and returns canonical metadata (with cover art).
+  ///
+  /// `/weapi/cloudsearch/get/web` is rejected by the server with code
+  /// `50000005`, so search uses `/weapi/search/get` and then enriches the
+  /// results through `/weapi/v3/song/detail` (which carries `al.picUrl`).
+  /// `search/get` alone has no cover URL; if the enrichment is empty the raw
+  /// search rows are returned so search still works without artwork.
   Future<List<NeteaseSongDto>> searchSongs(String query, {int page = 1}) async {
     final json = await _rateLimiter.run(
       () => _client.postWeapi(_searchPath, <String, dynamic>{
@@ -50,26 +57,46 @@ class NeteaseApi {
     final result = json['result'];
     final songs = result is Map ? result['songs'] : null;
     if (songs is! List) return const <NeteaseSongDto>[];
-    return songs
+
+    final raw = songs
         .whereType<Map>()
         .map((e) => NeteaseSongDto.fromJson(Map<String, dynamic>.from(e)))
         .where((song) => song.id > 0)
         .toList(growable: false);
+    if (raw.isEmpty) return const <NeteaseSongDto>[];
+
+    final enriched = await _songDetails(
+      raw.map((song) => song.id).toList(growable: false),
+    );
+    return enriched.isNotEmpty ? enriched : raw;
   }
 
-  Future<NeteaseSongDto?> songDetail(int songId) async {
+  /// Fetches canonical songs for [ids], preserving the requested order.
+  Future<List<NeteaseSongDto>> _songDetails(List<int> ids) async {
+    if (ids.isEmpty) return const <NeteaseSongDto>[];
     final json = await _rateLimiter.run(
       () => _client.postWeapi(_detailPath, <String, dynamic>{
         'c': jsonEncode(<dynamic>[
-          <String, dynamic>{'id': songId},
+          for (final id in ids) <String, dynamic>{'id': id},
         ]),
       }),
     );
     final songs = json['songs'];
-    if (songs is! List || songs.isEmpty) return null;
-    final first = songs.first;
-    if (first is! Map) return null;
-    return NeteaseSongDto.fromJson(Map<String, dynamic>.from(first));
+    if (songs is! List) return const <NeteaseSongDto>[];
+    final byId = <int, NeteaseSongDto>{};
+    for (final entry in songs.whereType<Map>()) {
+      final dto = NeteaseSongDto.fromJson(Map<String, dynamic>.from(entry));
+      if (dto.id > 0) byId[dto.id] = dto;
+    }
+    return <NeteaseSongDto>[
+      for (final id in ids)
+        if (byId[id] != null) byId[id]!,
+    ];
+  }
+
+  Future<NeteaseSongDto?> songDetail(int songId) async {
+    final songs = await _songDetails(<int>[songId]);
+    return songs.isEmpty ? null : songs.first;
   }
 
   Future<NeteaseUrlDto?> songUrl(int songId) async {
