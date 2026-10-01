@@ -22,3 +22,14 @@ class SourceDescriptor {
 
   const SourceDescriptor({required this.id, required this.source});
 }
+
+/// Drops every descriptor whose id appears in [disabled], preserving order.
+///
+/// Extracted from the registry provider so the kill-switch filter can be
+/// verified directly instead of through provider overrides.
+List<SourceDescriptor> filterDisabledSources(
+  List<SourceDescriptor> all,
+  Set<String> disabled,
+) => all
+    .where((descriptor) => !disabled.contains(descriptor.id))
+    .toList(growable: false);

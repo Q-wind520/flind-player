@@ -78,19 +78,53 @@ void main() {
     expect(bili.queries, isEmpty);
   });
 
-  test('excludes disabled sources from the registry', () {
+  test('filterDisabledSources drops only disabled ids and keeps order', () {
+    final all = <SourceDescriptor>[
+      SourceDescriptor(id: 'bilibili', source: _FakeSource('bilibili', const <Track>[])),
+      SourceDescriptor(id: 'netease', source: _FakeSource('netease', const <Track>[])),
+    ];
+
+    final filtered = filterDisabledSources(
+      all,
+      const <String>{'bilibili'},
+    );
+
+    expect(filtered.map((d) => d.id), <String>['netease']);
+    // The full list is untouched; nothing else was dropped.
+    expect(all, hasLength(2));
+    expect(
+      filterDisabledSources(all, const <String>{}).map((d) => d.id),
+      <String>['bilibili', 'netease'],
+      reason: 'with no disabled ids the order is preserved verbatim',
+    );
+  });
+
+  test('an unknown source id returns empty without calling any source', () async {
+    final bili = _FakeSource('bilibili', const <Track>[
+      Track(
+        source: 'bilibili',
+        sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 1),
+        uri: 'bilibili:BV1:1',
+        title: 'B',
+      ),
+    ]);
+    final netease = _FakeSource('netease', const <Track>[]);
     final container = ProviderContainer(
       overrides: [
-        disabledSourceIdsProvider.overrideWithValue(const <String>{'bilibili'}),
         onlineSourcesProvider.overrideWithValue(<SourceDescriptor>[
-          SourceDescriptor(id: 'netease', source: _FakeSource('netease', const <Track>[])),
+          SourceDescriptor(id: 'bilibili', source: bili),
+          SourceDescriptor(id: 'netease', source: netease),
         ]),
       ],
     );
     addTearDown(container.dispose);
-    expect(
-      container.read(onlineSourcesProvider).map((d) => d.id),
-      <String>['netease'],
+
+    final results = await container.read(
+      onlineSearchProvider(('spotify', 'q')).future,
     );
+
+    expect(results, isEmpty);
+    expect(bili.queries, isEmpty);
+    expect(netease.queries, isEmpty);
   });
 }

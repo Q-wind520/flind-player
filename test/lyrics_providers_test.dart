@@ -97,4 +97,20 @@ void main() {
 
     expect(await container.read(trackLyricsProvider(_track).future), isNull);
   });
+
+  test('sourceSupportsLyricsProvider reflects the adapter capability', () {
+    final container = ProviderContainer(
+      overrides: [
+        onlineSourcesProvider.overrideWithValue(<SourceDescriptor>[
+          SourceDescriptor(id: 'bilibili', source: _PlainSource('bilibili')),
+          SourceDescriptor(id: 'netease', source: _LyricsSource('netease', null)),
+        ]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(container.read(sourceSupportsLyricsProvider('netease')), isTrue);
+    expect(container.read(sourceSupportsLyricsProvider('bilibili')), isFalse);
+    expect(container.read(sourceSupportsLyricsProvider('unknown')), isFalse);
+  });
 }

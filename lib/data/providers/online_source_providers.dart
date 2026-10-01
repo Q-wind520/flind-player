@@ -32,10 +32,10 @@ final onlineSourcesProvider = Provider<List<SourceDescriptor>>((ref) {
   final disabled = ref.watch(disabledSourceIdsProvider);
   final bili = ref.watch(biliSourceProvider);
   final netease = ref.watch(neteaseSourceProvider);
-  return <SourceDescriptor>[
+  return filterDisabledSources(<SourceDescriptor>[
     SourceDescriptor(id: bili.id, source: bili),
     SourceDescriptor(id: netease.id, source: netease),
-  ].where((descriptor) => !disabled.contains(descriptor.id)).toList(growable: false);
+  ], disabled);
 });
 
 /// Search results for one `(sourceId, query)` pair.
