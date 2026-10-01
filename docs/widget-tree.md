@@ -78,9 +78,11 @@ AppSurface (共享表面)
 使用方:全部四个页面的 `Scaffold` 背景、`MiniPlayerBar`、`MiniSettings`、
 `VolumeBar`、`LyricsPreview`。
 
-## 搜索页 SearchScreen(哔哩哔哩搜索)
+## 搜索页 SearchScreen(多音源搜索)
 
 无标题栏;搜索框直接放在页面顶部(提交时才发起搜索,避免触顶 -412 限流)。
+在线源注册表(`onlineSourcesProvider`)多于一个时,搜索框下方显示 `SegmentedButton`
+切源(B站/网易云),结果按选中源路由到 `onlineSearchProvider((sourceId, query))`。
 
 ```
 SearchScreen (搜索页 ConsumerStatefulWidget)
@@ -89,10 +91,12 @@ SearchScreen (搜索页 ConsumerStatefulWidget)
       └─ SafeArea → Column
          ├─ Padding → ValueListenableBuilder (清空按钮随输入状态显隐)
          │  └─ TextField (搜索输入框 — 数字键盘/提交触发)
-         └─ Expanded → _buildBody
-            ├─ {未提交关键词} _SearchHint (搜索引导空态)
+         ├─ {多于一个在线源} Padding → SegmentedButton<String>
+         │     (音源切换: B站/网易云 ← onlineSourcesProvider, 标签按 id 取 l10n)
+         └─ Expanded → _buildBody(选中源 id)
+            ├─ {未提交关键词} _SearchHint (搜索引导空态 — 源无关文案)
             │  └─ ResponsiveCenter → Icon + 标题 + 提示文案
-            └─ {已提交} biliSearchResultsProvider.when (异步结果分发)
+            └─ {已提交} onlineSearchProvider((sourceId, query)).when (按源异步分发)
                ├─ loading → Center ( CircularProgressIndicator 加载圈 )
                ├─ error   → _SearchError (搜索失败面板, 带重试按钮)
                └─ data
@@ -100,9 +104,9 @@ SearchScreen (搜索页 ConsumerStatefulWidget)
                   └─ ListView.builder (结果列表)
                      └─ _SearchResultTile (搜索结果行)
                         └─ ListTile
-                           ├─ leading: _SearchResultCover (圆角占位封面 48×48)
+                           ├─ leading: _SearchResultCover (圆角封面 48×48, 无则音符占位)
                            ├─ title: Text (标题)
-                           ├─ subtitle: Text (UP 主)
+                           ├─ subtitle: Text (艺术家/UP 主)
                            └─ trailing: Row
                               ├─ {正在播放} Icon (graphic_eq 均衡器动画图标)
                               ├─ Text (时长)
@@ -336,7 +340,7 @@ _HeaderRow (共享头部行 — 取代原 AppBar)
 _PortraitBody (竖屏正文)
 └─ Column
    ├─ Expanded → AnimatedSwitcher (交叉淡化 + 位移 260ms)
-   │  ├─ {歌词展开} LyricsView (全屏歌词占位, 点击收起, 见下)
+   │  ├─ {歌词展开} LyricsView (全屏歌词 — provider 驱动, 点击收起, 见下)
    │  └─ {折叠} _PortraitNormal
    │     └─ Column
    │        ├─ Expanded → _CoverArt (自适应封面)
@@ -358,7 +362,7 @@ _LandscapeBody (横屏正文 — 左右等宽双栏, 无分隔线)
    │     ├─ _TransportControls
    │     ├─ SizedBox(16)
    │     └─ MiniSettings (设置条内嵌于左栏底部)
-   └─ Expanded → LyricsView (右栏: 全屏歌词占位)
+   └─ Expanded → LyricsView (右栏: 全屏歌词 — provider 驱动)
 
 _PlayerCover (大圆角封面 24px — 本地路径/网络 URL 皆可)
 └─ ClipRRect → Container(尺寸见上)
@@ -446,23 +450,33 @@ PlaylistPanel (播放队列面板 ConsumerWidget)
          → 点击 playQueue(index) 跳转并关面板
 ```
 
-### 歌词占位 LyricsView / LyricsPreview
+### 歌词 LyricsView / LyricsPreview
 
-歌词源尚未适配前的占位(文案「词莫见,敬聆听」)。
+provider 驱动:watch `playbackStateProvider`(当前曲目 + 播放位置)与
+`trackLyricsProvider(当前曲目)`;有歌词时按 `Lyric.indexAt(position)` 高亮当前行
+并自动滚动居中,翻译以次级样式渲染在原文下方;无歌词或源未适配时回落占位
+(「词莫见,敬聆听」)。
 
 ```
-LyricsView (全屏歌词占位 StatelessWidget)
-└─ GestureDetector (opaque, 点击回调 onTap — 收起竖屏歌词页)
-   └─ LayoutBuilder → SingleChildScrollView (短视口可滚动防溢出)
-      └─ ConstrainedBox(minHeight) → Center → Padding → Column
-         ├─ Icon (lyrics_outlined 48)
-         ├─ Text (歌词语种占位标题)
-         └─ Text (提示文案)
+LyricsView (全屏歌词 ConsumerStatefulWidget, 点击回调 onTap 收起竖屏歌词页)
+└─ GestureDetector (opaque)
+   ├─ {无曲目/无歌词/空歌词} _LyricsPlaceholder (占位)
+   │  └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight) → Center
+   │     └─ Column [ Icon(lyrics_outlined) + Text(占位标题)
+   │                 + Text(提示: sourceSupportsLyricsProvider 为真 → 「暂无歌词」,
+   │                        否则 → 「该音源暂未适配歌词」) ]
+   └─ {有歌词} ListView.builder (Lyric.lines, controller 自滚动)
+      └─ Container {当前行} key: lyric-current (主色加粗)
+         └─ Column [ Text(原文) + {有翻译} Text(次级样式翻译) ]
+         → index 变化时 animateTo 居中(250ms easeOut, 估算行高 56)
 
-LyricsPreview (歌词 teaser 条 — 竖屏封面下 5 行高)
+LyricsPreview (歌词 teaser 条 — 竖屏封面下 5 行高 ConsumerWidget)
 └─ AppSurface → GestureDetector (点击展开歌词页)
-   └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight)
-      └─ Center → Padding → Column [ Icon(20) + Text(单行省略) ]
+   └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight) → Center
+      └─ Padding → Column
+         ├─ {无歌词} Icon(20) + Text(占位文案, 单行省略)
+         └─ {有歌词} Container(key: lyric-current)
+            → 当前行(主色) [ + {有翻译} 单行翻译 ]
 ```
 
 ## B 站收藏夹浏览页 BilibiliFavoritesScreen
@@ -555,7 +569,7 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | `lib/app/theme_mode.dart` | `appThemeModeProvider` 外观切换(自动/浅色/深色) |
 | `lib/features/home/home_shell.dart` | `HomeShell` 自适应导航壳 |
 | `lib/shared/app_surface.dart` | 统一共享背景表面 + `colorOf` |
-| `lib/features/search/search_screen.dart` | B 站搜索页(无标题栏) |
+| `lib/features/search/search_screen.dart` | 多音源搜索页(切源 SegmentedButton + onlineSearchProvider, 无标题栏) |
 | `lib/features/library/library_screen.dart` | 曲库页(三段式选择器/搜索/收藏/歌单/列表/网格) |
 | `lib/core/models/library_view.dart` | 视图模型:`LibraryView`(展柜网格/列表/瀑布流) + `LibraryViewScope`(按段作用域) |
 | `lib/features/library/library_view_provider.dart` | `LibraryViewsNotifier` — 按段持久化的多视图(存设置仓) |
@@ -580,7 +594,7 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | `lib/features/player/mini_player_bar.dart` | 迷你播放条 |
 | `lib/features/player/player_screen.dart` | 全屏播放页(横竖屏 + 传输控制) |
 | `lib/features/player/mini_settings.dart` | 底部设置条(更多/调节/定时/音量/模式) + VolumeBar |
-| `lib/features/player/lyrics_view.dart` | 歌词占位 `LyricsView` / `LyricsPreview` |
+| `lib/features/player/lyrics_view.dart` | 歌词视图 `LyricsView` / `LyricsPreview`(provider 驱动, 同步高亮 + 双语, 无歌词占位) |
 | `lib/features/player/player_panels.dart` | 面板系统 `showPlayerPanel` + 空/睡眠/队列面板 |
 | `lib/features/player/play_mode_button.dart` | 播放模式四态循环按钮 |
 | `lib/features/player/sleep_timer.dart` | 睡眠定时提供者(非 UI) |

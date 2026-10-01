@@ -9,7 +9,7 @@
 
 ## 1. 项目概述
 
-Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为主要在线音源**（提取视频流中的音频轨），同时支持本地音乐库，两者在统一曲库中混合呈现。
+Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为主要在线音源**（提取视频流中的音频轨），**另支持网易云音乐（匿名）作为第二个在线音源**（搜索 / 播放 / 歌词，见 `netease-source.md`），同时支持本地音乐库，三者在统一曲库中混合呈现。
 
 | 项 | 值 |
 |---|---|
@@ -28,12 +28,12 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 
 | 维度 | 结论 |
 |---|---|
-| 音乐来源 | 多平台聚合架构，MVP 仅接入 Bilibili |
+| 音乐来源 | 多平台聚合架构，已接入 Bilibili + 网易云（匿名） |
 | 曲库范围 | 在线 + 本地混合 |
 | UI 方向 | Material 3 自适应（移动 / 桌面断点切换） |
 | 首页入口 | **Bilibili 为主入口**（D12） |
 | MVP 功能 | 基础播放、音乐库、系统集成、搜索、播放列表/收藏、离线缓存 |
-| 歌词 | 暂不接入，保留抽象待后续（D10） |
+| 歌词 | 已落地 `Lyric` / `LyricsProvider` 抽象（D10），目前仅网易云源供词 |
 | 离线缓存 | 支持，默认 **1 GiB**，可配置（D9） |
 
 ---
@@ -51,7 +51,7 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 | D7 | 系统集成 | **`audio_service`** 统一层 | 一个 AudioHandler 覆盖通知栏 / MPRIS / SMTC / MediaSession |
 | D8 | 凭证存储 | **`flutter_secure_storage`** | SESSDATA 是全账号 bearer token |
 | D9 | 离线缓存 | Bilibili 音频缓存到本地，**默认 1 GiB 可配置**，LRU 淘汰 | 见 `local-library.md` §4 |
-| D10 | 歌词 | **暂不接入**，保留 `LyricsProvider` 抽象 | Bilibili 无歌词源，后续可接 LRC / 第三方 |
+| D10 | 歌词 | **保留 `LyricsProvider` 抽象**（2026-10-01 已落地为 `Lyric` / `LyricsProvider` / `lrc_parser`，见 §6.4） | Bilibili 无歌词源；网易云匿名源已实现 LRC 整行 + 翻译 |
 | D11 | Web | **推迟至 v2** | CORS 全阻断，需代理且无法登录，性价比低 |
 | D12 | 首页 | **Bilibili 主入口** | 在线优先的产品定位 |
 | D13 | 许可证 | **GPL-3.0** | 强 copyleft；与全部依赖兼容；解除 libmpv GPL 构建限制（见 §12） |
@@ -79,7 +79,7 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 │ domain (core)  models / repositories(抽象) / services(抽象)  │
 │                sources: MusicSource + StreamInfo            │
 ├──────────────────────────────────────────────────────────┤
-│ data           drift / sources(bilibili, local) / playback   │
+│ data           drift / sources(bilibili, netease, local) / playback   │
 │                repositories(实现) / cache                    │
 ├──────────────────────────────────────────────────────────┤
 │ platform       audio_service handler / MPRIS / tray / window │
@@ -120,7 +120,8 @@ flind_player/
 │   │   ├── repositories/               # drift 实现 + *_provider.dart 绑定
 │   │   ├── sources/
 │   │   │   ├── local/                  # 目录扫描 + audio_metadata_reader
-│   │   │   └── bilibili/               # client / wbi / auth / riskcontrol / mapper / ratelimiter
+│   │   │   ├── bilibili/               # client / wbi / auth / riskcontrol / mapper / ratelimiter
+│   │   │   └── netease/                # crypto(weapi/eapi) / client / api / dto / mapper / source
 │   │   ├── playback/                   # JustAudioPlaybackController / MediaKitPlaybackController
 │   │   └── cache/                      # 封面缓存 + 音频离线缓存（DownloadManager）
 │   ├── platform/
@@ -131,11 +132,10 @@ flind_player/
 │   ├── features/                       # 一屏一目录
 │   │   ├── home/                       # Bilibili 主入口
 │   │   ├── library/
-│   │   ├── player/
+│   │   ├── player/                      # 播放页 + 歌词视图（Lyric / trackLyricsProvider 驱动）
 │   │   ├── queue/
 │   │   ├── playlists/
-│   │   ├── search/
-│   │   ├── lyrics/                     # 占位（D10）
+│   │   ├── search/                     # 多源切换搜索（SegmentedButton + onlineSearchProvider）
 │   │   ├── account/                    # Bilibili 登录
 │   │   └── settings/
 │   └── shared/                         # 通用组件、布局断点、扩展
@@ -143,6 +143,7 @@ flind_player/
 └── docs/
     ├── architecture.md                 # 本文档
     ├── bilibili-source.md              # Bilibili 适配器设计
+    ├── netease-source.md               # 网易云适配器设计（匿名）
     └── local-library.md                # 本地库 + 离线缓存设计
 ```
 
@@ -157,7 +158,7 @@ flind_player/
 // 注：playlists() 与 SearchPage 分页模型推迟到需要时再引入；
 // M1 实现为 List<Track> 直返（见 lib/data/sources/bilibili/bili_source.dart）。
 abstract interface class MusicSource {
-  String get id;                        // 'bilibili' | 'local'
+  String get id;                        // 'bilibili' | 'netease' | 'local'
   SourceCapabilities get capabilities;  // search / streamDirect / login
 
   Future<List<Track>> search(String query, {int page = 1});
@@ -181,10 +182,19 @@ class BiliTrackId extends SourceTrackId {
   final int cid;
 }
 
+class NeteaseTrackId extends SourceTrackId {
+  final int songId;                     // 网易云歌曲 id，源内唯一
+}
+
 class LocalTrackId extends SourceTrackId {
   final String path;
 }
 ```
+
+**在线源注册表**（`onlineSourcesProvider`）：在线源的**唯一注册入口**，当前按序包含
+`bilibili` 与 `netease` 两个 `SourceDescriptor(id, source)`，并按
+`disabledSourceIdsProvider`（远程禁用钩子）过滤。搜索（`onlineSearchProvider`）、
+流解析（`innerStreamResolverProvider`）与歌词路由（§6.4）全部从它派生，不再按源硬编码。
 
 ### 6.2 播放控制
 
@@ -231,6 +241,28 @@ class PlaybackQueue {
 
 **约束**：任何 widget 不得 `import 'just_audio'` 或 `'media_kit'`，只能经 `PlaybackController`。
 
+### 6.4 歌词
+
+```dart
+// core/models/lyric.dart
+class LyricLine { final Duration timestamp; final String text; final String? translation; }
+
+class Lyric {
+  final List<LyricLine> lines;          // 已按 timestamp 升序
+  int? indexAt(Duration position);      // 二分：最后一条 ≤ position 的行，空列表为 null
+}
+
+// core/services/lyrics_provider.dart
+abstract interface class LyricsProvider {
+  Future<Lyric?> lyricsFor(Track track); // null = 无歌词（UI 呈占位，非错误）
+}
+```
+
+- LRC 解析在 `core/services/lrc_parser.dart`（纯函数 `parseLrc`，支持多时间标签、
+  `[offset:±ms]`、翻译按时间戳合并、纯音乐占位判定）。
+- `trackLyricsProvider` 按 `track.source` 在注册表中匹配实现了 `LyricsProvider` 的源；
+  当前仅网易云实现，Bilibili / 本地回落占位。歌词缺失/失败一律 `null`，不阻塞播放、不弹错误。
+
 ---
 
 ## 7. 数据模型与缓存
@@ -242,6 +274,7 @@ class PlaybackQueue {
 | 源 | uri 示例 |
 |---|---|
 | Bilibili | `bilibili:BV1GJ411x7h7:137649199`（bvid + cid） |
+| 网易云 | `netease:1860123456`（songId，见 `NeteaseTrackId`） |
 | 本地 | `local:/home/user/Music/song.flac` |
 
 `uri` 是规范键（upsert 冲突目标），**主键保持自增 `id` 不变**，原因：
@@ -322,11 +355,12 @@ Track → PlaybackController.playQueue(queue)
 | **M3 离线缓存** | 下载队列 + LRU 淘汰 + 1 GiB 默认上限 | 断网可播已缓存曲目；超限自动淘汰 | 已完成 |
 | **M4 系统集成** | audio_service + 通知栏 + MPRIS + 托盘 | 后台/桌面媒体键可控 | 已完成（`lib/platform/audio_handler.dart` + `lib/platform/tray/`） |
 | **M5 播放列表/收藏** | 队列持久化、收藏、Bilibili 收藏夹 | 重启后恢复队列与收藏 | 已完成（B 站仅公开收藏夹，登录留 v1.1） |
-| **M6 打磨** | 自适应、设置、错误处理、增量扫描、CI/发布 | 桌面/移动自适应无布局问题 | 已完成（应用图标已由 `tool/generate_icons.sh` 全平台生成；歌词 / 登录另行安排） |
+| **M6 打磨** | 自适应、设置、错误处理、增量扫描、CI/发布 | 桌面/移动自适应无布局问题 | 已完成（应用图标已由 `tool/generate_icons.sh` 全平台生成；歌词已随网易云源落地，登录另行安排） |
 | **v2 Web** | JSON 代理 + 匿名能力 | 见 `bilibili-source.md` §9 | 推迟 |
 
-> 歌词（D10）**尚未接入歌词源**：`lib/features/player/lyrics_view.dart` 只是全屏占位视图
-> （无歌词时显示"词莫见，敬聆听"），尚无歌词抓取/解析实现。留待后续里程碑。
+> 歌词已落地（D10 抽象 → §6.4）：`Lyric` / `LyricsProvider` / `lrc_parser` 由网易云源供词，
+> `lib/features/player/lyrics_view.dart` 的 `LyricsView` / `LyricsPreview` 为 provider 驱动
+> （同步高亮 + 自动滚动 + 双语）；无歌词或源未适配时回落「词莫见，敬聆听」占位。
 
 ### M5 实现要点
 
@@ -408,4 +442,5 @@ Track → PlaybackController.playQueue(queue)
 ## 13. 相关文档
 
 - [`bilibili-source.md`](bilibili-source.md) —— Bilibili 适配器：端点、WBI、鉴权、风控、限流、法务
+- [`netease-source.md`](netease-source.md) —— 网易云适配器（匿名）：端点、weapi/eapi 协议、能力边界、法务
 - [`local-library.md`](local-library.md) —— 本地库：扫描、元数据、drift schema、离线缓存
