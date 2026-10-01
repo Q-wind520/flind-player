@@ -38,6 +38,7 @@
 - 歌词响应字段：`lrc.lyric`（原文）、`tlyric.lyric`（翻译）、`romalrc.lyric`（罗马音，不用）、`klyric.lyric`（逐字，不用）。
 - 流地址 `data[]` 为空或 `url` 为 `null` 视为不可播放（见 §5）。
 - 网易云返回的 `http://...music.126.net/...` 流地址会被升级为 `https`（同一 URL、同一鉴权 query，CDN 支持；避免 Android 默认拦截明文 http）。
+- 封面 CDN `*.music.126.net` 对默认 `dart:io` User-Agent 返回 **403**，故 `CoverImage` 的网络请求统一携带浏览器 UA（`kCoverImageHeaders`）。
 
 ---
 

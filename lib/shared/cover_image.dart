@@ -17,6 +17,18 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
+import 'package:flind_player/data/sources/bilibili/bili_client.dart'
+    show kDesktopUserAgent;
+
+/// Headers every network cover request must carry.
+///
+/// Some CDNs (notably NetEase's `*.music.126.net`) answer **403** to requests
+/// that use the default `dart:io` User-Agent, so [Image.network] must send a
+/// browser UA. Bilibili's CDN does not care, so this is safe for all covers.
+const Map<String, String> kCoverImageHeaders = <String, String>{
+  'User-Agent': kDesktopUserAgent,
+};
+
 /// Displays a cover image decoded at the display size instead of the source's
 /// full resolution, reducing raster memory when many covers are visible.
 ///
@@ -83,6 +95,7 @@ class CoverImage extends StatelessWidget {
           height: _edge,
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
+          headers: kCoverImageHeaders,
           errorBuilder: errorBuilder,
         ),
       );
@@ -112,6 +125,7 @@ class CoverImage extends StatelessWidget {
           height: _edge,
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
+          headers: kCoverImageHeaders,
           errorBuilder: errorBuilder,
         ),
       );

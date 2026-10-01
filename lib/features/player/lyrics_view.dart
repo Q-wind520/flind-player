@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/core/models/lyric.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/lyrics_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -46,33 +47,25 @@ class LyricsView extends ConsumerStatefulWidget {
 }
 
 class _LyricsViewState extends ConsumerState<LyricsView> {
-  /// Estimated pixel extent of one lyric line, used to centre the current
-  /// line while auto-scrolling. Close enough for the common one-line case;
-  /// a line with a translation simply lands slightly off-centre.
-  static const double _lineExtent = 56;
+  /// Attached to the current line so it can be centred by real geometry.
+  ///
+  /// A fixed per-line height estimate drifts as soon as a line wraps or carries
+  /// a translation, and the accumulated error eventually scrolls the current
+  /// line off-screen. [Scrollable.ensureVisible] uses the actual rendered
+  /// position instead.
+  final GlobalKey _currentLineKey = GlobalKey();
+  int? _lastCentredIndex;
 
-  final ScrollController _controller = ScrollController();
-  int? _lastIndex;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  /// Scrolls [index] to the centre of the viewport once per index change.
-  void _scheduleScroll(int index) {
-    if (_lastIndex == index) return;
+  /// Centres the current line once per index change.
+  void _centreCurrentLine(int index) {
+    if (_lastCentredIndex == index) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_controller.hasClients) return;
-      // Claim the index only once the scroll can actually run, so an attempt
-      // that bails (list not attached yet) is re-scheduled on the next build.
-      _lastIndex = index;
-      final target = (index * _lineExtent) -
-          (_controller.position.viewportDimension / 2) +
-          (_lineExtent / 2);
-      _controller.animateTo(
-        target.clamp(0.0, _controller.position.maxScrollExtent),
+      final lineContext = _currentLineKey.currentContext;
+      if (lineContext == null) return;
+      _lastCentredIndex = index;
+      Scrollable.ensureVisible(
+        lineContext,
+        alignment: 0.5,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
@@ -97,43 +90,70 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     }
 
     final currentIndex = lyric.indexAt(position) ?? 0;
-    _scheduleScroll(currentIndex);
+    _centreCurrentLine(currentIndex);
 
+    // A non-lazy scroll view so every line is laid out: `ensureVisible` cannot
+    // reach a sliver child that has not been built yet, and `ListView` is lazy
+    // even with an explicit child list. Lyrics are bounded (no word-by-word),
+    // so laying them all out is cheap and keeps centring exact.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
-      child: ListView.builder(
-        controller: _controller,
-        itemCount: lyric.lines.length,
-        itemBuilder: (context, index) {
-          final line = lyric.lines[index];
-          final isCurrent = index == currentIndex;
-          return Container(
-            key: isCurrent ? const ValueKey<String>('lyric-current') : null,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  line.text,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: isCurrent
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-                if (line.translation != null)
-                  Text(
-                    line.translation!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
+      child: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            for (var index = 0; index < lyric.lines.length; index++)
+              _LyricLineTile(
+                key: index == currentIndex ? _currentLineKey : null,
+                line: lyric.lines[index],
+                isCurrent: index == currentIndex,
+                theme: theme,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One lyric row: the line, plus its translation when present.
+class _LyricLineTile extends StatelessWidget {
+  const _LyricLineTile({
+    super.key,
+    required this.line,
+    required this.isCurrent,
+    required this.theme,
+  });
+
+  final LyricLine line;
+  final bool isCurrent;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: isCurrent ? const ValueKey<String>('lyric-current') : null,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            line.text,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: isCurrent
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
             ),
-          );
-        },
+          ),
+          if (line.translation != null)
+            Text(
+              line.translation!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
       ),
     );
   }

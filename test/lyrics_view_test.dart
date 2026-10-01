@@ -143,6 +143,34 @@ void main() {
     expect(find.text('暂无歌词'), findsNothing);
   });
 
+  testWidgets('keeps the current line inside the viewport when scrolling', (
+    tester,
+  ) async {
+    final manyLines = <LyricLine>[
+      for (var i = 0; i < 40; i++)
+        LyricLine(timestamp: Duration(seconds: i), text: 'Line $i'),
+    ];
+
+    await tester.pumpWidget(
+      _app(
+        lyric: Lyric(manyLines),
+        position: const Duration(seconds: 30),
+        body: const SizedBox(height: 200, child: LyricsView()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final current = find.byKey(const ValueKey<String>('lyric-current'));
+    expect(
+      find.descendant(of: current, matching: find.text('Line 30')),
+      findsOneWidget,
+    );
+    final lineRect = tester.getRect(current);
+    final viewportRect = tester.getRect(find.byType(SingleChildScrollView));
+    expect(lineRect.top, greaterThanOrEqualTo(viewportRect.top - 1));
+    expect(lineRect.bottom, lessThanOrEqualTo(viewportRect.bottom + 1));
+  });
+
   testWidgets('renders the current line and its translation in the preview', (
     tester,
   ) async {

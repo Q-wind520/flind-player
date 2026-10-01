@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
 void main() {
@@ -111,6 +112,26 @@ void main() {
       (resize.imageProvider as NetworkImage).url,
       'https://example.com/cover.jpg',
     );
+  });
+
+  testWidgets('remote covers send a browser User-Agent header', (
+    WidgetTester tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(devicePixelRatio: 1.0),
+        child: CoverImage(url: 'https://p1.music.126.net/a.jpg', size: 48),
+      ),
+    );
+
+    final provider = tester.widget<Image>(find.byType(Image)).image;
+    final network = (provider as ResizeImage).imageProvider as NetworkImage;
+    // NetEase's image CDN answers 403 to the default dart:io User-Agent, so the
+    // network request must carry a browser UA.
+    expect(network.headers?['User-Agent'], kDesktopUserAgent);
   });
 
   testWidgets('network url at DPR 3.0 produces cacheWidth 144', (
