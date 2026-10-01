@@ -39,23 +39,37 @@ const _lyric = Lyric(<LyricLine>[
   LyricLine(timestamp: Duration(seconds: 5), text: 'Second'),
 ]);
 
-Widget _app({required Lyric? lyric, Duration position = const Duration(seconds: 2)}) {
+/// A track from a source without a lyrics provider (`local` is not even an
+/// online source), used to cover the "source not adapted" placeholder.
+const _localTrack = Track(
+  source: 'local',
+  sourceTrackId: LocalTrackId('/music/test.mp3'),
+  uri: 'local:/music/test.mp3',
+  title: 'L',
+);
+
+Widget _app({
+  required Lyric? lyric,
+  Duration position = const Duration(seconds: 2),
+  Track? track = _track,
+  Widget body = const LyricsView(),
+}) {
   return ProviderScope(
     overrides: [
-      trackLyricsProvider.overrideWith((ref, track) async => lyric),
+      trackLyricsProvider.overrideWith((ref, _) async => lyric),
       playbackStateProvider.overrideWith(
         (ref) => Stream.value(
-          const PlaybackState(
+          PlaybackState(
             isPlaying: true,
             isBuffering: false,
             isCompleted: false,
-            position: Duration(seconds: 2),
-            currentTrack: _track,
-          ).copyWith(position: position),
+            position: position,
+            currentTrack: track,
+          ),
         ),
       ),
     ],
-    child: localizedApp(const Scaffold(body: LyricsView())),
+    child: localizedApp(Scaffold(body: body)),
   );
 }
 
@@ -77,11 +91,68 @@ void main() {
     await tester.pumpWidget(_app(lyric: _lyric, position: const Duration(seconds: 6)));
     await tester.pumpAndSettle();
     expect(find.text('Second'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('lyric-current')),
+        matching: find.text('Second'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows the no-lyrics placeholder when the lyric is null', (tester) async {
     await tester.pumpWidget(_app(lyric: null));
     await tester.pumpAndSettle();
     expect(find.text('暂无歌词'), findsOneWidget);
+  });
+
+  testWidgets('shows the source hint when nothing is playing', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playbackStateProvider.overrideWith(
+            (ref) => Stream.value(PlaybackState.idle),
+          ),
+        ],
+        child: localizedApp(const Scaffold(body: LyricsView())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('词莫见，敬聆听'), findsOneWidget);
+    expect(find.text('该音源暂未适配歌词'), findsOneWidget);
+    expect(find.text('暂无歌词'), findsNothing);
+  });
+
+  testWidgets('shows the source hint for a source without lyrics support', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(lyric: null, track: _localTrack));
+    await tester.pumpAndSettle();
+    expect(find.text('词莫见，敬聆听'), findsOneWidget);
+    expect(find.text('该音源暂未适配歌词'), findsOneWidget);
+    expect(find.text('暂无歌词'), findsNothing);
+  });
+
+  testWidgets('renders the current line and its translation in the preview', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        lyric: _lyric,
+        position: const Duration(seconds: 2),
+        body: const SizedBox(height: 120, child: LyricsPreview()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('First'), findsOneWidget);
+    expect(find.text('第一'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('lyric-current')),
+        matching: find.text('First'),
+      ),
+      findsOneWidget,
+    );
   });
 }

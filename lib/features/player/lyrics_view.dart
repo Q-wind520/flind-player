@@ -63,9 +63,11 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
   /// Scrolls [index] to the centre of the viewport once per index change.
   void _scheduleScroll(int index) {
     if (_lastIndex == index) return;
-    _lastIndex = index;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_controller.hasClients) return;
+      // Claim the index only once the scroll can actually run, so an attempt
+      // that bails (list not attached yet) is re-scheduled on the next build.
+      _lastIndex = index;
       final target = (index * _lineExtent) -
           (_controller.position.viewportDimension / 2) +
           (_lineExtent / 2);
@@ -220,10 +222,10 @@ class _LyricsPlaceholder extends ConsumerWidget {
 ///
 /// Fills its parent (typically the 5-line portrait slot) and scrolls instead
 /// of overflowing on very short viewports. With lyrics available it shows the
-/// line covering the playback position plus its translation; without them it
-/// falls back to the "词莫见，敬聆听" placeholder. Tapping it calls [onTap] to
-/// expand the lyrics pane. A plain [GestureDetector] keeps the strip free of
-/// hover/focus highlights.
+/// line covering the playback position (carrying the `lyric-current` key)
+/// plus its translation; without them it falls back to the "词莫见，敬聆听"
+/// placeholder. Tapping it calls [onTap] to expand the lyrics pane. A plain
+/// [GestureDetector] keeps the strip free of hover/focus highlights.
 class LyricsPreview extends ConsumerWidget {
   const LyricsPreview({super.key, this.onTap});
 
@@ -279,29 +281,33 @@ class LyricsPreview extends ConsumerWidget {
                               ),
                             ],
                           )
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                line.text,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: theme.colorScheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (line.translation != null)
+                        : Container(
+                            key: const ValueKey<String>('lyric-current'),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  line.translation!,
-                                  maxLines: 1,
+                                  line.text,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
+                                  style: theme.textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                 ),
-                            ],
+                                if (line.translation != null)
+                                  Text(
+                                    line.translation!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                   ),
                 ),
