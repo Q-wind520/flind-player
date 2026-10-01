@@ -158,3 +158,27 @@ lib/core/
 **身份与编解码**：`NeteaseTrackId(songId:)` → DB 列 `<songId>`、JSON `{kind: 'netease', songId}`、缓存键 `songId.toString()`；三处编解码已收敛到 `data/codec/source_track_id_codec.dart` 唯一实现。
 
 **注册表**：`onlineSourcesProvider` 是在线源的**唯一注册入口**（当前 `bilibili` + `netease`，按禁用集过滤）；`SearchScreen` 据其生成 `SegmentedButton<String>` 切源，搜索经 `onlineSearchProvider((sourceId, query))` 按源路由，流解析与歌词路由同样从注册表派生。
+
+---
+
+## 8. 已知问题：搜索列表缩略图不显示（待商榷）
+
+**状态**：未解决，2026-10-01 记录，留待后续商榷。
+
+**现象**：网易云搜索列表中曲目不显示封面缩略图（显示音符占位）；点击播放后 **mini 播放器能显示封面，但搜索列表项仍不显示**。
+
+**已确认的事实**：
+
+- 数据层无问题：实网搜索返回的 30 条结果**全部**带 `coverUrl`（来自 `/weapi/v3/song/detail` 的 `al.picUrl`），经 `normalizeNeteaseCoverUrl` 归一化为 `https` URL。
+- 图片 URL 可达，且与 UA 有关：对 `https://p1.music.126.net/...jpg`，**浏览器 UA → HTTP 200**，**Dart 默认 UA（`Dart/3.x (dart:io)`，即 `Image.network` 的默认）或无 UA → HTTP 403**。Bilibili 的 `i0.hdslb.com` 不拦 Dart UA。
+- 播放路径可用：点击播放走 `CoverService` → `CoverDownloader`（已带浏览器 UA + `Referer`）下载并落盘，队列 track 的 `coverPath` 被回写，故播放器/ mini 播放器显示的是本地缓存文件。
+
+**已尝试（本版未解决）**：给 `CoverImage` 的两处 `Image.network` 与 `cover_aspect_ratio_provider` 的 `NetworkImage` 统一加 `kCoverImageHeaders`（浏览器 UA）。理论上列表应能直取，但用户实测仍不显示。
+
+**下一步（商榷）**：
+
+1. 核实运行的是否为包含该改动的构建（hot restart / 重新编译）。
+2. 在 `CoverImage` 网络分支临时加 `loadingBuilder`/日志，确认：请求是否真的发出、返回码、是否 `errorBuilder` 被触发。
+3. **设计对齐候选**：搜索/曲库列表的封面是否应统一走 `CoverDownloader`（带 UA/Referer、内容寻址落盘、可复用缓存），而非直接 `Image.network`；若统一，可去掉对 `Image.network(headers:)` 的隐式依赖，列表与播放器取图路径一致。
+4. 确认是否还需 `Referer`/其它头；或检查 `ResizeImage(NetworkImage(...))` 缓存键与 `NetworkImage` 的一致性是否导致重复或未命中。
+5. 平台差异：确认桌面（Linux）/移动端是否表现不同。
