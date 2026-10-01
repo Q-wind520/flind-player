@@ -426,5 +426,17 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sourceNetease": "NetEase Cloud Music",
+  "errNeteaseApi": "NetEase API error (code {code})",
+  "@errNeteaseApi": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "searchSourcesTitle": "Search online music",
+  "searchSourcesHint": "Pick a source, type a keyword and press Enter to search and play",
+  "lyricsNotFound": "No lyrics"
 }

@@ -198,5 +198,15 @@
   "errDataFormat": "数据格式异常",
   "errGeneric": "操作失败，请重试",
   "errCacheFullManual": "缓存空间不足：手动下载已占用全部缓存额度",
-  "errCacheFullTrack": "缓存空间不足：单曲 {bytes} 字节超出可用额度"
+  "errCacheFullTrack": "缓存空间不足：单曲 {bytes} 字节超出可用额度",
+  "sourceNetease": "网易云",
+  "errNeteaseApi": "网易云接口错误（代码 {code}）",
+  "@errNeteaseApi": {
+    "placeholders": {
+      "code": { "type": "int" }
+    }
+  },
+  "searchSourcesTitle": "搜索在线音乐",
+  "searchSourcesHint": "选择音源，输入关键词后回车即可搜索并播放",
+  "lyricsNotFound": "暂无歌词"
 }

@@ -34,6 +34,9 @@ typedef Sleeper = Future<void> Function(Duration duration);
 /// * **Exponential backoff** — retryable [BiliApiException] codes (`-352`,
 ///   `-412`, `-509`, `-799`) are retried after `2s → 4s → 8s` (capped), never
 ///   immediately.
+///
+/// Other sources can reuse this limiter by injecting their own `isRetryable`
+/// predicate, which replaces the Bilibili code check entirely.
 class RateLimiter {
   /// Codes that trigger exponential backoff instead of surfacing immediately.
   static const Set<int> defaultRetryableCodes = <int>{-352, -412, -509, -799};
@@ -58,6 +61,7 @@ class RateLimiter {
 
   final Sleeper _sleep;
   final Random _random;
+  final bool Function(Object error)? _customIsRetryable;
 
   Future<void> _tail = Future<void>.value();
   int _requestCount = 0;
@@ -71,8 +75,10 @@ class RateLimiter {
     this.retryableCodes = defaultRetryableCodes,
     Sleeper? sleeper,
     Random? random,
+    bool Function(Object error)? isRetryable,
   }) : _sleep = sleeper ?? Future<void>.delayed,
-       _random = random ?? Random();
+       _random = random ?? Random(),
+       _customIsRetryable = isRetryable;
 
   /// Runs [action] under the limiter, returning its result.
   ///
@@ -97,14 +103,24 @@ class RateLimiter {
     while (true) {
       try {
         return await action();
-      } on BiliApiException catch (error) {
-        if (!retryableCodes.contains(error.code) || attempt >= maxRetries) {
+      } catch (error) {
+        if (!_isRetryable(error) || attempt >= maxRetries) {
           rethrow;
         }
         await _sleep(_backoffFor(attempt));
         attempt++;
       }
     }
+  }
+
+  /// Whether [error] is transient and worth retrying under backoff.
+  ///
+  /// A custom [isRetryable] predicate (when supplied) fully replaces the
+  /// default Bilibili rule so other sources can define their own retryables.
+  bool _isRetryable(Object error) {
+    final custom = _customIsRetryable;
+    if (custom != null) return custom(error);
+    return error is BiliApiException && retryableCodes.contains(error.code);
   }
 
   Duration _jitteredInterval() {

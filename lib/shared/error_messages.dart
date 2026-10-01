@@ -18,6 +18,7 @@ import 'dart:io';
 
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Maps an arbitrary [error] to a short, user-facing message in [l10n].
@@ -38,6 +39,11 @@ String describeError(AppLocalizations l10n, Object error) {
       -101 => l10n.errLoginRequired,
       _ => l10n.errBiliApi(error.code),
     };
+  }
+  if (error is NeteaseApiException) {
+    return error.code == -462
+        ? l10n.errLoginRequired
+        : l10n.errNeteaseApi(error.code);
   }
   if (error is CacheCapacityException) {
     final bytes = error.bytes;

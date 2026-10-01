@@ -24,9 +24,9 @@ import 'package:flind_player/core/sources/stream_resolver.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/audio_downloader.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
-import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/sources/composite_stream_resolver.dart';
 import 'package:flind_player/data/sources/local/local_stream_resolver.dart';
@@ -64,10 +64,15 @@ final audioCacheUsageProvider = FutureProvider<int>(
 /// [DownloadManager] must download the real network stream, so feeding it the
 /// cached resolver would make it download from its own cache file (and recurse).
 final innerStreamResolverProvider = Provider<StreamResolver>((ref) {
-  final biliSource = ref.watch(biliSourceProvider);
+  final sources = <String, StreamResolver>{};
+  for (final descriptor in ref.watch(onlineSourcesProvider)) {
+    if (descriptor.source is StreamResolver) {
+      sources[descriptor.id] = descriptor.source as StreamResolver;
+    }
+  }
   return CompositeStreamResolver(
     localResolver: const LocalStreamResolver(),
-    sources: <String, StreamResolver>{biliSource.id: biliSource},
+    sources: sources,
   );
 });
 

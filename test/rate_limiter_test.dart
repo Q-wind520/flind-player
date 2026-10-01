@@ -196,4 +196,46 @@ void main() {
       ]);
     });
   });
+
+  group('RateLimiter custom retry predicate', () {
+    test('retries when the injected predicate matches', () async {
+      final delays = <Duration>[];
+      final limiter = RateLimiter(
+        minInterval: Duration.zero,
+        maxInterval: Duration.zero,
+        isRetryable: (error) => error is StateError,
+        sleeper: (d) async => delays.add(d),
+      );
+
+      var calls = 0;
+      final result = await limiter.run(() async {
+        calls++;
+        if (calls < 2) throw StateError('transient');
+        return 'ok';
+      });
+
+      expect(result, 'ok');
+      expect(calls, 2);
+      expect(delays, <Duration>[const Duration(seconds: 2)]);
+    });
+
+    test('default behavior still retries bilibili codes', () async {
+      final delays = <Duration>[];
+      final limiter = RateLimiter(
+        minInterval: Duration.zero,
+        maxInterval: Duration.zero,
+        sleeper: (d) async => delays.add(d),
+      );
+
+      var calls = 0;
+      await limiter.run(() async {
+        calls++;
+        if (calls < 2) throw const BiliApiException(-509, 'rate');
+        return 'ok';
+      });
+
+      expect(calls, 2);
+      expect(delays, <Duration>[const Duration(seconds: 2)]);
+    });
+  });
 }

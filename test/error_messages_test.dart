@@ -19,6 +19,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/shared/error_messages.dart';
 
 import 'support/l10n.dart';
@@ -48,6 +49,22 @@ void main() {
     test('an unknown code is included in a readable sentence', () {
       final message = describeError(l10n, const BiliApiException(-999, 'boom'));
       expect(message, contains('-999'));
+      expect(message, isNot(contains('boom')));
+    });
+  });
+
+  group('describeError: NetEase codes', () {
+    test('-462 maps to the login hint', () {
+      expect(
+        describeError(l10n, const NeteaseApiException(-462, 'login required')),
+        '需要登录',
+      );
+    });
+
+    test('an unknown code is included in a readable sentence', () {
+      final message = describeError(l10n, const NeteaseApiException(-1, 'boom'));
+      expect(message, l10n.errNeteaseApi(-1));
+      expect(message, contains('-1'));
       expect(message, isNot(contains('boom')));
     });
   });
