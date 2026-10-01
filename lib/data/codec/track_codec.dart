@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/codec/source_track_id_codec.dart';
 
 /// JSON codec for the domain [Track].
 ///
@@ -32,7 +32,7 @@ Map<String, dynamic> encodeTrack(Track track) {
   return <String, dynamic>{
     'id': track.id,
     'source': track.source,
-    'sourceTrackId': _encodeSourceTrackId(track.sourceTrackId),
+    'sourceTrackId': encodeSourceTrackIdJson(track.sourceTrackId),
     'uri': track.uri,
     'title': track.title,
     'artist': track.artist,
@@ -58,7 +58,7 @@ Track decodeTrack(Map<String, dynamic> json) {
   return Track(
     id: _asIntOrNull(json['id']),
     source: _asString(json['source'], 'source'),
-    sourceTrackId: _decodeSourceTrackId(json['sourceTrackId']),
+    sourceTrackId: decodeSourceTrackIdJson(json['sourceTrackId']),
     uri: _asString(json['uri'], 'uri'),
     title: _asString(json['title'], 'title'),
     artist: _asStringOrNull(json['artist'], 'artist'),
@@ -91,50 +91,6 @@ List<Track> decodeTracks(List<dynamic> json) {
         return decodeTrack(Map<String, dynamic>.from(entry));
       })
       .toList(growable: false);
-}
-
-Map<String, dynamic> _encodeSourceTrackId(SourceTrackId id) {
-  return switch (id) {
-    LocalTrackId(:final path) => <String, dynamic>{
-      'kind': 'local',
-      'path': path,
-    },
-    BiliTrackId(:final bvid, :final cid) => <String, dynamic>{
-      'kind': 'bili',
-      'bvid': bvid,
-      'cid': cid,
-    },
-  };
-}
-
-SourceTrackId _decodeSourceTrackId(Object? value) {
-  if (value is! Map) {
-    throw FormatException('Track.sourceTrackId must be an object, got: $value');
-  }
-
-  final kind = value['kind'];
-  switch (kind) {
-    case 'local':
-      final path = value['path'];
-      if (path is! String) {
-        throw FormatException(
-          'Local SourceTrackId.path must be a string, got: $path',
-        );
-      }
-      return LocalTrackId(path);
-    case 'bili':
-      final bvid = value['bvid'];
-      final cid = value['cid'];
-      if (bvid is! String || cid is! int) {
-        throw FormatException(
-          'Bili SourceTrackId requires a string bvid and int cid, '
-          'got: bvid=$bvid, cid=$cid',
-        );
-      }
-      return BiliTrackId(bvid: bvid, cid: cid);
-    default:
-      throw FormatException('Unknown SourceTrackId kind: $kind');
-  }
 }
 
 String _asString(Object? value, String field) {

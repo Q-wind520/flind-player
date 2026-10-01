@@ -24,5 +24,6 @@ String cacheSourceTrackId(Track track) {
   final id = track.sourceTrackId;
   if (id is BiliTrackId) return '${id.bvid}:${id.cid}';
   if (id is LocalTrackId) return id.path;
+  if (id is NeteaseTrackId) return id.songId.toString();
   return id.toString();
 }

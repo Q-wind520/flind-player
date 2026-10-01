@@ -60,3 +60,22 @@ final class BiliTrackId extends SourceTrackId {
   @override
   String toString() => 'BiliTrackId($bvid, cid: $cid)';
 }
+
+/// Identity of a NetEase Cloud Music track.
+final class NeteaseTrackId extends SourceTrackId {
+  /// NetEase song id; unique within the `netease` source.
+  final int songId;
+
+  const NeteaseTrackId({required this.songId});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NeteaseTrackId && other.songId == songId;
+
+  @override
+  int get hashCode => Object.hash(runtimeType, songId);
+
+  @override
+  String toString() => 'NeteaseTrackId($songId)';
+}

@@ -18,7 +18,7 @@ import 'package:drift/drift.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
-import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/codec/source_track_id_codec.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
@@ -390,7 +390,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
     return Track(
       id: row.id,
       source: row.source,
-      sourceTrackId: _decodeSourceTrackId(
+      sourceTrackId: decodeSourceTrackId(
         row.source,
         row.sourceTrackId,
         row.uri,
@@ -422,7 +422,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
   }) {
     return TracksCompanion(
       source: Value(track.source),
-      sourceTrackId: Value(_encodeSourceTrackId(track.sourceTrackId)),
+      sourceTrackId: Value(encodeSourceTrackId(track.sourceTrackId)),
       uri: Value(track.uri),
       title: Value(track.title),
       artist: Value(track.artist),
@@ -446,33 +446,4 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
       updatedAt: Value(updatedAt),
     );
   }
-}
-
-String _encodeSourceTrackId(SourceTrackId id) {
-  return switch (id) {
-    LocalTrackId(:final path) => path,
-    BiliTrackId(:final bvid, :final cid) => '$bvid:$cid',
-  };
-}
-
-/// Rebuilds the domain [SourceTrackId] from the persisted columns.
-///
-/// `local` rows store the absolute path in `sourceTrackId`; `bilibili` rows
-/// store `<bvid>:<cid>`. Any other source, or a malformed bilibili value, falls
-/// back to a local identity keyed by the canonical [uri] so the row stays
-/// usable.
-SourceTrackId _decodeSourceTrackId(String source, String raw, String uri) {
-  if (source == 'local') {
-    return LocalTrackId(raw);
-  }
-  if (source == 'bilibili') {
-    final separator = raw.lastIndexOf(':');
-    if (separator > 0) {
-      final cid = int.tryParse(raw.substring(separator + 1));
-      if (cid != null) {
-        return BiliTrackId(bvid: raw.substring(0, separator), cid: cid);
-      }
-    }
-  }
-  return LocalTrackId(uri);
 }

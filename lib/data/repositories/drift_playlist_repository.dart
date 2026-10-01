@@ -18,7 +18,7 @@ import 'package:drift/drift.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
-import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/codec/source_track_id_codec.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
 import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
@@ -281,7 +281,7 @@ LIMIT 1
     return Track(
       id: missingAt == null ? poolId : null,
       source: source,
-      sourceTrackId: _decodeSourceTrackId(source, sourceTrackId, uri),
+      sourceTrackId: decodeSourceTrackId(source, sourceTrackId, uri),
       uri: uri,
       title: row.read<String>('title'),
       artist: row.read<String?>('artist'),
@@ -291,22 +291,4 @@ LIMIT 1
       coverUrl: row.read<String?>('cover_url'),
     );
   }
-}
-
-/// Rebuilds the domain [SourceTrackId] from the persisted columns, mirroring
-/// the music library's `local` path / `bilibili` `bvid:cid` convention.
-SourceTrackId _decodeSourceTrackId(String source, String raw, String uri) {
-  if (source == 'local') {
-    return LocalTrackId(raw);
-  }
-  if (source == 'bilibili') {
-    final separator = raw.lastIndexOf(':');
-    if (separator > 0) {
-      final cid = int.tryParse(raw.substring(separator + 1));
-      if (cid != null) {
-        return BiliTrackId(bvid: raw.substring(0, separator), cid: cid);
-      }
-    }
-  }
-  return LocalTrackId(uri);
 }

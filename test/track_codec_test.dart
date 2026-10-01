@@ -197,6 +197,26 @@ void main() {
       expect(decodeTrack(json).coverUrl, isNull);
     });
 
+    test('round-trips a netease track and tags its sourceTrackId', () {
+      const track = Track(
+        id: 9,
+        source: 'netease',
+        sourceTrackId: NeteaseTrackId(songId: 550136151),
+        uri: 'netease:550136151',
+        title: 'It\'s Ok',
+        artist: 'Artist',
+        album: 'Album',
+      );
+
+      final json = encodeTrack(track);
+      expect(json['sourceTrackId'], {'kind': 'netease', 'songId': 550136151});
+      expect(decodeTrack(json), track);
+      expect(
+        decodeTrack(json).sourceTrackId,
+        const NeteaseTrackId(songId: 550136151),
+      );
+    });
+
     test('throws FormatException for an unknown sourceTrackId kind', () {
       final json = encodeTrack(
         const Track(
