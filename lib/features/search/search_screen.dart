@@ -19,9 +19,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
-import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/app_surface.dart';
@@ -31,10 +31,12 @@ import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/responsive_center.dart';
 
-/// Bilibili search: submit a keyword, browse the results, tap one to play.
+/// Online music search across the registered sources: pick a source, submit a
+/// keyword, browse the results, tap one to play.
 ///
 /// The query is only committed on submit (never per keystroke): the search
-/// endpoint is hard rate-limited and would answer `-412` on a keystroke storm.
+/// endpoints are hard rate-limited and would answer `-412` on a keystroke
+/// storm.
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -45,6 +47,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   String _submittedQuery = '';
+  String? _selectedSourceId;
 
   @override
   void dispose() {
@@ -99,6 +102,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final sources = ref.watch(onlineSourcesProvider);
+    final selectedId = sources.any((d) => d.id == _selectedSourceId)
+        ? _selectedSourceId!
+        : (sources.isEmpty ? '' : sources.first.id);
     return PlaybackPermissionScope(
       child: Scaffold(
         backgroundColor: AppSurface.colorOf(context),
@@ -131,7 +138,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   },
                 ),
               ),
-              Expanded(child: _buildBody()),
+              if (sources.length > 1)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: SegmentedButton<String>(
+                    showSelectedIcon: false,
+                    segments: <ButtonSegment<String>>[
+                      for (final descriptor in sources)
+                        ButtonSegment<String>(
+                          value: descriptor.id,
+                          label: Text(_sourceLabel(l10n, descriptor.id)),
+                        ),
+                    ],
+                    selected: <String>{selectedId},
+                    onSelectionChanged: (selection) {
+                      setState(() => _selectedSourceId = selection.first);
+                    },
+                  ),
+                ),
+              Expanded(child: _buildBody(selectedId)),
             ],
           ),
         ),
@@ -139,12 +164,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(String sourceId) {
     if (_submittedQuery.isEmpty) {
       return const _SearchHint();
     }
 
-    final resultsAsync = ref.watch(biliSearchResultsProvider(_submittedQuery));
+    final resultsAsync = ref.watch(
+      onlineSearchProvider((sourceId, _submittedQuery)),
+    );
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
@@ -153,8 +180,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _SearchError(
         error: error,
-        onRetry: () =>
-            ref.invalidate(biliSearchResultsProvider(_submittedQuery)),
+        onRetry: () => ref.invalidate(
+          onlineSearchProvider((sourceId, _submittedQuery)),
+        ),
       ),
       data: (tracks) {
         if (tracks.isEmpty) {
@@ -291,10 +319,10 @@ class _SearchHint extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text(l10n.searchBiliTitle, style: theme.textTheme.titleMedium),
+            Text(l10n.searchSourcesTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              l10n.searchBiliHint,
+              l10n.searchSourcesHint,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -387,3 +415,10 @@ class _SearchError extends StatelessWidget {
     );
   }
 }
+
+/// Localised label for a source id, falling back to the raw id.
+String _sourceLabel(AppLocalizations l10n, String id) => switch (id) {
+  'bilibili' => l10n.sourceBilibili,
+  'netease' => l10n.sourceNetease,
+  _ => id,
+};

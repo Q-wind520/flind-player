@@ -37,6 +37,7 @@ import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
@@ -46,11 +47,11 @@ import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
-import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 
+import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
 import 'support/l10n.dart';
 
@@ -369,7 +370,8 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favorites),
       favoritesProvider.overrideWith((ref) => Stream.value(const <Track>[])),
       // Search.
-      biliSearchResultsProvider.overrideWith((ref, query) async => tracks),
+      onlineSourcesProvider.overrideWithValue(fakeSourceRegistry()),
+      onlineSearchProvider.overrideWith((ref, key) async => tracks),
       // Remote playlists.
       remotePlaylistSourceProvider.overrideWithValue(
         remoteSource ?? _FakeRemotePlaylistSource(),

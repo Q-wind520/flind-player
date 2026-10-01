@@ -26,12 +26,13 @@ import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
+import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
-import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
-import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 
+import 'support/fake_music_source.dart';
 import 'support/l10n.dart';
 
 Track _track(String title, {String? artist, Duration? duration}) {
@@ -110,10 +111,11 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
   }
 }
 
-/// Pumps [SearchScreen] with the search family, playback state and
-/// favourites providers overridden.
+/// Pumps [SearchScreen] with the source registry, search family, playback
+/// state and favourites providers overridden.
 ///
-/// Overriding [biliSearchResultsProvider] keeps the test offline; overriding
+/// Overriding [onlineSourcesProvider] with [fakeSourceRegistry] and
+/// [onlineSearchProvider] keeps the test offline; overriding
 /// [playbackStateProvider] prevents the real just_audio-backed controller from
 /// being constructed (the screen watches it to highlight the playing row).
 Widget _app({
@@ -122,7 +124,10 @@ Widget _app({
   final favRepo = _InMemoryFavoritesRepository();
   return ProviderScope(
     overrides: [
-      biliSearchResultsProvider.overrideWith(search),
+      onlineSourcesProvider.overrideWithValue(fakeSourceRegistry()),
+      onlineSearchProvider.overrideWith(
+        (ref, key) async => await search(ref, key.$2),
+      ),
       playbackStateProvider.overrideWith(
         (ref) => Stream.value(PlaybackState.idle),
       ),
@@ -160,7 +165,7 @@ void main() {
       ),
     );
 
-    expect(find.text('搜索 Bilibili 上的音乐'), findsOneWidget);
+    expect(find.text('搜索在线音乐'), findsOneWidget);
     // The former AppBar (and its title) is gone; the field lives in the body.
     expect(find.byType(AppBar), findsNothing);
 
@@ -198,21 +203,29 @@ void main() {
     expect(find.textContaining('网络错误'), findsOneWidget);
   });
 
-  testWidgets('shows a rate-limit hint for Bilibili error -412', (
-    tester,
-  ) async {
+  testWidgets('shows a login hint for a NetEase -462 error', (tester) async {
     await tester.pumpWidget(
       _app(
-        search: (ref, query) => Future<List<Track>>.error(
-          const BiliApiException(-412, 'Bilibili blocked this IP (code: -412)'),
-        ),
+        search: (ref, query) =>
+            Future<List<Track>>.error(const NeteaseApiException(-462, 'x')),
       ),
     );
-
     await _submitQuery(tester, '周杰伦');
+    // `describeError` maps `NeteaseApiException(-462)` to `errLoginRequired`,
+    // whose zh copy is 需要登录.
+    expect(find.text('需要登录'), findsOneWidget);
+  });
 
-    expect(find.text('请求过于频繁，请稍后再试'), findsOneWidget);
-    expect(find.textContaining('-412'), findsNothing);
+  testWidgets('switches source and shows that source results', (tester) async {
+    await tester.pumpWidget(
+      _app(search: (ref, query) async => <Track>[_track('Only $query')]),
+    );
+    await _submitQuery(tester, 'A');
+    expect(find.text('Only A'), findsOneWidget);
+
+    await tester.tap(find.text('网易云'));
+    await tester.pumpAndSettle();
+    expect(find.text('Only A'), findsOneWidget, reason: 'cached per (source, query)');
   });
 
   testWidgets('does not overflow at 400 px width', (tester) async {

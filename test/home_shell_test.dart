@@ -34,6 +34,7 @@ import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
@@ -41,9 +42,9 @@ import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
-import 'package:flind_player/features/search/search_providers.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 
+import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
 import 'support/l10n.dart';
 
@@ -241,7 +242,8 @@ Widget _app({PlaybackState playback = PlaybackState.idle}) {
       audioCacheEntryProvider.overrideWith((ref, track) async => null),
       // Search (not used initially, but overrides needed if the search
       // screen is pumped).
-      biliSearchResultsProvider.overrideWith((ref, query) async => <Track>[]),
+      onlineSourcesProvider.overrideWithValue(fakeSourceRegistry()),
+      onlineSearchProvider.overrideWith((ref, key) async => <Track>[]),
       // Settings.
       settingsRepositoryProvider.overrideWith((ref) => settings),
       audioCacheStoreProvider.overrideWith((ref) => store),
@@ -346,7 +348,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Default is 首页 (SearchScreen) which shows the search hint.
-    expect(find.text('搜索 Bilibili 上的音乐'), findsOneWidget);
+    expect(find.text('搜索在线音乐'), findsOneWidget);
 
     // The unselected label is hidden, so tap the destination's icon instead.
     await tester.tap(find.byIcon(Icons.library_music_outlined));
