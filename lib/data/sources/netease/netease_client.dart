@@ -22,9 +22,14 @@ import 'package:flind_player/data/sources/netease/netease_crypto.dart';
 const String kNeteaseReferer = 'https://music.163.com';
 
 /// Anonymous client cookies required by the `eapi` endpoints.
+///
+/// Matches the placeholder set of `docs/spec-netease-source-2026-10-01.md`
+/// §6.2: `os=pc` plus `appver`, `deviceId`, `versioncode`, `mobilename`,
+/// `buildver`, `resolution`, `__csrf`, `channel` and `requestId`.
 const String _anonCookie =
-    'os=pc; appver=8.0.0; versioncode=140; mobilename=undefined; '
-    'buildver=1623435496; resolution=1920x1080; __csrf=; channel=undefined';
+    'os=pc; appver=8.0.0; deviceId=; versioncode=140; mobilename=undefined; '
+    'buildver=1623435496; resolution=1920x1080; __csrf=; channel=undefined; '
+    'requestId=';
 
 /// Thrown when the API answers HTTP 200 with a non-200 JSON `code`.
 class NeteaseApiException implements Exception {
@@ -116,7 +121,12 @@ class NeteaseClient {
       );
     }
     final json = Map<String, dynamic>.from(data);
-    final code = (json['code'] as num?)?.toInt() ?? 200;
+    final rawCode = json['code'];
+    final parsedCode = rawCode is num ? rawCode.toInt() : num.tryParse('$rawCode')?.toInt();
+    final code = rawCode == null ? 200 : parsedCode;
+    if (code == null) {
+      throw NeteaseApiException(-1, 'Unexpected code value "$rawCode" for $path');
+    }
     if (code != 200) {
       final message = json['message'];
       final msg = json['msg'];

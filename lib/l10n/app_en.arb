@@ -149,8 +149,6 @@
   "notPlaying": "Not playing",
   "notPlayingHint": "Pick a song in your library to start playing",
   "searchHint": "Search songs, creators",
-  "searchBiliTitle": "Search music on Bilibili",
-  "searchBiliHint": "Type a keyword and press Enter to search and play Bilibili audio",
   "noResults": "No results",
   "upUid": "Creator UID",
   "browsePublicFavorites": "Browse public favorites",

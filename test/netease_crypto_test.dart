@@ -80,6 +80,11 @@ void main() {
 
     test('round-trips an empty body across a PKCS7 block boundary', () {
       final params = NeteaseCrypto.eapi('/api/test', <String, dynamic>{}, <String, String>{});
+
+      // 82 plaintext bytes = 5 full AES blocks + 2 bytes, so PKCS7 grows the
+      // last partial block into a full pad block: 96 bytes -> 192 hex chars.
+      expect(params, hasLength(192));
+
       final bytes = Uint8List.fromList(
         RegExp(r'.{2}').allMatches(params).map((m) => int.parse(m.group(0)!, radix: 16)).toList(),
       );

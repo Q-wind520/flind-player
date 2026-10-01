@@ -14,16 +14,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flind_player/core/models/track.dart';
-import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/codec/source_track_id_codec.dart';
 
 /// Canonical `audio_cache.source_track_id` value for [track].
 ///
-/// `bvid:cid` for Bilibili and the absolute path for local files. The download
-/// manager and the cache-first resolver must agree on this key or lookups miss.
-String cacheSourceTrackId(Track track) {
-  final id = track.sourceTrackId;
-  if (id is BiliTrackId) return '${id.bvid}:${id.cid}';
-  if (id is LocalTrackId) return id.path;
-  if (id is NeteaseTrackId) return id.songId.toString();
-  return id.toString();
-}
+/// Delegates to the shared codec, so the key is the absolute path for `local`
+/// tracks, `bvid:cid` for Bilibili and the song id string for NetEase. The
+/// download manager and the cache-first resolver must agree on this key or
+/// lookups miss.
+String cacheSourceTrackId(Track track) => encodeSourceTrackId(track.sourceTrackId);

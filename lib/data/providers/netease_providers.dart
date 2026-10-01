@@ -30,16 +30,17 @@ final neteaseClientProvider = Provider<NeteaseClient>((ref) => NeteaseClient());
 /// Pacers NetEase requests (search, stream URL, lyrics).
 ///
 /// NetEase is less hostile than Bilibili: a short jittered interval and retries
-/// on transient failures; a login-required response is surfaced immediately.
+/// on transient transport failures only. API errors ([NeteaseApiException]),
+/// including login-required (`-462`), and cancelled requests surface
+/// immediately instead of being retried.
 final neteaseRateLimiterProvider = Provider<RateLimiter>((ref) {
   return RateLimiter(
     minInterval: const Duration(milliseconds: 300),
     maxInterval: const Duration(seconds: 1),
     isRetryable: (error) =>
-        error is NeteaseApiException && error.code != -462 ||
         error is SocketException ||
         error is TimeoutException ||
-        error is DioException,
+        (error is DioException && error.type != DioExceptionType.cancel),
   );
 });
 

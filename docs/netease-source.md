@@ -90,11 +90,12 @@ Referer:         https://music.163.com        （kNeteaseReferer，API 与 CDN �
 Accept:          application/json, text/plain, */*
 Accept-Language: zh-CN,zh;q=0.9,en;q=0.8
 Origin:          绝不发送（headers 显式 remove）
-Cookie (eapi):   os=pc; appver=8.0.0; versioncode=140; mobilename=undefined;
-                 buildver=…; resolution=1920x1080; __csrf=; channel=undefined
+Cookie (eapi):   os=pc; appver=8.0.0; deviceId=; versioncode=140;
+                 mobilename=undefined; buildver=…; resolution=1920x1080;
+                 __csrf=; channel=undefined; requestId=
 ```
 
-- **`os=pc` 是 eapi 的硬性要求**：匿名 eapi 必须带，另补空占位 `appver` / `versioncode` / `mobilename` / `buildver` / `resolution` / `__csrf` / `channel`（参照 `yt-dlp` 匿名样本），否则可能被降级或拒绝。
+- **`os=pc` 是 eapi 的硬性要求**：匿名 eapi 必须带，另补占位 `appver` / `deviceId` / `versioncode` / `mobilename` / `buildver` / `resolution` / `__csrf` / `channel` / `requestId`（其中 `deviceId`、`requestId` 为空占位，参照 `yt-dlp` 匿名样本），否则可能被降级或拒绝。
 - **禁 `Origin`**：与 Bilibili 客户端同一纪律——第三方 Origin 会被 WAF 拦截。
 - 非 JSON 响应或 `code != 200` 抛 `NeteaseApiException`（类型化，含 `code` / `message`，`toString` 仿 `BiliApiException`）；`-462` 归为「需登录」，UI 走 `errLoginRequired`，其余走 `errNeteaseApi(code)`。
 

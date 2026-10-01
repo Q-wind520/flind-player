@@ -46,6 +46,7 @@ void main() {
       );
     }
     final atTen = lyric.indexAt(const Duration(milliseconds: 10));
+    expect(atTen, isNotNull);
     expect(lyric.lines[atTen!].timestamp, const Duration(milliseconds: 5));
   });
 

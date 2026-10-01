@@ -78,8 +78,6 @@
   "notPlaying": "未在播放",
   "notPlayingHint": "在音乐库中选择一首歌开始播放",
   "searchHint": "搜索歌曲、UP主",
-  "searchBiliTitle": "搜索 Bilibili 上的音乐",
-  "searchBiliHint": "输入关键词后回车，即可搜索并播放 Bilibili 音频",
   "noResults": "没有找到结果",
   "upUid": "UP 主 UID",
   "browsePublicFavorites": "浏览公开收藏夹",

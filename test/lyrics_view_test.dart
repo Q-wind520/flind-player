@@ -80,11 +80,21 @@ void main() {
 
     expect(find.text('First'), findsOneWidget);
     expect(find.text('第一'), findsOneWidget);
-    final current = tester.widget<Container>(
-      find.byKey(const ValueKey<String>('lyric-current')),
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('lyric-current')),
+        matching: find.text('First'),
+      ),
+      findsOneWidget,
     );
-    expect(current, isNotNull);
-    expect(find.text('First'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('lyric-current')),
+        matching: find.text('Second'),
+      ),
+      findsNothing,
+      reason: 'a non-current line must not sit under the lyric-current container',
+    );
   });
 
   testWidgets('advances the highlight with the position', (tester) async {

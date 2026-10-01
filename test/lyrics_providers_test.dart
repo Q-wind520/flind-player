@@ -48,6 +48,14 @@ class _LyricsSource implements MusicSource, LyricsProvider {
   Future<Lyric?> lyricsFor(Track track) async => result;
 }
 
+class _ThrowingLyricsSource extends _LyricsSource {
+  _ThrowingLyricsSource(String id) : super(id, null);
+
+  @override
+  Future<Lyric?> lyricsFor(Track track) async =>
+      throw StateError('lyrics fetch failed');
+}
+
 class _PlainSource implements MusicSource {
   _PlainSource(this.id);
   @override
@@ -90,6 +98,19 @@ void main() {
       overrides: [
         onlineSourcesProvider.overrideWithValue(<SourceDescriptor>[
           SourceDescriptor(id: 'bilibili', source: _PlainSource('bilibili')),
+        ]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(await container.read(trackLyricsProvider(_track).future), isNull);
+  });
+
+  test('resolves to null when the lyrics provider throws', () async {
+    final container = ProviderContainer(
+      overrides: [
+        onlineSourcesProvider.overrideWithValue(<SourceDescriptor>[
+          SourceDescriptor(id: 'netease', source: _ThrowingLyricsSource('netease')),
         ]),
       ],
     );

@@ -79,6 +79,8 @@ void main() {
     expect(request.uri.path, '/eapi/song/enhance/player/url/v1');
     expect(request.headers['Referer'], kNeteaseReferer);
     expect(request.headers['Cookie'], contains('os=pc'));
+    expect(request.headers['Cookie'], contains('deviceId='));
+    expect(request.headers['Cookie'], contains('requestId='));
     expect(request.headers.containsKey('Origin'), isFalse);
     expect(request.contentType ?? '', contains('form-urlencoded'));
 
@@ -107,6 +109,20 @@ void main() {
     expect(
       () => _client(adapter).postWeapi('/weapi/x', <String, dynamic>{}),
       throwsA(isA<NeteaseApiException>()),
+    );
+  });
+
+  test('parses a numeric-string code and rejects an unreadable one', () async {
+    final stringCode = _FakeAdapter((_) async => _json(<String, dynamic>{'code': '-462'}));
+    await expectLater(
+      () => _client(stringCode).postWeapi('/weapi/x', <String, dynamic>{}),
+      throwsA(isA<NeteaseApiException>().having((e) => e.code, 'code', -462)),
+    );
+
+    final garbageCode = _FakeAdapter((_) async => _json(<String, dynamic>{'code': 'weird'}));
+    await expectLater(
+      () => _client(garbageCode).postWeapi('/weapi/x', <String, dynamic>{}),
+      throwsA(isA<NeteaseApiException>().having((e) => e.code, 'code', -1)),
     );
   });
 }

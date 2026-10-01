@@ -24,19 +24,20 @@ import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 /// passes.
 typedef Sleeper = Future<void> Function(Duration duration);
 
-/// Serializes and paces Bilibili requests.
+/// Serializes and paces requests for a single source.
 ///
 /// * **Single-flight** — at most one action is in flight at a time; callers are
 ///   queued behind each other.
 /// * **Minimum interval** — every action after the first waits a jittered
 ///   `minInterval..maxInterval` before running (default 1–3 s, matching the
 ///   search pacing in `docs/bilibili-source.md` §6).
-/// * **Exponential backoff** — retryable [BiliApiException] codes (`-352`,
-///   `-412`, `-509`, `-799`) are retried after `2s → 4s → 8s` (capped), never
-///   immediately.
+/// * **Exponential backoff** — retryable failures are retried after
+///   `2s → 4s → 8s` (capped), never immediately.
 ///
-/// Other sources can reuse this limiter by injecting their own `isRetryable`
-/// predicate, which replaces the Bilibili code check entirely.
+/// The class itself is source-agnostic. Bilibili was the first client, so the
+/// default retry rule checks [BiliApiException] codes (`-352`, `-412`, `-509`,
+/// `-799`); any other source replaces that rule entirely by injecting its own
+/// `isRetryable` predicate.
 class RateLimiter {
   /// Codes that trigger exponential backoff instead of surfacing immediately.
   static const Set<int> defaultRetryableCodes = <int>{-352, -412, -509, -799};

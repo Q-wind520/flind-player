@@ -31,7 +31,7 @@ abstract final class NeteaseCrypto {
   static const String _base62 =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-  static final List<int> _iv = utf8.encode('0102030405060708');
+  static final Uint8List _iv = Uint8List.fromList(utf8.encode('0102030405060708'));
   static final BigInt _rsaModulus = BigInt.parse(
     '00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b72515'
     '2b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ec'
