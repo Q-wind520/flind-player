@@ -131,4 +131,67 @@ void main() {
     expect(source.capabilities.supports(SourceCapability.streamDirect), isTrue);
     expect(source.capabilities.supports(SourceCapability.login), isFalse);
   });
+
+  test('fetchTrack rejects a foreign SourceTrackId with ArgumentError', () async {
+    final source = NeteaseSource(api: _FakeApi(songs: const <NeteaseSongDto>[_song]));
+    await expectLater(
+      source.fetchTrack(const BiliTrackId(bvid: 'BV1', cid: 1)),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
+
+  test('fetchTrack throws StateError when the API returns no song', () async {
+    final source = NeteaseSource(api: _FakeApi());
+    await expectLater(
+      source.fetchTrack(const NeteaseTrackId(songId: 42)),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('resolveStream rejects a foreign id with UnsupportedError', () async {
+    final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto(url: 'https://x')));
+    await expectLater(
+      source.resolveStream(
+        const Track(
+          source: 'bilibili',
+          sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 1),
+          uri: 'bilibili:BV1:1',
+          title: 'T',
+        ),
+      ),
+      throwsA(isA<UnsupportedError>()),
+    );
+  });
+
+  test('resolveStream throws StateError when the DTO url is empty', () async {
+    final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto(url: '')));
+    await expectLater(
+      source.resolveStream(
+        const Track(
+          source: 'netease',
+          sourceTrackId: NeteaseTrackId(songId: 42),
+          uri: 'netease:42',
+          title: 'T',
+        ),
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('lyricsFor returns null for a foreign id', () async {
+    final source = NeteaseSource(
+      api: _FakeApi(lyric: const NeteaseLyricDto(lrc: '[00:01.00]原文')),
+    );
+    expect(
+      await source.lyricsFor(
+        const Track(
+          source: 'bilibili',
+          sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 1),
+          uri: 'bilibili:BV1:1',
+          title: 'T',
+        ),
+      ),
+      isNull,
+    );
+  });
 }

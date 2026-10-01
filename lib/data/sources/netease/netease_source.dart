@@ -17,7 +17,6 @@
 // is reachable only through `MusicSource`/`StreamResolver`/`LyricsProvider`
 // interfaces so a feature flag can drop it without touching the rest of the app.
 
-import 'package:flind_player/core/models/lyric.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/lrc_parser.dart';
 import 'package:flind_player/core/services/lyrics_provider.dart';
@@ -32,7 +31,8 @@ import 'package:flind_player/data/sources/netease/netease_mappers.dart';
 class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
   final NeteaseApi _api;
 
-  NeteaseSource({required NeteaseApi api}) : _api = api;
+  NeteaseSource({required NeteaseApi api})
+    : _api = api; // ignore: prefer_initializing_formals
 
   @override
   String get id => neteaseSourceId;
@@ -69,7 +69,7 @@ class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
     final id = track.sourceTrackId;
     if (id is! NeteaseTrackId) {
       throw UnsupportedError(
-        'NeteaseSource cannot resolve a ${track.sourceTrackId.runtimeType} track',
+        'NeteaseSource cannot resolve a ${id.runtimeType} track',
       );
     }
     final dto = await _api.songUrl(id.songId);
