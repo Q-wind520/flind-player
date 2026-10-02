@@ -268,11 +268,9 @@ class LocalLibraryScanner {
     final seenUris = <String>{};
     final knownMap = known ?? const <String, FileFingerprint>{};
 
-    // TODO(android-m2): Android does not use directory walking. It queries
-    // MediaStore (docs/local-library.md §2.1) through a thin MediaStoreAdapter
-    // and feeds the same candidate list into the extraction pool. Discovery is
-    // deliberately isolated here so that platform seam can be added without
-    // touching extraction.
+    // TODO(android-1.1): Android 本地曲库延后（见 docs/local-library.md §2.1 与
+    // docs/spec-1.0-hardening-2026-10-02.md D1）。1.1 起接入 MediaStore 适配器，
+    // 并把候选文件喂给同一抽取池；此处隔离的发现层即为该平台接缝预留。
     for (final root in roots) {
       final directory = Directory(root);
       if (!directory.existsSync()) {

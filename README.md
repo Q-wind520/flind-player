@@ -41,7 +41,7 @@
     </td>
     <td width="50%" valign="top">
       <h4>🔌 深度系统集成</h4>
-      <p>Android 通知栏 / 锁屏媒体控制、Linux MPRIS²、Windows SMTC、macOS/iOS Now Playing 统一由 <code>audio_service</code> 承载；桌面端托盘 + 关闭到托盘。</p>
+      <p>Android 通知栏 / 锁屏媒体控制、Linux MPRIS²、macOS/iOS Now Playing 统一由 <code>audio_service</code> 承载（Windows 暂未接入 OS 媒体控制）；桌面端托盘 + 关闭到托盘。</p>
     </td>
   </tr>
   <tr>
@@ -304,7 +304,7 @@ git push origin v1.0.0
         <li>Bilibili 在线音源（WBI 直连播放）</li>
         <li>网易云音乐在线音源（匿名搜索 / 播放 / 歌词）</li>
         <li>离线缓存（1 GiB 默认 · LRU · pinned）</li>
-        <li>系统集成（通知栏 / MPRIS / SMTC / 托盘）</li>
+        <li>系统集成（Android 通知栏 / Linux MPRIS / Apple Now Playing / 桌面托盘）</li>
         <li>队列持久化与收藏</li>
         <li>歌单（内置收藏 + 自建歌单 · 三段式曲库页）</li>
         <li>同步歌词（时间轴高亮 · 自动滚动 · 双语）</li>

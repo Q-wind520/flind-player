@@ -14,6 +14,12 @@
 
 ## 2. 本地扫描
 
+> **1.0 状态（Android 延后）**：Android 本地曲库**延后到 1.1**。1.0 的实现只做目录遍历
+> （`LocalLibraryScanner`），**未接入 `MediaStore`**；Android 上 `file_picker.getDirectoryPath()`
+> 返回 `content://`，`dart:io` 无法遍历，因此 **Android 本地曲库在 1.0 不可用**。
+> 本节 §2.1–§2.4 的 MediaStore 设计是 1.1 的目标方案，当前尚未实现；桌面/移动端的行为以
+> `lib/data/sources/local/local_library_scanner.dart` 为准。
+
 ### 2.1 平台差异
 
 | 平台 | 发现方式 | 权限 |
@@ -29,9 +35,9 @@
 - **禁止使用 `MANAGE_EXTERNAL_STORAGE`**（Play 政策不允许音乐播放器滥用）。
 - **Android 的"任选文件夹"是 SAF 问题，不是路径问题**：`file_picker.getDirectoryPath()` 返回 `content://` tree URI，`dart:io` 无法遍历。MVP 不做任意目录选择，直接用 MediaStore。
 
-### 2.2 MediaStore 绑定
+### 2.2 MediaStore 绑定（1.1 目标，1.0 未实现）
 
-- 优先：`on_audio_query_pluse` ^3.0.7（维护中的 fork）
+- 目标：`on_audio_query_pluse` ^3.0.7（维护中的 fork）——**尚未加入 `pubspec.yaml`**。
 - **必须包一层薄适配器** `MediaStoreAdapter`，以便日后替换为 ~40 行 Kotlin MethodChannel
 - 原 `on_audio_query` 已 3 年未更新，不使用
 - 增量：`MediaStore.getVersion()` 未变化则跳过整轮重扫
@@ -56,7 +62,7 @@
 ```
 根目录
  ├─ Linux:   file_picker.getDirectoryPath() → 持久化到 DB
- └─ Android: READ_MEDIA_AUDIO → MediaStore.Audio 查询
+ └─ Android: 目录遍历（1.0）；MediaStore.Audio 查询为 1.1 目标，尚未实现
                     │
                     ▼
       发现适配器 → 候选 {path, size, mtime, mediaStoreId}
@@ -459,10 +465,9 @@ CREATE INDEX idx_playlist_tracks_order
 |---|---|---|
 | `audio_metadata_reader` | ^1.8.0 | 元数据解析（纯 Dart） |
 | `drift` + `drift_flutter` | ^2.35.0 | SQLite + FTS5 |
-| `permission_handler` | ^13.0.2 | `Permission.audio` |
+| `permission_handler` | ^12.0.0 | `Permission.audio` |
 | `file_picker` | ^12.2.0 | 桌面目录选择 |
-| `on_audio_query_pluse` | ^3.0.7 | Android MediaStore（包适配器后使用） |
-| `flutter_secure_storage` | latest | 凭证（与本地库共用基础设施） |
+| `on_audio_query_pluse` | （1.1 计划） | Android MediaStore——**尚未加入 pubspec** |
 | `path_provider` | latest | 应用私有目录 |
 
 **Linux 系统依赖**：`libsecret`（凭证）、`libmpv-dev` + `mpv`（播放）、`libayatana-appindicator3-dev`（托盘）。
