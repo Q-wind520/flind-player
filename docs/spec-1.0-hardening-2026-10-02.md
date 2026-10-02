@@ -56,6 +56,7 @@
 5. **耦合 minor（C2）**：顺手清 m3（过时注释）、m4（复用共享 fake）、m5（死 fixture）；m1/m2 记录为已知不修。
 6. **集成测试（E3）不进 CI**：建立 `docs/` 手工回归基线（11 个 integration_test 用例 + 平台清单）。
 7. **依赖策略（F2）**：1.0 只处理 retracted 的 `objective_c` 与 `tray_manager` vendored override；大版本升级放 1.1。
+8. **工具链基线**：Flutter 3.47.5 / Dart 3.13.4；CI（`ci.yml` / `release.yml`）已与本地稳定版对齐。
 
 ## 4. 工作流
 
