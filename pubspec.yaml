@@ -92,8 +92,11 @@ flutter_launcher_icons:
 # -----------------------------------------------------------------------------
 # Local patch: tray_manager's Windows plugin does not dismiss the tray context
 # menu when clicking outside (leanflutter/tray_manager#63). The vendored copy in
-# packages/tray_manager applies the upstream fix (PR #93) until a release ships
-# it. Remove this override when upgrading past a fixed tray_manager version.
+# packages/tray_manager applies the upstream fix (PR #93).
+#
+# 1.0 复核结论（2026-10-02）：上游 0.7.0 是迁移到 nativeapi 的整体重写，
+# 旧 API 移到 legacy.dart 且已废弃，Linux 构建依赖也改变。删除本 override
+# 需要一次破坏性迁移，故推迟到 1.1，1.0 维持 0.5.3 vendored 版本。
 # -----------------------------------------------------------------------------
 dependency_overrides:
   tray_manager:
