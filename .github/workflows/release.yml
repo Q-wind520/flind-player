@@ -14,10 +14,35 @@ permissions:
   contents: write
 
 jobs:
+  analyze-and-test:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+      - name: Cache pub packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze
+      - name: Test
+        run: flutter test
+
   build-linux:
     name: Build Linux (release)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs: analyze-and-test
     steps:
       - uses: actions/checkout@v7
 
@@ -72,6 +97,7 @@ jobs:
     name: Build Windows (release)
     runs-on: windows-latest
     timeout-minutes: 45
+    needs: analyze-and-test
     steps:
       - uses: actions/checkout@v7
 
@@ -161,6 +187,7 @@ jobs:
     name: Build macOS (release)
     runs-on: macos-latest
     timeout-minutes: 45
+    needs: analyze-and-test
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -206,6 +233,7 @@ jobs:
     name: Build iOS (release, unsigned)
     runs-on: macos-latest
     timeout-minutes: 45
+    needs: analyze-and-test
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
@@ -247,6 +275,7 @@ jobs:
     name: Build Android (release)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs: analyze-and-test
     env:
       # Repository secrets a maintainer must add for a signed release:
       #   ANDROID_KEYSTORE_BASE64    - base64 of the .jks keystore
