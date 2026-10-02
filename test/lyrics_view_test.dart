@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -169,6 +170,22 @@ void main() {
     final viewportRect = tester.getRect(find.byType(SingleChildScrollView));
     expect(lineRect.top, greaterThanOrEqualTo(viewportRect.top - 1));
     expect(lineRect.bottom, lessThanOrEqualTo(viewportRect.bottom + 1));
+  });
+
+  testWidgets('hides the scrollbar on desktop', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      await tester.pumpWidget(
+        _app(lyric: _lyric, position: const Duration(seconds: 2)),
+      );
+      await tester.pumpAndSettle();
+
+      // Desktop adds a scrollbar to scrollables by default; the lyrics pane
+      // must suppress it.
+      expect(find.byType(Scrollbar), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('renders the current line and its translation in the preview', (

@@ -99,17 +99,20 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
-      child: SingleChildScrollView(
-        child: Column(
-          children: <Widget>[
-            for (var index = 0; index < lyric.lines.length; index++)
-              _LyricLineTile(
-                key: index == currentIndex ? _currentLineKey : null,
-                line: lyric.lines[index],
-                isCurrent: index == currentIndex,
-                theme: theme,
-              ),
-          ],
+      child: _hideScrollbar(
+        context,
+        SingleChildScrollView(
+          child: Column(
+            children: <Widget>[
+              for (var index = 0; index < lyric.lines.length; index++)
+                _LyricLineTile(
+                  key: index == currentIndex ? _currentLineKey : null,
+                  line: lyric.lines[index],
+                  isCurrent: index == currentIndex,
+                  theme: theme,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -196,37 +199,40 @@ class _LyricsPlaceholder extends ConsumerWidget {
       onTap: onTap,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.lyrics_outlined,
-                        size: 56,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        l10n.lyricsUnavailable,
-                        style: theme.textTheme.titleLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        supportsLyrics
-                            ? l10n.lyricsNotFound
-                            : l10n.lyricsPlaceholderHint,
-                        style: theme.textTheme.bodyMedium?.copyWith(
+          return _hideScrollbar(
+            context,
+            SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.lyrics_outlined,
+                          size: 56,
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        Text(
+                          l10n.lyricsUnavailable,
+                          style: theme.textTheme.titleLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          supportsLyrics
+                              ? l10n.lyricsNotFound
+                              : l10n.lyricsPlaceholderHint,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -339,3 +345,14 @@ class LyricsPreview extends ConsumerWidget {
     );
   }
 }
+
+/// Wraps [child] so its scroll view never paints a scrollbar.
+///
+/// Desktop's default `MaterialScrollBehavior` adds a scrollbar to every
+/// scrollable; the lyrics pane is a passive, auto-centring view where a
+/// scrollbar is visual noise.
+Widget _hideScrollbar(BuildContext context, Widget child) =>
+    ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: child,
+    );
