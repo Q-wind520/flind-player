@@ -435,6 +435,8 @@ Track → PlaybackController.playQueue(queue)
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ```
 
+由工具生成、不手工编辑的文件**豁免**此文件头：drift 的 `*.g.dart`（如 `lib/data/database/app_database.g.dart`）与 `lib/l10n/app_localizations*.dart`（后者由 `flutter gen-l10n` 生成且不纳入版本控制）。
+
 ### 12.4 分发义务
 
 若分发本应用的二进制版本，必须同时提供完整对应源码（GPL-3.0 §6）。个人使用不受此约束。
