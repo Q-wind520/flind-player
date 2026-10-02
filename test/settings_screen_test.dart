@@ -814,6 +814,39 @@ void main() {
     expect(find.text('0.5 MB'), findsOneWidget);
   });
 
+  testWidgets('离线缓存 shows the track title instead of the raw id', (
+    tester,
+  ) async {
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()..rows = [_cachedRow(1, pinned: true)];
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        settings: settings,
+        store: store,
+        tracks: const [
+          Track(
+            source: 'bilibili',
+            sourceTrackId: BiliTrackId(bvid: 'BV1', cid: 1),
+            uri: 'bilibili:BV1',
+            title: 'Song A',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    expect(find.text('Song A'), findsOneWidget);
+    expect(find.text('BV1'), findsNothing);
+
+    // The remove confirmation names the track too.
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Song A'), findsWidgets);
+  });
+
   testWidgets('deleting a download asks for confirmation first', (
     tester,
   ) async {

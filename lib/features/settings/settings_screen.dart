@@ -25,6 +25,7 @@ import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
+import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
@@ -332,6 +333,17 @@ class _OfflineCacheSection extends ConsumerWidget {
     final entries =
         ref.watch(offlineCacheEntriesProvider).value ?? const <CachedAudio>[];
     final usage = ref.watch(offlineCacheUsageProvider).value ?? 0;
+    // Offline rows carry only `source`/`sourceTrackId`; resolve a human title
+    // from the library row whose canonical `uri` matches, falling back to the
+    // raw id when the track is not in the pool.
+    final tracksByUri = <String, Track>{
+      for (final track
+          in ref.watch(libraryTracksProvider).value ?? const <Track>[])
+        track.uri: track,
+    };
+    String labelFor(CachedAudio entry) =>
+        tracksByUri['${entry.source}:${entry.sourceTrackId}']?.title ??
+        entry.sourceTrackId;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -362,11 +374,12 @@ class _OfflineCacheSection extends ConsumerWidget {
           for (final entry in entries)
             ListTile(
               dense: true,
-              title: Text(entry.sourceTrackId),
+              title: Text(labelFor(entry)),
               subtitle: Text(formatMegabytes(entry.bytes)),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () => _confirmRemoveDownload(context, ref, entry),
+                onPressed: () =>
+                    _confirmRemoveDownload(context, ref, entry, labelFor(entry)),
               ),
             ),
       ],
@@ -375,19 +388,20 @@ class _OfflineCacheSection extends ConsumerWidget {
 
   /// Confirms, then deletes the single pinned download [entry].
   ///
-  /// The dialog names the download by its raw source track id: the settings
-  /// screen holds no library row, so that id is all it can show.
+  /// The dialog names the download by [label] (its resolved track title, or the
+  /// raw source track id when the track is not in the library pool).
   Future<void> _confirmRemoveDownload(
     BuildContext context,
     WidgetRef ref,
     CachedAudio entry,
+    String label,
   ) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(l10n.removeDownloadTitle),
-        content: Text(l10n.removeDownloadBody(entry.sourceTrackId)),
+        content: Text(l10n.removeDownloadBody(label)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
