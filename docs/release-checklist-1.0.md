@@ -1,6 +1,6 @@
 # Flind Player 1.0 发布清单
 
-> 状态：进行中（2026-10-02 建立）
+> 状态：**已完成** —— v1.0.0 已于 2026-10-02 发布。
 > 对应设计：`docs/spec-1.0-hardening-2026-10-02.md` · 计划：`docs/plan-1.0-hardening-2026-10-02.md`
 
 本清单记录仓库侧无法自动完成、需维护者确认的发布前置项。
@@ -9,12 +9,12 @@
 
 Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中的 `release` 配置，否则回落 debug（`android/app/build.gradle.kts:10-70`）。仓库侧无需改代码。
 
-- [ ] keystore 已生成：`keytool -genkeypair -v -keystore android/app/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias flind`
-- [ ] 仓库 secrets 已配置：`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`
-- [ ] 本地 `android/key.properties` 指向 keystore（该文件与 `*.jks` 均已在 `.gitignore` 中）
-- [ ] `flutter build apk --release` 后 `apksigner verify --print-certs` 显示的是正式证书（非 `Android Debug`）
+- [x] keystore 已生成（`android/app/keystore.jks`，gitignored，`CN=Qwind520`）。
+- [x] 仓库 secrets 已配置（2026-10-02 核对存在）：`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`。
+- [x] 签名在 CI 完成（`release.yml` 的 Android job 从 secrets 写 `android/key.properties`）；本地无需 `key.properties`。
+- [x] 正式发布 `v1.0.0` 的 APK/AAB 经 `apksigner` / `keytool` 验证为正式证书：`CN=Qwind520`，SHA-256 `56BCDDC7…5CA192C5`（非 `Android Debug`）。
 
-> 2026-10-02 复核：当前工作区**没有** `android/key.properties` 或 `android/app/keystore.jks`，第 3–4 项待维护者在本机补齐后勾选。
+> 2026-10-02 复核：keystore 与 secrets 均已就绪；`release.yml` 现在缺少 `ANDROID_KEYSTORE_BASE64` 时会直接失败，杜绝 debug 签名混入正式发布。
 
 ## GPL-3.0 合规（Task 24）
 
@@ -42,8 +42,15 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [x] `flutter build linux --release` → 成功（`build/linux/x64/release/bundle/flind_player`）。
 - [x] `packaging/linux/build-deb.sh --version 1.0.0` → `dist/FlindPlayer-v1.0.0-linux-x64.deb`。
 - [x] `packaging/linux/build-appimage.sh --version 1.0.0` → `dist/FlindPlayer-v1.0.0-linux-x64.AppImage`。
-- [ ] `packaging/linux/build-rpm.sh --version 1.0.0` → **本机失败**：`rpmbuild not found`（环境缺 `rpm` 包）；需在 CI（已装 rpm）或本机补装后重跑。
+- [x] `packaging/linux/build-rpm.sh --version 1.0.0` → 本机缺 `rpmbuild`；已由 release CI 产出 `FlindPlayer-v1.0.0-linux-x64.rpm` 验证。
 - [x] `flutter build apk --release --split-per-abi` → arm64-v8a 31.5MB / armeabi-v7a 29.4MB / x86_64 33.0MB（当前为 debug 签名，正式签名见上文）。
 - [x] Windows / macOS / iOS：已由 CI 预发布 tag `v1.0.0-pre+1`（run 36982243576）验证通过（全部 6 个 job 绿）。据此已从 `release.yml` 移除 macOS/iOS 的 `continue-on-error`，Apple 构建失败将不再被静默吞掉。
 
 > 体积复核（2026-10-02）：首次打包得到 ~35MB deb / ~132MB AppImage，根因是 `build/` 残留了 14:58 的 101 MiB `kernel_blob.bin`（debug/JIT 产物），`flutter build --release` 未清除，被 `stage_tree` 一并打包。删除残留后重打包为 **~11.5MB deb / ~105MB AppImage**，与 0.5.0 一致。已在 `packaging/linux/common.sh` 的 `ensure_bundle()` 加守卫：release bundle 内存在 `kernel_blob.bin` 即拒绝打包。
+
+## 发布结果（2026-10-02）
+
+- 正式 tag `v1.0.0`；Release：https://github.com/Q-wind520/flind-player/releases/tag/v1.0.0（非预发布）。
+- 全部 6 个 job 绿（analyze+test、Linux、Windows、macOS、iOS、Android），`analyze-and-test` 门禁在构建前生效。
+- 11 个资产齐全：Linux deb / rpm / AppImage / tar.gz、Windows setup / zip、macOS zip、iOS ipa、Android APK×2 + AAB。
+- 预发布 tag `v1.0.0-pre+1` 仅用于验证 CI 矩阵。
