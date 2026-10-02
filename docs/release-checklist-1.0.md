@@ -28,3 +28,9 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [x] 当前无登录实现，代码中**无凭证持久化**（2026-10-02 grep `secure_storage|SESSDATA|MUSIC_U|password|token` 仅命中搜索/CSRF 占位与行注释，无凭证落盘）。
 - [x] 权限仅用于音频读取 / 通知 / 网络（`lib/platform/permissions/`）；申请时机与文案见该目录。
 - [x] 网络只访问 Bilibili 与网易云；README 与应用内无夸大隐私声明。
+
+## 音源 ToS / 风控复核（Task 26）
+
+- [x] `docs/bilibili-source.md` §1/§4.3/§5：个人使用姿态、不内置凭证、不做带凭证公共代理、音源可远程禁用（律师函时间线见 §1）。
+- [x] `docs/netease-source.md` §1/§6：weapi/eapi 私有协议风险、零登录态、匿名 Cookie 仅占位、`disabledSourceIdsProvider` 为唯一禁用钩子（禁用后搜索/流/歌词一并不可达）。
+- [x] 复核日期：2026-10-02。结论：法务与风控姿态与实现一致，无需改动。
