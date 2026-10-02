@@ -288,6 +288,9 @@ class AudioCacheStore {
     await _resolveDir();
     final resolvedHash = contentHash ?? await _hashFile(filePath);
 
+    // 1.0 复核（M9）：文件不可读时 contentHash 用 Value.absent()，但
+    // filePath/bytes 仍是具体值；罕见情况下 upsert 会用不可读路径覆盖已有行。
+    // 该行会由下次 checkIntegrity 删除，属自愈的临时脏状态（已知，不修）。
     var resolvedPath = filePath;
     var resolvedBytes = bytes;
     if (resolvedHash != null) {
@@ -480,6 +483,10 @@ class AudioCacheStore {
           _deleteFile(candidate.filePath);
           freedBytes += candidate.bytes;
         }
+        // 1.0 复核（M1）：封面删除暂不做引用检查。`coverFileFor` 以
+        // sha1(source:trackId) 命名且表上有 UNIQUE(source, source_track_id)，
+        // 正常路径下每行封面唯一（当前不可达）；若将来两行共享同一 cover_path，
+        // 需在此补与音频相同的 stillReferenced 检查。
         // The companion cover is per-row; its bytes leave the quota with it.
         final coverPath = candidate.coverPath;
         if (coverPath != null) {

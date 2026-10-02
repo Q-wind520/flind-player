@@ -376,6 +376,10 @@ class DownloadManager {
     }
   }
 
+  /// 1.0 复核（P2）：[StreamInfo] 不透出长度，故预检恒为 0，超配额的大文件会先
+  /// 整段下载再在下载后 `ensureSpace(bytes)` 处失败，白费带宽。修法需给 StreamInfo
+  /// 增加长度字段并让各 resolver 填充，属 API 变更，1.0 不做（见 spec 非目标）。
+  ///
   /// Best-effort incoming size. [StreamInfo] carries no length, so this is `0`
   /// and the post-download total is recorded instead.
   int _estimateBytes(StreamInfo info) => 0;

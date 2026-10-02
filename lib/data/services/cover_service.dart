@@ -100,6 +100,10 @@ class CoverService {
   /// In-flight downloads keyed by URL hash. Several parts of one video share a
   /// single `pic` URL, so this collapses them onto one download even though
   /// their track URIs differ.
+  ///
+  /// 1.0 复核（M3）：当前仅层 2 的 `_storeDownload` 使用本表去重；层 1
+  /// （`_ensureLayer1`）直接 `_downloader.download`，同一 `pic` 且各分 P 音频
+  /// 都已缓存时可能重复下载一次。属可接受的重复，不修。
   final Map<String, Future<String?>> _inFlightByUrl =
       <String, Future<String?>>{};
 
@@ -240,6 +244,8 @@ class CoverService {
     var url = _normalize(track.coverUrl);
     Uint8List? bytes;
     if (!force) {
+      // 1.0 复核（M4）：复用已存在的封面字节时跳过 isDecodableImage 校验——
+      // 仅当文件事后被外部损坏时才会把坏图写进层 1，与既有行为一致（已知，不修）。
       bytes = _bytesOf(cachedAudio.coverPath) ?? _bytesOf(track.coverPath);
     }
     if (bytes == null) {
@@ -248,6 +254,7 @@ class CoverService {
       if (!force) {
         // `lookup` (not `lookupPath`) so a hit refreshes the LRU order.
         final hit = await _store.lookup(_sha1Text(url));
+        // 1.0 复核（M4）：同上，层 2 复用也不重新校验解码。
         if (hit != null) bytes = _bytesOf(hit.filePath);
       }
       if (bytes == null) {
@@ -286,6 +293,9 @@ class CoverService {
       cover.path,
       bytes: bytes.length,
     );
+    // 1.0 复核（M2）：`enforceLimit()` 理论上可能把刚写入封面的这一行驱逐
+    // （仅当该行非 pinned、加封面后恰好超限、且它是最旧一行）。触发概率极低，
+    // 返回路径会被 `existsSync` 自愈；若将来出现悬空封面，改为排除本行 id。
     // The companion cover adds to layer 1's footprint; re-enforce the cap.
     await _audioStore.enforceLimit();
     return cover;
