@@ -10,11 +10,11 @@
 
 <br />
 
-<img src="https://img.shields.io/badge/version-0.2.1-2ea44f" />
+<img src="https://img.shields.io/badge/version-1.0.0-2ea44f" />
 <img src="https://img.shields.io/badge/license-GPL--3.0-red" />
 <img src="https://img.shields.io/badge/Flutter-3.13%2B-02569B?logo=flutter&logoColor=white" />
 <img src="https://img.shields.io/badge/platform-Android%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20iOS-purple" />
-<img src="https://img.shields.io/badge/tests-581%20passing-brightgreen" />
+<img src="https://img.shields.io/badge/tests-778%20passing-brightgreen" />
 <img src="https://img.shields.io/badge/Made%20with-Dart-0175C2?logo=dart&logoColor=white" />
 
 </div>
@@ -52,6 +52,16 @@
     <td width="50%" valign="top">
       <h4>🖥️ 自适应 Material 3</h4>
       <p>窄屏底部导航、宽屏侧边导航自动切换；亮 / 暗 / 跟随系统主题；迷你播放条、播放模式（单曲 / 列表 / 随机）、睡眠定时。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>🎵 网易云音乐音源</h4>
+      <p>匿名接入第二个在线音源：搜索、播放与歌词，与 Bilibili 在搜索页一键切换；不内置任何账号凭证。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h4>🎤 同步歌词</h4>
+      <p>整行时间轴高亮、自动滚动，支持原文 + 翻译双语显示；无歌词来源时优雅回落占位。</p>
     </td>
   </tr>
 </table>
@@ -101,7 +111,7 @@
 
 | 平台 | 优先级 | 说明 |
 | -------- | -------- | ----- |
-| Android | 主推 | 分架构 APK + AAB |
+| Android | 主推 | 分架构 APK + AAB；本地曲库延后（1.1） |
 | Linux | 主推 | deb / rpm / AppImage / tar.gz；deb/rpm 需要系统 `libmpv` |
 | Windows | 次要 | `setup.exe` 安装器或免安装 zip，均已内置 mpv 与 VC++ 运行时 |
 | macOS | 次要 | **未签名**预览（Apple Silicon / arm64，保留沙盒，仅加网络权限） |
@@ -209,8 +219,9 @@ flutter build ios --release --no-codesign
 > `xattr -dr com.apple.quarantine "Flind Player.app"` 再打开；iOS 的 `.ipa` 未签名，需用
 > AltStore / Sideloadly 等工具以你自己的证书签名后安装；iOS 暂不支持本地曲库。
 
-> **0.2.x 预览版签名**：0.2.x 阶段继续使用 debug 签名，因此**各版本之间不支持覆盖
-> 安装**，升级需先卸载旧版本（本地数据会清除）。正式签名计划在 1.0 引入。
+> **1.0 签名变更**：1.0.0 起使用正式签名，此前 0.1–0.7 预览版使用 debug 签名；两者证书不同，
+> **不支持覆盖安装**，升级 1.0.0 前需先卸载旧预览版。卸载不会删除 `~/.local/share`（Linux）/
+> `%APPDATA%`（Windows）下的本地数据，但 Android 上卸载会清除应用数据（曲库索引、收藏、队列、离线缓存）。
 
 > **图标**：全平台图标由 `docs/FlindPlayer.png` 经 `tool/generate_icons.sh` 生成
 > （Android 自适应、iOS 无 alpha、Windows 多档 `.ico` 等）。该美术稿是当前占位设计；
@@ -242,11 +253,11 @@ flutter build ios --release --no-codesign
 打 tag 并推送即可，GitHub Actions 会构建 Linux、Windows 与 Android 产物并创建 Release：
 
 ```bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-- `.github/workflows/ci.yml`：push 到 `master` 及 PR 时运行分析、测试与 Linux 构建。
+- `.github/workflows/ci.yml`：仅在 `v*-pre*` tag 运行时执行分析、测试与跨平台构建（正式 tag 不跑 CI）。
 - `.github/workflows/release.yml`：tag 推送时运行，需要以下仓库 secrets 才能产出签名 APK：
 
 | Secret | 说明 |
@@ -267,12 +278,17 @@ git push origin v0.2.1
 | --- | --- |
 | [`docs/architecture.md`](docs/architecture.md) | 架构分层、关键决策（ADR）、里程碑与风险 |
 | [`docs/bilibili-source.md`](docs/bilibili-source.md) | Bilibili 适配器：端点、WBI 签名、鉴权、限流、法务 |
+| [`docs/netease-source.md`](docs/netease-source.md) | 网易云适配器（匿名）：端点、weapi/eapi 协议、能力边界、法务 |
 | [`docs/local-library.md`](docs/local-library.md) | 本地曲库：扫描、元数据、drift schema、离线缓存 |
 | [`docs/packaging.md`](docs/packaging.md) | 桌面安装包（deb / rpm / AppImage / setup.exe）构建与发布 |
 | [`docs/widget-tree.md`](docs/widget-tree.md) | 轻量级 Widget 树总览 |
 | [`docs/agent-model-policy.md`](docs/agent-model-policy.md) | Agent 协作与模型使用约定 |
 | [`docs/缓存延期问题.md`](docs/缓存延期问题.md) | 缓存评审遗留的延期小问题（触发条件 / 后果） |
 | [`docs/耦合TODO.md`](docs/耦合TODO.md) | 设置/主题/排序的 provider 耦合重构（三阶段已落地 + 复核遗留 minor） |
+| [`docs/spec-1.0-hardening-2026-10-02.md`](docs/spec-1.0-hardening-2026-10-02.md) | 1.0 加固里程碑设计（版本 / 文档 / 技术债 / 门禁 / 依赖合规） |
+| [`docs/plan-1.0-hardening-2026-10-02.md`](docs/plan-1.0-hardening-2026-10-02.md) | 1.0 加固实施计划 |
+| [`docs/release-checklist-1.0.md`](docs/release-checklist-1.0.md) | 1.0 发布清单（签名 / 合规 / 隐私） |
+| [`docs/manual-regression-1.0.md`](docs/manual-regression-1.0.md) | 1.0 手工回归基线 |
 | [`docs/archive/`](docs/archive) | 已完成的设计稿与实施计划（缓存重构、曲目池收敛、安装包、曲库 UI） |
 
 <br />
@@ -286,17 +302,19 @@ git push origin v0.2.1
       <ul>
         <li>本地曲库（扫描 + 元数据 + FTS5 检索）</li>
         <li>Bilibili 在线音源（WBI 直连播放）</li>
+        <li>网易云音乐在线音源（匿名搜索 / 播放 / 歌词）</li>
         <li>离线缓存（1 GiB 默认 · LRU · pinned）</li>
         <li>系统集成（通知栏 / MPRIS / SMTC / 托盘）</li>
         <li>队列持久化与收藏</li>
         <li>歌单（内置收藏 + 自建歌单 · 三段式曲库页）</li>
+        <li>同步歌词（时间轴高亮 · 自动滚动 · 双语）</li>
         <li>CI 与发布流水线实测跑通</li>
       </ul>
     </td>
     <td width="50%" valign="top">
       <h4>⏳ 延后</h4>
       <ul>
-        <li>歌词（仅占位视图，未接歌词源）</li>
+        <li>Android 本地曲库（1.1）</li>
         <li>QR 登录与个人收藏夹（v1.1）</li>
         <li>自建歌单手动排序（当前按加入时间倒序）</li>
         <li>Web 端（v2）</li>
@@ -308,9 +326,9 @@ git push origin v0.2.1
 
 <h4 id="🧪-验证基线">🧪 验证基线</h4>
 
-`flutter analyze` 零问题 · **688** 个单元 / 组件测试通过（CI 的 `flutter test` 门禁）·
-另有 **7** 个 `integration_test/` 冒烟测试，需真机/桌面环境手动 `flutter test integration_test`，**不在 CI 门禁内** ·
-Linux / Android release 构建通过 · CI 与 release 工作流均实测跑通。
+`flutter analyze` 零问题 · **778** 个单元 / 组件测试通过（CI 的 `flutter test` 门禁）·
+另有 **11** 个 `integration_test/` 用例，需真机/桌面环境手动 `flutter test integration_test`，**不在 CI 门禁内** ·
+Linux / Android release 构建通过 · 正式 tag 的 release 工作流在 analyze + test 门禁后构建发布。
 
 <br />
 
