@@ -22,3 +22,9 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [x] 仓库根 `LICENSE` 为 GPL-3.0 全文；README License 段指向正确。
 - [ ] **AppImage 内的 libmpv/FFmpeg LGPL 说明**：`packaging/linux/build-appimage.sh` 目前只 `install` 了项目自身的 `LICENSE`（第 50 行），**未见到 libmpv/FFmpeg 的 LGPL 许可文本随包**；`docs/packaging.md` 第 46 行的「包内附许可说明」需据此核实或补齐。
 - [x] Windows 包随附 MSVC 可再发行 DLL；`docs/packaging.md` 第 39/46 行有说明。
+
+## 隐私与安全（Task 25）
+
+- [x] 当前无登录实现，代码中**无凭证持久化**（2026-10-02 grep `secure_storage|SESSDATA|MUSIC_U|password|token` 仅命中搜索/CSRF 占位与行注释，无凭证落盘）。
+- [x] 权限仅用于音频读取 / 通知 / 网络（`lib/platform/permissions/`）；申请时机与文案见该目录。
+- [x] 网络只访问 Bilibili 与网易云；README 与应用内无夸大隐私声明。
