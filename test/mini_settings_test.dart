@@ -331,14 +331,11 @@ void main() {
       expect(find.byType(LyricsView), findsOneWidget);
       expect(find.byType(MiniSettings), findsNothing);
       expect(find.byType(VolumeBar), findsNothing);
-      // The seek slider belongs to the cover view, not the lyrics page.
-      expect(find.byType(Slider), findsNothing);
 
       // Tapping the lyrics again collapses back to the normal layout.
       await tester.tap(find.byType(LyricsView));
       await tester.pumpAndSettle();
       expect(find.byType(MiniSettings), findsOneWidget);
-      expect(find.byType(Slider), findsOneWidget);
     });
 
     testWidgets('hides the settings slot when nothing is playing', (
@@ -370,18 +367,18 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      // The shared header (title above artist) spans both panes; the left pane
-      // then runs cover and transport. The seek slider is hidden: the landscape
-      // pane always sits beside the lyrics view.
+      // The shared header (title above artist) spans both panes; the left
+      // pane then runs cover, progress, transport.
       final titleDy = tester.getTopLeft(find.text('Test Song')).dy;
       final artistDy = tester.getTopLeft(find.text('未知艺术家')).dy;
       final coverDy = tester.getTopLeft(find.byIcon(Icons.music_note)).dy;
+      final sliderDy = tester.getTopLeft(find.byType(Slider)).dy;
       final transportDy = tester.getTopLeft(find.byIcon(Icons.play_arrow)).dy;
 
       expect(titleDy, lessThan(artistDy));
       expect(artistDy, lessThan(coverDy));
-      expect(coverDy, lessThan(transportDy));
-      expect(find.byType(Slider), findsNothing);
+      expect(coverDy, lessThan(sliderDy));
+      expect(sliderDy, lessThan(transportDy));
 
       // MiniSettings sits inside the left pane (the left half of the screen).
       final settingsCenter = tester.getCenter(find.byType(MiniSettings));

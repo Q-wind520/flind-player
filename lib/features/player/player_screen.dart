@@ -246,8 +246,7 @@ class _HeaderRow extends StatelessWidget {
 
 /// Portrait body: cover, a 5-line lyrics teaser, then progress and transport.
 /// When [lyricsExpanded] the cover and teaser are replaced by the full
-/// [LyricsView], the progress slider is hidden, and the transport stays pinned
-/// at the bottom.
+/// [LyricsView] while progress and transport stay pinned at the bottom.
 class _PortraitBody extends StatelessWidget {
   const _PortraitBody({
     required this.state,
@@ -296,8 +295,7 @@ class _PortraitBody extends StatelessWidget {
                   ),
           ),
         ),
-        // The seek slider belongs to the cover view; the lyrics page drops it.
-        if (!lyricsExpanded) _ProgressBar(state: state),
+        _ProgressBar(state: state),
         _TransportControls(state: state),
         // A larger gap before the docked MiniSettings so the controls and the
         // settings bar read as two separated rows; the expanded lyrics page
@@ -415,8 +413,7 @@ class MiniMain extends StatelessWidget {
             },
           ),
         ),
-        // The landscape pane always sits beside the lyrics view, so the seek
-        // slider is hidden here too.
+        _ProgressBar(state: state),
         _TransportControls(state: state),
         // Same gap as portrait: keep the controls and the settings bar apart.
         const SizedBox(height: 16),
