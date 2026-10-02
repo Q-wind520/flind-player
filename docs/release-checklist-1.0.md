@@ -15,3 +15,10 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [ ] `flutter build apk --release` 后 `apksigner verify --print-certs` 显示的是正式证书（非 `Android Debug`）
 
 > 2026-10-02 复核：当前工作区**没有** `android/key.properties` 或 `android/app/keystore.jks`，第 3–4 项待维护者在本机补齐后勾选。
+
+## GPL-3.0 合规（Task 24）
+
+- [x] Release body 含对应源码指向：`.github/workflows/release.yml` 的 GPL 段落指向本 tag 的仓库快照（2026-10-02 复核存在）。
+- [x] 仓库根 `LICENSE` 为 GPL-3.0 全文；README License 段指向正确。
+- [ ] **AppImage 内的 libmpv/FFmpeg LGPL 说明**：`packaging/linux/build-appimage.sh` 目前只 `install` 了项目自身的 `LICENSE`（第 50 行），**未见到 libmpv/FFmpeg 的 LGPL 许可文本随包**；`docs/packaging.md` 第 46 行的「包内附许可说明」需据此核实或补齐。
+- [x] Windows 包随附 MSVC 可再发行 DLL；`docs/packaging.md` 第 39/46 行有说明。
