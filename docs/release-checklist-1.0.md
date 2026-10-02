@@ -34,3 +34,16 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [x] `docs/bilibili-source.md` §1/§4.3/§5：个人使用姿态、不内置凭证、不做带凭证公共代理、音源可远程禁用（律师函时间线见 §1）。
 - [x] `docs/netease-source.md` §1/§6：weapi/eapi 私有协议风险、零登录态、匿名 Cookie 仅占位、`disabledSourceIdsProvider` 为唯一禁用钩子（禁用后搜索/流/歌词一并不可达）。
 - [x] 复核日期：2026-10-02。结论：法务与风控姿态与实现一致，无需改动。
+
+## 构建矩阵（Task 28，2026-10-02）
+
+本机环境：Linux x64，Flutter 3.47.5 / Dart 3.13.4。
+
+- [x] `flutter build linux --release` → 成功（`build/linux/x64/release/bundle/flind_player`）。
+- [x] `packaging/linux/build-deb.sh --version 1.0.0` → `dist/FlindPlayer-v1.0.0-linux-x64.deb`。
+- [x] `packaging/linux/build-appimage.sh --version 1.0.0` → `dist/FlindPlayer-v1.0.0-linux-x64.AppImage`。
+- [ ] `packaging/linux/build-rpm.sh --version 1.0.0` → **本机失败**：`rpmbuild not found`（环境缺 `rpm` 包）；需在 CI（已装 rpm）或本机补装后重跑。
+- [x] `flutter build apk --release --split-per-abi` → arm64-v8a 31.5MB / armeabi-v7a 29.4MB / x86_64 33.0MB（当前为 debug 签名，正式签名见上文）。
+- [ ] Windows / macOS / iOS：需在 CI 预发布 tag（`v1.0.0-pre+1`）上验证。
+
+> 观察（待确认）：deb 体积从 0.5.0 的 ~11MB 增至 1.0.0 的 ~35MB，AppImage 从 ~105MB 增至 ~132MB。发布前应确认这是有意变化（如捆绑内容调整）而非误打包。
