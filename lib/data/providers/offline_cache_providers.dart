@@ -54,8 +54,8 @@ class OfflineCacheMaintenance {
   /// Deletes the pinned entry [id]; a non-pinned id is ignored.
   final Future<void> Function(int id) onRemove;
 
-  /// Deletes every pinned entry.
-  final Future<void> Function() onClearAll;
+  /// Deletes every pinned entry. Returns `false` when any delete failed.
+  final Future<bool> Function() onClearAll;
 }
 
 /// Applies deletions across the offline (pinned) part of the audio cache.
@@ -84,8 +84,10 @@ final offlineCacheMaintenanceProvider = Provider<OfflineCacheMaintenance>((
         for (final entry in entries.where((e) => e.pinned)) {
           await store.remove(entry.id);
         }
+        return true;
       } catch (error) {
         debugPrint('OfflineCacheMaintenance: clearAll failed: $error');
+        return false;
       }
     },
   );

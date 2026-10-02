@@ -215,6 +215,39 @@ void main() {
       expect(File(pathFor('a')).existsSync(), isFalse);
       expect(File(pathFor('online')).existsSync(), isTrue);
     });
+
+    test('onClearAll returns false when a delete throws', () async {
+      final throwing = _ThrowingStore(
+        database: db,
+        baseDir: Directory(p.join(root.path, 'throwing')),
+        settings: FakeSettingsRepository(),
+      );
+      final file = throwing.fileFor(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        extension: 'm4a',
+      )
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(const [1]);
+      await throwing.insert(
+        source: 'bilibili',
+        sourceTrackId: 'a',
+        filePath: file.path,
+        bytes: 1,
+        qualityId: '30280',
+        pinned: true,
+      );
+
+      final local = ProviderContainer(
+        overrides: [audioCacheStoreProvider.overrideWithValue(throwing)],
+      );
+      addTearDown(local.dispose);
+
+      final result =
+          await local.read(offlineCacheMaintenanceProvider).onClearAll();
+
+      expect(result, isFalse);
+    });
   });
 
   group('combinedCacheUsageProvider', () {
@@ -226,4 +259,18 @@ void main() {
       expect(await container.read(combinedCacheUsageProvider.future), 500);
     });
   });
+}
+
+/// A real store whose `remove` always fails, to exercise the clear-failure path.
+class _ThrowingStore extends AudioCacheStore {
+  _ThrowingStore({
+    required super.database,
+    required super.baseDir,
+    required super.settings,
+  });
+
+  @override
+  Future<void> remove(int id) async {
+    throw StateError('remove failed');
+  }
 }

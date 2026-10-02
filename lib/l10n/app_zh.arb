@@ -143,6 +143,7 @@
   "clearOfflineBody": "所有已下载歌曲都将被移除。",
   "clearOfflineCache": "清空离线缓存",
   "offlineCacheCleared": "已释放 {size}",
+  "offlineCacheClearFailed": "清空离线缓存失败。",
   "clear": "清空",
   "cacheCleared": "已清空缓存，释放 {freed}",
   "enterPositiveNumber": "请输入正数",

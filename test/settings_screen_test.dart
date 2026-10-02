@@ -65,6 +65,9 @@ class _FakeCacheStore implements AudioCacheStore {
   int removeCalls = 0;
   int enforceLimitCalls = 0;
 
+  /// When true, [remove] throws — used to exercise the clear-failure path.
+  bool failRemove = false;
+
   /// Rows the fake index reports; [remove] drops the row it is given.
   List<CachedAudio> rows = const <CachedAudio>[];
 
@@ -83,6 +86,7 @@ class _FakeCacheStore implements AudioCacheStore {
 
   @override
   Future<void> remove(int id) async {
+    if (failRemove) throw StateError('remove failed');
     removeCalls++;
     removedIds.add(id);
     rows = [
@@ -936,6 +940,28 @@ void main() {
     expect(find.text('BV1'), findsNothing);
     expect(find.text('暂无已下载歌曲'), findsOneWidget);
     expect(find.text('已释放 10 MB'), findsOneWidget);
+  });
+
+  testWidgets('clearing the offline cache reports failure instead of success', (
+    tester,
+  ) async {
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore()
+      ..failRemove = true
+      ..rows = [_cachedRow(1, pinned: true)];
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+    await _scrollToOfflineCache(tester);
+
+    await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清空'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('清空离线缓存失败。'), findsOneWidget);
+    expect(find.textContaining('已释放'), findsNothing);
   });
 
   testWidgets('清空缓存 clears the online layer only, keeping downloads', (

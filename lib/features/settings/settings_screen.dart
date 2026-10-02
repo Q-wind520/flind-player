@@ -444,7 +444,7 @@ class _OfflineCacheSection extends ConsumerWidget {
 
     final messenger = ScaffoldMessenger.of(context);
     final freed = ref.read(offlineCacheUsageProvider).value ?? 0;
-    await ref.read(offlineCacheMaintenanceProvider).onClearAll();
+    final ok = await ref.read(offlineCacheMaintenanceProvider).onClearAll();
     ref.invalidate(offlineCacheEntriesProvider);
     ref.invalidate(offlineCacheUsageProvider);
     // Clearing frees layer-1 bytes; keep the top-of-screen usage line and the
@@ -453,7 +453,13 @@ class _OfflineCacheSection extends ConsumerWidget {
     ref.invalidate(audioCacheUsageProvider);
     ref.invalidate(audioCacheEntryCountProvider);
     messenger.showSnackBar(
-      SnackBar(content: Text(l10n.offlineCacheCleared(formatMegabytes(freed)))),
+      SnackBar(
+        content: Text(
+          ok
+              ? l10n.offlineCacheCleared(formatMegabytes(freed))
+              : l10n.offlineCacheClearFailed,
+        ),
+      ),
     );
   }
 }

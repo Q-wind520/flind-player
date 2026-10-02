@@ -280,6 +280,7 @@
       }
     }
   },
+  "offlineCacheClearFailed": "Could not clear the offline cache.",
   "clear": "Clear",
   "cacheCleared": "Cache cleared, freed {freed}",
   "@cacheCleared": {
