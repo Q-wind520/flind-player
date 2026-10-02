@@ -188,7 +188,6 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     needs: analyze-and-test
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 
@@ -234,7 +233,6 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     needs: analyze-and-test
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 

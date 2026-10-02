@@ -44,6 +44,6 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [x] `packaging/linux/build-appimage.sh --version 1.0.0` → `dist/FlindPlayer-v1.0.0-linux-x64.AppImage`。
 - [ ] `packaging/linux/build-rpm.sh --version 1.0.0` → **本机失败**：`rpmbuild not found`（环境缺 `rpm` 包）；需在 CI（已装 rpm）或本机补装后重跑。
 - [x] `flutter build apk --release --split-per-abi` → arm64-v8a 31.5MB / armeabi-v7a 29.4MB / x86_64 33.0MB（当前为 debug 签名，正式签名见上文）。
-- [ ] Windows / macOS / iOS：需在 CI 预发布 tag（`v1.0.0-pre+1`）上验证。
+- [x] Windows / macOS / iOS：已由 CI 预发布 tag `v1.0.0-pre+1`（run 36982243576）验证通过（全部 6 个 job 绿）。据此已从 `release.yml` 移除 macOS/iOS 的 `continue-on-error`，Apple 构建失败将不再被静默吞掉。
 
 > 体积复核（2026-10-02）：首次打包得到 ~35MB deb / ~132MB AppImage，根因是 `build/` 残留了 14:58 的 101 MiB `kernel_blob.bin`（debug/JIT 产物），`flutter build --release` 未清除，被 `stage_tree` 一并打包。删除残留后重打包为 **~11.5MB deb / ~105MB AppImage**，与 0.5.0 一致。已在 `packaging/linux/common.sh` 的 `ensure_bundle()` 加守卫：release bundle 内存在 `kernel_blob.bin` 即拒绝打包。
