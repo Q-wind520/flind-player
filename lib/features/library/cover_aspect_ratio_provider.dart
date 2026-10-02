@@ -11,7 +11,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:flind_player/shared/cover_image.dart';
+import 'package:flind_player/data/cache/cover_headers.dart';
 
 /// Resolves the width/height ratio of a cover (`path` or `http` URL).
 ///
@@ -24,7 +24,7 @@ final coverAspectRatioProvider = FutureProvider.family<double, String>((
 ) async {
   if (source.isEmpty) return 1.0;
   final ImageProvider<Object> provider = source.startsWith('http')
-      ? NetworkImage(source, headers: kCoverImageHeaders)
+      ? NetworkImage(source, headers: coverHeadersFor(Uri.parse(source)))
       : FileImage(File(source));
 
   final completer = Completer<double>();

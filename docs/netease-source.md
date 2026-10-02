@@ -161,24 +161,20 @@ lib/core/
 
 ---
 
-## 8. 已知问题：搜索列表缩略图不显示（待商榷）
+## 8. 封面取图链路（搜索列表缩略图）
 
-**状态**：未解决，2026-10-01 记录，留待后续商榷。
+**状态**：2026-10-02 参考 NeriPlayer 设计对齐实现，**待实机验证**。
 
-**现象**：网易云搜索列表中曲目不显示封面缩略图（显示音符占位）；点击播放后 **mini 播放器能显示封面，但搜索列表项仍不显示**。
+**根因（已确认）**：列表此前只用 `Image.network` 直取。网易云图片 CDN `*.music.126.net` 对 `dart:io` 默认 User-Agent 返回 **403**，而对浏览器 UA 返回 200（同一 URL 实测）；Bilibili 的 `i0.hdslb.com` 不拦。播放路径因走 `CoverDownloader`（浏览器 UA + Referer，落盘）而正常，列表直取则失败——即「列表与播放器取图路径不一致」。
 
-**已确认的事实**：
+**实现（对齐 NeriPlayer：远程优先 + 兜底下载/缓存）**：
 
-- 数据层无问题：实网搜索返回的 30 条结果**全部**带 `coverUrl`（来自 `/weapi/v3/song/detail` 的 `al.picUrl`），经 `normalizeNeteaseCoverUrl` 归一化为 `https` URL。
-- 图片 URL 可达，且与 UA 有关：对 `https://p1.music.126.net/...jpg`，**浏览器 UA → HTTP 200**，**Dart 默认 UA（`Dart/3.x (dart:io)`，即 `Image.network` 的默认）或无 UA → HTTP 403**。Bilibili 的 `i0.hdslb.com` 不拦 Dart UA。
-- 播放路径可用：点击播放走 `CoverService` → `CoverDownloader`（已带浏览器 UA + `Referer`）下载并落盘，队列 track 的 `coverPath` 被回写，故播放器/ mini 播放器显示的是本地缓存文件。
+- `data/cache/cover_headers.dart`：`coverRefererFor` / `coverHeadersFor` 按 host 给头——`*.music.126.net` → `Referer: https://music.163.com/`，`*.hdslb.com` / `*.biliimg.com` → `Referer: https://www.bilibili.com/`，未知 host 不带 Referer；一律带浏览器 UA。
+- `CoverDownloader`：Referer 由写死的 Bilibili 改为**按 host**（`coverHeadersFor`），UA / 去 `Origin` 不变。
+- `data/cache/remote_cover_cache.dart` + `remoteCoverCacheProvider`：URL → 本地路径（`lookupPath` 命中直返；未命中经 `CoverDownloader` 下载 → `isDecodableImage` 校验 → `CoverCacheStore.insert`；按 `sha1(normalized url)` 在途去重）。
+- `shared/cover_image.dart`（改为 Riverpod 组件）：有 `path` → `Image.file`；有远程 `url` → **先** `Image.network(headers: coverHeadersFor(url))`，失败（如 403）再走 `remoteCoverCache` 下载并显示本地文件，再失败才回落占位。Bilibili 直连不受影响，且同样受益于失败兜底。
+- `cover_aspect_ratio_provider` 的 `NetworkImage` 同步使用 `coverHeadersFor`。
 
-**已尝试（本版未解决）**：给 `CoverImage` 的两处 `Image.network` 与 `cover_aspect_ratio_provider` 的 `NetworkImage` 统一加 `kCoverImageHeaders`（浏览器 UA）。理论上列表应能直取，但用户实测仍不显示。
+**验证**：`CoverDownloader` 实网下载 `p1.music.126.net` 封面成功（180 KB）；`flutter analyze` 0 问题；`flutter test` 全绿（含 `cover_headers_test` / `remote_cover_cache_test` / `cover_downloader_test` / `cover_image_test`）。
 
-**下一步（商榷）**：
-
-1. 核实运行的是否为包含该改动的构建（hot restart / 重新编译）。
-2. 在 `CoverImage` 网络分支临时加 `loadingBuilder`/日志，确认：请求是否真的发出、返回码、是否 `errorBuilder` 被触发。
-3. **设计对齐候选**：搜索/曲库列表的封面是否应统一走 `CoverDownloader`（带 UA/Referer、内容寻址落盘、可复用缓存），而非直接 `Image.network`；若统一，可去掉对 `Image.network(headers:)` 的隐式依赖，列表与播放器取图路径一致。
-4. 确认是否还需 `Referer`/其它头；或检查 `ResizeImage(NetworkImage(...))` 缓存键与 `NetworkImage` 的一致性是否导致重复或未命中。
-5. 平台差异：确认桌面（Linux）/移动端是否表现不同。
+**待办**：实机确认搜索列表缩略图；若仍有问题，按「直连请求返回码 / 是否触发 errorBuilder」排查。

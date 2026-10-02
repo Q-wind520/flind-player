@@ -15,34 +15,33 @@
 
 import 'dart:io';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:flind_player/data/sources/bilibili/bili_client.dart'
-    show kDesktopUserAgent;
-
-/// Headers every network cover request must carry.
-///
-/// Some CDNs (notably NetEase's `*.music.126.net`) answer **403** to requests
-/// that use the default `dart:io` User-Agent, so [Image.network] must send a
-/// browser UA. Bilibili's CDN does not care, so this is safe for all covers.
-const Map<String, String> kCoverImageHeaders = <String, String>{
-  'User-Agent': kDesktopUserAgent,
-};
+import 'package:flind_player/data/cache/cover_headers.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 
 /// Displays a cover image decoded at the display size instead of the source's
 /// full resolution, reducing raster memory when many covers are visible.
 ///
-/// [path] (a cached local file) takes priority; otherwise [url] (a transient
-/// remote image) is used. When [size] is finite the widget is exactly [size]
-/// logical pixels square and the image is decoded at `size * devicePixelRatio`
-/// physical pixels. When [size] is `double.infinity` the widget fills its
-/// parent (preserving the existing grid-card semantics) and a [LayoutBuilder]
-/// derives the decode edge from the actual constraints.
+/// [path] (a cached local file) takes priority; otherwise [url] (a remote
+/// image) is shown **directly first** with the platform's per-host headers
+/// (browser UA + `Referer`), and only when that request fails does the widget
+/// fall back to downloading the cover through [remoteCoverCacheProvider]
+/// (cache-first, validated, layer-2 disk cache) and rendering the cached file.
+/// This mirrors NeriPlayer's remote-first + proxy-fallback cover design and
+/// keeps a hotlink-protected CDN (e.g. NetEase's `*.music.126.net`) working.
+///
+/// When [size] is finite the widget is exactly [size] logical pixels square and
+/// the image is decoded at `size * devicePixelRatio` physical pixels. When
+/// [size] is `double.infinity` the widget fills its parent (preserving the
+/// existing grid-card semantics) and a [LayoutBuilder] derives the decode edge
+/// from the actual constraints.
 ///
 /// `cacheWidth` is what keeps memory bounded: covers are already cached on disk
 /// at roughly 512px, but decoding that cache at full size would allocate a
 /// bitmap far larger than the on-screen thumbnail, per visible item.
-class CoverImage extends StatelessWidget {
+class CoverImage extends ConsumerStatefulWidget {
   const CoverImage({
     super.key,
     this.path,
@@ -64,11 +63,72 @@ class CoverImage extends StatelessWidget {
   final ImageErrorWidgetBuilder? errorBuilder;
 
   @override
+  ConsumerState<CoverImage> createState() => _CoverImageState();
+}
+
+class _CoverImageState extends ConsumerState<CoverImage> {
+  /// Path of a cover fetched through the remote cache after a direct failure.
+  String? _cachedPath;
+
+  /// Guards against launching more than one fallback download per URL.
+  bool _resolving = false;
+
+  /// Set once the download fallback also failed, so the placeholder sticks.
+  bool _failed = false;
+
+  @override
+  void didUpdateWidget(CoverImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path || oldWidget.url != widget.url) {
+      _cachedPath = null;
+      _resolving = false;
+      _failed = false;
+    }
+  }
+
+  /// `null` while [CoverImage.size] is infinite so the fill branch keeps
+  /// intrinsic sizing.
+  double? get _edge => widget.size.isFinite ? widget.size : null;
+
+  /// Downloads (cache-first) the remote cover after a direct request failed.
+  ///
+  /// Deliberately does not `setState` before the first `await`: this runs from
+  /// an [Image] error builder, potentially during build.
+  Future<void> _fallbackToRemote() async {
+    final url = widget.url;
+    if (url == null || url.isEmpty || _resolving) return;
+    _resolving = true;
+    final path = await ref.read(remoteCoverCacheProvider).resolve(url);
+    if (!mounted) return;
+    setState(() {
+      _resolving = false;
+      if (path != null) {
+        _cachedPath = path;
+      } else {
+        _failed = true;
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final filePath = path;
-    final remoteUrl = url;
 
+    final cachedPath = _cachedPath;
+    if (cachedPath != null) {
+      return _buildAtDisplaySize(
+        dpr: dpr,
+        buildImage: (cacheWidth) => Image.file(
+          File(cachedPath),
+          width: _edge,
+          height: _edge,
+          fit: BoxFit.cover,
+          cacheWidth: cacheWidth,
+        ),
+      );
+    }
+
+    final filePath = widget.path;
     if (filePath != null && filePath.isNotEmpty) {
       return _buildAtDisplaySize(
         dpr: dpr,
@@ -78,61 +138,58 @@ class CoverImage extends StatelessWidget {
           height: _edge,
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
-          // A stale pointer (the cached file was evicted) must not go blank
-          // when the remote URL is still known: fall back to the network.
-          errorBuilder: (context, error, stackTrace) =>
-              _networkOrError(context, remoteUrl, error, stackTrace),
+          errorBuilder: _fileErrorBuilder,
         ),
       );
     }
 
-    if (remoteUrl != null && remoteUrl.isNotEmpty) {
+    final url = widget.url;
+    if (!_failed && url != null && url.isNotEmpty) {
       return _buildAtDisplaySize(
         dpr: dpr,
         buildImage: (cacheWidth) => Image.network(
-          remoteUrl,
+          url,
           width: _edge,
           height: _edge,
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
-          headers: kCoverImageHeaders,
-          errorBuilder: errorBuilder,
+          headers: coverHeadersFor(Uri.parse(url)),
+          errorBuilder: _networkErrorBuilder,
         ),
       );
     }
 
-    return errorBuilder?.call(context, 'No cover', null) ??
-        const SizedBox.shrink();
+    return _errorWidget(context, 'No cover', null);
   }
 
-  /// `null` while [size] is infinite so the fill branch keeps intrinsic sizing.
-  double? get _edge => size.isFinite ? size : null;
-
-  /// Renders [remoteUrl] when it is known, otherwise delegates to
-  /// [errorBuilder] (or an empty box). Used as the file branch's error handler.
-  Widget _networkOrError(
+  /// A stale/evicted local file falls back to the remote (cache-first) path.
+  Widget _fileErrorBuilder(
     BuildContext context,
-    String? remoteUrl,
     Object error,
     StackTrace? stackTrace,
   ) {
-    if (remoteUrl != null && remoteUrl.isNotEmpty) {
-      return _buildAtDisplaySize(
-        dpr: MediaQuery.devicePixelRatioOf(context),
-        buildImage: (cacheWidth) => Image.network(
-          remoteUrl,
-          width: _edge,
-          height: _edge,
-          fit: BoxFit.cover,
-          cacheWidth: cacheWidth,
-          headers: kCoverImageHeaders,
-          errorBuilder: errorBuilder,
-        ),
-      );
-    }
-    return errorBuilder?.call(context, error, stackTrace) ??
-        const SizedBox.shrink();
+    _fallbackToRemote();
+    return _errorWidget(context, error, stackTrace);
   }
+
+  /// A direct network failure (e.g. a 403 from a hotlink-protected CDN) falls
+  /// back to the download-and-cache path.
+  Widget _networkErrorBuilder(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    _fallbackToRemote();
+    return _errorWidget(context, error, stackTrace);
+  }
+
+  Widget _errorWidget(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  ) =>
+      widget.errorBuilder?.call(context, error, stackTrace) ??
+      const SizedBox.shrink();
 
   /// Shared size strategy: a decode edge of `size * dpr` for fixed covers, or
   /// a [LayoutBuilder]-derived edge when [size] is infinite.
@@ -140,8 +197,8 @@ class CoverImage extends StatelessWidget {
     required double dpr,
     required Widget Function(int cacheWidth) buildImage,
   }) {
-    if (size.isFinite) {
-      return buildImage((size * dpr).round());
+    if (widget.size.isFinite) {
+      return buildImage((widget.size * dpr).round());
     }
 
     return LayoutBuilder(

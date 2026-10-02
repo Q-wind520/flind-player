@@ -14,10 +14,43 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/data/cache/remote_cover_cache.dart';
+import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/shared/cover_image.dart';
+
+/// A [RemoteCoverCache] whose cache lookup yields [resolveTo] (a file path or
+/// null) and whose download never runs.
+RemoteCoverCache _fakeCoverCache({String? resolveTo}) => RemoteCoverCache(
+  lookupPath: (_) async => resolveTo,
+  download: (_) async => null,
+  store:
+      ({required String urlHash, required String contentHash, required bytes}) async =>
+          resolveTo ?? '',
+  isImage: (_) => false,
+);
+
+/// Pumps [child] inside a [ProviderScope] with the remote cover cache faked, so
+/// no test touches the real database-backed cache.
+Future<void> _pump(
+  WidgetTester tester,
+  Widget child, {
+  RemoteCoverCache? cache,
+}) {
+  return tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        remoteCoverCacheProvider.overrideWithValue(
+          cache ?? _fakeCoverCache(),
+        ),
+      ],
+      child: child,
+    ),
+  );
+}
 
 void main() {
   testWidgets('48 logical px at DPR 1.0 produces cacheWidth 48', (
@@ -26,7 +59,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MediaQuery(
         data: const MediaQueryData(devicePixelRatio: 1.0),
         child: CoverImage(path: '/test/cover.jpg', size: 48),
@@ -45,7 +79,8 @@ void main() {
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MediaQuery(
         data: const MediaQueryData(devicePixelRatio: 3.0),
         child: CoverImage(path: '/test/cover.jpg', size: 48),
@@ -65,7 +100,8 @@ void main() {
     tester.view.physicalSize = const Size(400, 400);
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MaterialApp(
         home: Scaffold(
           body: Center(
@@ -95,7 +131,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MediaQuery(
         data: const MediaQueryData(devicePixelRatio: 1.0),
         child: CoverImage(url: 'https://example.com/cover.jpg', size: 48),
@@ -114,13 +151,14 @@ void main() {
     );
   });
 
-  testWidgets('remote covers send a browser User-Agent header', (
+  testWidgets('remote covers send a browser UA and a per-host Referer', (
     WidgetTester tester,
   ) async {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MediaQuery(
         data: const MediaQueryData(devicePixelRatio: 1.0),
         child: CoverImage(url: 'https://p1.music.126.net/a.jpg', size: 48),
@@ -129,9 +167,10 @@ void main() {
 
     final provider = tester.widget<Image>(find.byType(Image)).image;
     final network = (provider as ResizeImage).imageProvider as NetworkImage;
-    // NetEase's image CDN answers 403 to the default dart:io User-Agent, so the
-    // network request must carry a browser UA.
+    // NetEase's image CDN answers 403 to the default dart:io UA and expects the
+    // music.163 referer.
     expect(network.headers?['User-Agent'], kDesktopUserAgent);
+    expect(network.headers?['Referer'], 'https://music.163.com/');
   });
 
   testWidgets('network url at DPR 3.0 produces cacheWidth 144', (
@@ -140,7 +179,8 @@ void main() {
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MediaQuery(
         data: const MediaQueryData(devicePixelRatio: 3.0),
         child: CoverImage(url: 'https://example.com/cover.jpg', size: 48),
@@ -159,7 +199,8 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       MediaQuery(
         data: const MediaQueryData(devicePixelRatio: 1.0),
         child: CoverImage(
@@ -178,11 +219,9 @@ void main() {
   testWidgets('no path and no url renders an empty placeholder', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const MediaQuery(
-        data: MediaQueryData(),
-        child: CoverImage(size: 48),
-      ),
+    await _pump(
+      tester,
+      const MediaQuery(data: MediaQueryData(), child: CoverImage(size: 48)),
     );
 
     expect(find.byType(Image), findsNothing);
@@ -195,7 +234,8 @@ void main() {
   testWidgets('no source uses the errorBuilder output when provided', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
+    await _pump(
+      tester,
       Directionality(
         textDirection: TextDirection.ltr,
         child: MediaQuery(

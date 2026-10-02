@@ -17,22 +17,25 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-import 'package:flind_player/data/sources/bilibili/bili_client.dart';
+import 'package:flind_player/data/cache/cover_headers.dart';
+import 'package:flind_player/data/sources/bilibili/bili_client.dart'
+    show kDesktopUserAgent;
 
 /// Fetches remote cover images as raw bytes.
 ///
-/// Bilibili's image CDN is fronted by a WAF that rejects requests without the
-/// same `User-Agent` / `Referer` pair the API client sends, and it 403s any
-/// request carrying a third-party `Origin`. This class centralises those rules
-/// so every cover fetch behaves identically, and it treats a cover as purely
-/// decorative: a fetch that fails for any reason simply yields `null` instead
-/// of surfacing an error into the surrounding track load.
+/// Cover CDNs are hotlink-protected: NetEase's `*.music.126.net` answers 403 to
+/// the default `dart:io` User-Agent, and Bilibili's fronting WAF rejects
+/// requests without the same `User-Agent` / `Referer` pair the API client
+/// sends (and 403s any third-party `Origin`). [coverHeadersFor] centralises a
+/// per-host `Referer` plus a browser UA; this class applies it to every fetch
+/// and treats a cover as purely decorative: a fetch that fails for any reason
+/// simply yields `null` instead of surfacing an error into the caller.
 class CoverDownloader {
   /// Creates a downloader, optionally wrapping a caller-supplied [dio].
   ///
-  /// A supplied [dio] is still given the mandatory CDN headers — and has any
-  /// `Origin` stripped — so no caller can accidentally bypass the WAF rules
-  /// that apply to every Bilibili image request.
+  /// A supplied [dio] is still given the mandatory browser `User-Agent` — and
+  /// has any `Referer` / `Origin` stripped — so no caller can accidentally
+  /// bypass the per-host header rules that apply to every cover request.
   CoverDownloader({Dio? dio})
     : _dio =
           dio ??
@@ -47,7 +50,9 @@ class CoverDownloader {
             ),
           ) {
     _dio.options.headers['User-Agent'] = kDesktopUserAgent;
-    _dio.options.headers['Referer'] = kDesktopReferer;
+    // The Referer is host-specific and set per request; a stale one must never
+    // leak onto a request for a different platform's CDN.
+    _dio.options.headers.remove('Referer');
     // A third-party origin is 403'd by the CDN's WAF, so never send one.
     _dio.options.headers.remove('Origin');
   }
@@ -74,6 +79,7 @@ class CoverDownloader {
         options: Options(
           responseType: ResponseType.bytes,
           validateStatus: (_) => true,
+          headers: coverHeadersFor(Uri.parse(url)),
         ),
         cancelToken: cancelToken,
         // Abort as soon as the body exceeds the cap, rather than buffering an

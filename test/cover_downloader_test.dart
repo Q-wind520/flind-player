@@ -19,6 +19,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/data/cache/cover_downloader.dart';
+import 'package:flind_player/data/cache/cover_headers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 
 /// Minimal [HttpClientAdapter] that delegates to [handler] and records the
@@ -82,6 +83,32 @@ void main() {
     expect(headers['User-Agent'], kDesktopUserAgent);
     expect(headers['Referer'], kDesktopReferer);
     expect(headers.containsKey('Origin'), isFalse);
+  });
+
+  test('sends the NetEase referer for a music.126.net cover', () async {
+    final adapter = _FakeAdapter(
+      (_) async => ResponseBody.fromBytes(const <int>[1], 200),
+    );
+
+    await _downloaderWith(adapter)
+        .download('https://p1.music.126.net/a.jpg');
+
+    final headers = adapter.lastRequest!.headers;
+    expect(headers['User-Agent'], kDesktopUserAgent);
+    expect(headers['Referer'], kMusic163Referer);
+    expect(headers.containsKey('Origin'), isFalse);
+  });
+
+  test('omits Referer for an unknown cover host', () async {
+    final adapter = _FakeAdapter(
+      (_) async => ResponseBody.fromBytes(const <int>[1], 200),
+    );
+
+    await _downloaderWith(
+      adapter,
+    ).download('https://example.com/cover.jpg');
+
+    expect(adapter.lastRequest!.headers.containsKey('Referer'), isFalse);
   });
 
   test('returns null for a non-2xx status', () async {

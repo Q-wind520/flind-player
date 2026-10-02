@@ -22,6 +22,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/cache/cover_downloader.dart';
+import 'package:flind_player/data/cache/remote_cover_cache.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
@@ -49,6 +50,27 @@ final coverCacheStoreProvider = Provider<CoverCacheStore>((ref) {
 final coverDownloaderProvider = Provider<CoverDownloader>(
   (ref) => CoverDownloader(),
 );
+
+/// Resolves a remote cover URL to a locally cached file path.
+///
+/// Cache-first: a layer-2 hit is served without a download; a miss downloads
+/// with the per-host headers, validates the bytes and stores them. This is the
+/// shared path behind the UI's network fallback and the playback prefetch.
+final remoteCoverCacheProvider = Provider<RemoteCoverCache>((ref) {
+  final store = ref.watch(coverCacheStoreProvider);
+  return RemoteCoverCache(
+    lookupPath: store.lookupPath,
+    download: ref.watch(coverDownloaderProvider).download,
+    store:
+        ({required String urlHash, required String contentHash, required bytes}) =>
+            store.insert(
+              urlHash: urlHash,
+              contentHash: contentHash,
+              bytes: bytes,
+            ),
+    isImage: isDecodableImage,
+  );
+});
 
 /// Resolves, downloads and caches a track's remote cover.
 final coverServiceProvider = Provider<CoverService>((ref) {
