@@ -1,11 +1,11 @@
 # 设计：网易云音乐音源（匿名搜索 + 播放 + 歌词）
 
 - 日期：2026-10-01
-- 状态：**已实现**（2026-10-01）
+- 状态：**已实现**（2026-10-01）· 2026-10-02 随 v1.0.0 归档
 - 范围：新增网易云在线音源（weapi/eapi 加密、搜索、详情、匿名流解析、同步歌词）、在线源注册表、搜索界面多源切换、身份编解码收敛、歌词子系统
 - 目标读者：实现者
-- 关联：[`docs/architecture.md`](architecture.md) §5/§6、[`docs/bilibili-source.md`](bilibili-source.md)
-- 计划：`docs/plan-netease-source-2026-10-01.md`（本文批准后由 writing-plans 产出）
+- 关联：[`docs/architecture.md`](../architecture.md) §5/§6、[`docs/bilibili-source.md`](../bilibili-source.md)
+- 计划：`docs/archive/plan-netease-source-2026-10-01.md`（本文批准后由 writing-plans 产出）
 
 ## 1. 背景
 

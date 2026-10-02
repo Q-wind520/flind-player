@@ -8,7 +8,9 @@
 
 **Tech Stack:** Flutter / Dart 3、Riverpod、Dio、`crypto`（md5）、`pointycastle`（AES-128-CBC/ECB + PKCS7）、`BigInt.modPow`（原始 RSA）。
 
-**Spec:** `docs/spec-netease-source-2026-10-01.md`
+**Spec:** `docs/archive/spec-netease-source-2026-10-01.md`
+
+> 状态：**已实现并发布（v1.0.0），2026-10-02 归档。**
 
 ## Global Constraints
 

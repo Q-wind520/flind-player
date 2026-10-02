@@ -1,7 +1,7 @@
 # 网易云音乐音源适配器设计
 
 > 关联：[`architecture.md`](architecture.md) §5、§6、§7
-> 关联：[`spec-netease-source-2026-10-01.md`](spec-netease-source-2026-10-01.md)（设计规格，状态：已实现）
+> 关联：[`archive/spec-netease-source-2026-10-01.md`](archive/spec-netease-source-2026-10-01.md)（设计规格，状态：已实现）
 > 调研日期：2026-10-01（`weapi` / `eapi` 为非公开协议，行为随风控与客户端版本变化）
 
 ---
