@@ -396,4 +396,4 @@ final trackLyricsProvider = FutureProvider.family<Lyric?, Track>((ref, track) as
 8. **歌词界面**：`LyricsView` / `LyricsPreview` 同步高亮 + l10n + widget 测试。
 9. **文档与回归**：`docs/netease-source.md`、`flutter analyze` + `flutter test`。
 
-> 子智能体派发遵循 [`docs/agent-model-policy.md`](agent-model-policy.md)：主智能体负责中高风险/高难度；子智能体按难度+工作量授模型，审阅者不低于实现者，同形小任务批处理，免费端点限量。
+> 子智能体派发遵循 [`docs/agent-model-policy.md`](../agent-model-policy.md)：主智能体负责中高风险/高难度；子智能体按难度+工作量授模型，审阅者不低于实现者，同形小任务批处理，免费端点限量。

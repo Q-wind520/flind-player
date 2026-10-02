@@ -153,7 +153,10 @@ core/repositories/settings_repository.dart ── 10 方法"上帝接口"       
 | m4 | `_CacheSliceFake` 重复了 cache mixin | `test/settings_repository_segregation_test.dart` | 应复用 `support/fake_settings_repository.dart` 的 `FakeCacheSettings` |
 | m5 | 死的设置 fixture | `test/cover_cache_store_test.dart` | `settings` 构造后仅 `line 176` 改值、**从未注入**;层 2 固定 256 MiB 不读设置,故该 fixture 无作用(重构前遗留) |
 
-> **1.0 复核(2026-10-02)**:m3 / m4 / m5 已处理(见 `docs/plan-1.0-hardening-2026-10-02.md` Task 15/16/17)。m1(缓存类测试仍绑定完整
+> **1.0 复核(2026-10-02)**:m3 / m5 已处理,m4 **部分处理**:公共共享 fake 已用于通用场景,但
+> `test/settings_repository_segregation_test.dart` 保留手写的 **slice-only** fake —— 共享 `FakeCacheSettings`
+> 挂在 `FakeSettingsBase`（实现完整 `SettingsRepository`）上,会削弱该测试的编译期隔离断言，故该文件不套用 m4
+> （见 `docs/plan-1.0-hardening-2026-10-02.md` Task 15/16/17）。m1(缓存类测试仍绑定完整
 > composite fake)与 m2(共享 fake 暴露 `writes`/`sort`/`views` 等当前无人读取的成员)判定为**已知,不修**:m1 是测试便利
 > 而非行为风险,m2 是为将来断言语义预留,删除反而要改动多个测试。
 

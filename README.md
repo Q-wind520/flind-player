@@ -267,7 +267,7 @@ git push origin v1.0.0
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key 口令 |
 
-缺少 `ANDROID_KEYSTORE_BASE64` 时，发布仍会进行，但 APK 使用 debug 签名。发布说明中
+缺少 `ANDROID_KEYSTORE_BASE64` 时，正式发布工作流会**直接失败**（不会发布 debug 签名的 APK）。发布说明中
 包含 GPL-3.0 §6 要求的对应源码指向（本仓库的对应 tag）。
 
 <br />

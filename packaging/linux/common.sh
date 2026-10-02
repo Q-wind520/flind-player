@@ -66,6 +66,11 @@ ensure_bundle() {
     die "desktop file not found under ${BUNDLE_DIR}/share/applications"
   [ -f "${BUNDLE_DIR}/share/icons/hicolor/256x256/apps/${BIN_NAME}.png" ] ||
     die "icon not found under ${BUNDLE_DIR}/share/icons"
+  # A release bundle is AOT (libapp.so). A kernel_blob.bin is a stale JIT
+  # artifact from a debug / `flutter run` session that `flutter build` leaves in
+  # place; packaging it bloats the installer by ~100 MiB. Refuse to package.
+  [ ! -e "${BUNDLE_DIR}/data/flutter_assets/kernel_blob.bin" ] ||
+    die "stale kernel_blob.bin in the release bundle (run: flutter clean && flutter build linux --release)"
 }
 
 # rpm forbids '-' in Version/Release; split "0.5.1-pre+1" into 0.5.1 / 0.pre+1

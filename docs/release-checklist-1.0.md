@@ -20,7 +20,7 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 
 - [x] Release body 含对应源码指向：`.github/workflows/release.yml` 的 GPL 段落指向本 tag 的仓库快照（2026-10-02 复核存在）。
 - [x] 仓库根 `LICENSE` 为 GPL-3.0 全文；README License 段指向正确。
-- [ ] **AppImage 内的 libmpv/FFmpeg LGPL 说明**：`packaging/linux/build-appimage.sh` 目前只 `install` 了项目自身的 `LICENSE`（第 50 行），**未见到 libmpv/FFmpeg 的 LGPL 许可文本随包**；`docs/packaging.md` 第 46 行的「包内附许可说明」需据此核实或补齐。
+- [x] **AppImage 内的 libmpv/FFmpeg LGPL 说明**：`packaging/linux/build-appimage.sh:49` 以 `write_copyright … yes` 生成 `/usr/share/doc/flind-player/copyright`，内含 `License: LGPL-2.1+` 声明（libmpv/FFmpeg 随包分发）；deb/rpm 传 `no`（系统提供）。**剩余待决**：是否需随包附 LGPL-2.1 **全文**（当前仅声明 + 指向上游）。
 - [x] Windows 包随附 MSVC 可再发行 DLL；`docs/packaging.md` 第 39/46 行有说明。
 
 ## 隐私与安全（Task 25）
@@ -46,4 +46,4 @@ Gradle 已支持正式签名：存在 `android/key.properties` 时使用其中�
 - [x] `flutter build apk --release --split-per-abi` → arm64-v8a 31.5MB / armeabi-v7a 29.4MB / x86_64 33.0MB（当前为 debug 签名，正式签名见上文）。
 - [ ] Windows / macOS / iOS：需在 CI 预发布 tag（`v1.0.0-pre+1`）上验证。
 
-> 观察（待确认）：deb 体积从 0.5.0 的 ~11MB 增至 1.0.0 的 ~35MB，AppImage 从 ~105MB 增至 ~132MB。发布前应确认这是有意变化（如捆绑内容调整）而非误打包。
+> 体积复核（2026-10-02）：首次打包得到 ~35MB deb / ~132MB AppImage，根因是 `build/` 残留了 14:58 的 101 MiB `kernel_blob.bin`（debug/JIT 产物），`flutter build --release` 未清除，被 `stage_tree` 一并打包。删除残留后重打包为 **~11.5MB deb / ~105MB AppImage**，与 0.5.0 一致。已在 `packaging/linux/common.sh` 的 `ensure_bundle()` 加守卫：release bundle 内存在 `kernel_blob.bin` 即拒绝打包。

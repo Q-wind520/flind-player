@@ -23,11 +23,28 @@ import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
 import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
 
-import 'support/fake_settings_repository.dart';
-
 /// Implements only the cache slice: the point is that a consumer depending on
 /// [CacheSettingsRepository] compiles without the rest of the settings surface.
-class _CacheSliceFake extends FakeSettingsBase with FakeCacheSettings {}
+///
+/// Deliberately NOT the shared `FakeCacheSettings` (m4): that mixin sits on
+/// `FakeSettingsBase`, which implements the full `SettingsRepository`, so a
+/// consumer widened to the composite would still compile — defeating the
+/// compile-time guard this test exists to provide.
+class _CacheSliceFake implements CacheSettingsRepository {
+  CacheSettings current = CacheSettings.defaults;
+
+  @override
+  Future<CacheSettings> cacheSettings() async => current;
+
+  @override
+  Future<void> updateCacheSettings(CacheSettings settings) async {
+    current = settings;
+  }
+
+  @override
+  Stream<CacheSettings> watchCacheSettings() =>
+      const Stream<CacheSettings>.empty();
+}
 
 void main() {
   test('PrefsSettingsRepository implements every settings slice', () {
