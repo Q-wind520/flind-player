@@ -18,7 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/repositories/prefs_settings_repository.dart';
 
-/// Persisted user settings, including the offline cache configuration.
+/// Persisted user settings across cache, library and appearance domains.
 ///
 /// Kept out of `cache_providers.dart` so appearance, language and library
 /// consumers depend on the settings surface alone, not the whole cache data
