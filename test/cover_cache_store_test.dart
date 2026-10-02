@@ -20,22 +20,17 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:flind_player/core/repositories/settings_repository.dart';
 import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
-
-import 'support/fake_settings_repository.dart';
 
 void main() {
   late Directory root;
   late AppDatabase db;
-  late FakeSettingsRepository settings;
   late CoverCacheStore store;
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('flind_cover_cache');
     db = AppDatabase(NativeDatabase.memory());
-    settings = FakeSettingsRepository();
     store = CoverCacheStore(database: db, baseDir: root);
   });
 
@@ -172,8 +167,9 @@ void main() {
     });
 
     test('does not read the user cache limit', () async {
-      // A tiny user limit must not evict layer-2 covers.
-      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1);
+      // Layer 2 is fixed at 256 MiB and never reads the user's cache limit by
+      // construction, so there is nothing to inject here (m5: dead fixture
+      // removed).
       await addCover('a', 'hash-a', bytes: 100);
 
       final result = await store.ensureSpace(0);
