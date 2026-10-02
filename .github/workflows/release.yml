@@ -417,10 +417,11 @@ jobs:
             | `FlindPlayer-${{ github.ref_name }}-armeabi-v7a.apk` | 较老的 32 位 Android 设备 |
             | `FlindPlayer-${{ github.ref_name }}.aab` | Android App Bundle（用于 Google Play 上架） |
 
-            > **预览版说明**：0.1.x 使用调试签名，**各版本之间不支持覆盖升级**。安装新版本
-            > 前需先卸载旧版本，本地数据（曲库索引、收藏、播放队列）会随之清除。正式签名
-            > 将在 1.0 引入。
+            > **1.0.0 签名变更**：1.0.0 起使用正式签名。此前 0.1–0.7 预览版使用 debug 签名，
+            > 两者证书不同、**不支持覆盖安装**：升级前请先卸载旧版本再安装 1.0.0。卸载不会
+            > 删除 `~/.local/share`（Linux）/ `%APPDATA%`（Windows）下的本地数据，但 Android
+            > 上卸载会清除应用数据（曲库索引、收藏、播放队列、离线缓存）。
             >
-            > **Preview builds**: 0.1.x is signed with the debug key, so builds are
-            > **not upgradable in place** — uninstall the previous version first.
-            > Release signing arrives in 1.0.
+            > **1.0.0 signing change**: 1.0.0 is signed with the release key. Preview builds
+            > (0.1–0.7) used the debug key; signatures are incompatible, so uninstall the
+            > preview build before installing 1.0.0.

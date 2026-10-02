@@ -15,9 +15,9 @@
 
 ```bash
 flutter build linux --release
-packaging/linux/build-deb.sh --version 0.5.0
-packaging/linux/build-rpm.sh --version 0.5.0      # 需 rpmbuild
-packaging/linux/build-appimage.sh --version 0.5.0
+packaging/linux/build-deb.sh --version 1.0.0
+packaging/linux/build-rpm.sh --version 1.0.0      # 需 rpmbuild
+packaging/linux/build-appimage.sh --version 1.0.0
 # 产物在 dist/
 ```
 
@@ -26,7 +26,7 @@ Windows（在 Windows 上）：
 ```powershell
 flutter build windows --release
 ./packaging/windows/stage-crt.ps1 -ReleaseDir build/windows/x64/runner/Release
-ISCC.exe /DVersion=0.5.0 /DTag=v0.5.0 /DSourceDir=build\windows\x64\runner\Release packaging\windows\flind-player.iss
+ISCC.exe /DVersion=1.0.0 /DTag=v1.0.0 /DSourceDir=build\windows\x64\runner\Release packaging\windows\flind-player.iss
 ```
 
 ## 设计要点
