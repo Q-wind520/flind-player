@@ -113,7 +113,6 @@ Future<void> main() async {
     await CacheRelocator(
       database: container.read(appDatabaseProvider),
       audioStore: container.read(audioCacheStoreProvider),
-      coverStore: container.read(coverCacheStoreProvider),
       legacyAudioRoot: Directory(p.join(support.path, 'audio_cache')),
       legacyCoverRoot: Directory(p.join(support.path, 'cover_cache')),
     ).relocate();

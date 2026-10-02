@@ -21,7 +21,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/cache_relocator.dart';
-import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
 
 import 'support/fake_settings_repository.dart';
@@ -81,31 +80,18 @@ void main() {
     expect(legacyCover.existsSync(), isFalse);
   });
 
-  test('moves legacy layer-2 covers into the new root and rewrites paths', () async {
+  test('deletes the legacy layer-2 cover directory', () async {
     final dir = Directory.systemTemp.createTempSync('flind_relocate_cover');
     addTearDown(() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     final legacy = Directory('${dir.path}/cover_cache')..createSync();
-    final newRoot = Directory('${dir.path}/cache/cover');
+    File('${legacy.path}/a.jpg')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(const [7, 8, 9]);
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
-    final legacyFile = File('${legacy.path}/aaaa.jpg')
-      ..createSync(recursive: true)
-      ..writeAsBytesSync(const [7, 8, 9]);
-    await db.into(db.coverCache).insert(
-      CoverCacheCompanion.insert(
-        urlHash: 'url-hash-1',
-        filePath: legacyFile.path,
-        contentHash: 'content-hash-1',
-        bytes: 3,
-        cachedAt: 1,
-        lastAccessedAt: 1,
-      ),
-    );
-
-    final coverStore = CoverCacheStore(database: db, baseDir: newRoot);
     final audioStore = AudioCacheStore(
       database: db,
       baseDir: Directory('${dir.path}/cache/audio'),
@@ -114,15 +100,13 @@ void main() {
     await CacheRelocator(
       database: db,
       audioStore: audioStore,
-      coverStore: coverStore,
       // Never created: the audio pass must be a no-op here.
       legacyAudioRoot: Directory('${dir.path}/audio_cache'),
       legacyCoverRoot: legacy,
     ).relocate();
 
-    final row = (await coverStore.lookup('url-hash-1'))!;
-    expect(row.filePath, startsWith(newRoot.path));
-    expect(File(row.filePath).existsSync(), isTrue);
-    expect(legacyFile.existsSync(), isFalse);
+    // Layer 2 is wiped at startup anyway, so the legacy directory is simply
+    // removed instead of being relocated into the new root.
+    expect(legacy.existsSync(), isFalse);
   });
 }

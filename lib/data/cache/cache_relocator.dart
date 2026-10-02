@@ -20,7 +20,6 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:flind_player/data/cache/audio_cache_store.dart';
-import 'package:flind_player/data/cache/cover_cache_store.dart';
 import 'package:flind_player/data/database/app_database.dart';
 
 /// One-time best-effort move of cache files from the pre-v10 roots
@@ -35,25 +34,23 @@ class CacheRelocator {
   CacheRelocator({
     required AppDatabase database,
     required AudioCacheStore audioStore,
-    CoverCacheStore? coverStore,
     required Directory legacyAudioRoot,
     Directory? legacyCoverRoot,
   }) : _db = database,
        _audioStore = audioStore, // ignore: prefer_initializing_formals
-       _coverStore = coverStore, // ignore: prefer_initializing_formals
        _legacyAudio = legacyAudioRoot,
        _legacyCover = legacyCoverRoot;
 
   final AppDatabase _db;
   final AudioCacheStore _audioStore;
-  final CoverCacheStore? _coverStore;
   final Directory _legacyAudio;
   final Directory? _legacyCover;
 
-  /// Moves every DB-referenced file out of both legacy roots.
+  /// Moves every DB-referenced audio file out of the legacy root and removes
+  /// the legacy layer-2 cover directory.
   Future<void> relocate() async {
     await _relocateAudio();
-    await _relocateCovers();
+    _deleteLegacyCovers();
   }
 
   Future<void> _relocateAudio() async {
@@ -96,29 +93,15 @@ class CacheRelocator {
     }
   }
 
-  Future<void> _relocateCovers() async {
+  /// Layer 2 is session-scoped and wiped at startup, so relocating it into the
+  /// new root is wasted I/O. Remove the legacy directory instead.
+  void _deleteLegacyCovers() {
     final legacy = _legacyCover;
-    final store = _coverStore;
-    if (legacy == null || store == null) return;
+    if (legacy == null || !legacy.existsSync()) return;
     try {
-      if (!legacy.existsSync()) return;
-      final rows = await _db.select(_db.coverCache).get();
-      for (final row in rows) {
-        if (!p.isWithin(legacy.path, row.filePath)) continue;
-        try {
-          final relative = p.relative(row.filePath, from: legacy.path);
-          final target = File(p.join(await store.cacheDirectoryPath(), relative));
-          await _moveAndRewrite(row.filePath, target, null);
-          await (_db.update(_db.coverCache)..where((t) => t.id.equals(row.id)))
-              .write(CoverCacheCompanion(filePath: Value(target.path)));
-        } catch (error) {
-          debugPrint(
-            'CacheRelocator: cover row ${row.id} relocation failed: $error',
-          );
-        }
-      }
+      legacy.deleteSync(recursive: true);
     } catch (error) {
-      debugPrint('CacheRelocator: cover relocation failed: $error');
+      debugPrint('CacheRelocator: legacy cover cleanup failed: $error');
     }
   }
 
