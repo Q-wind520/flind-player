@@ -319,6 +319,39 @@ class _PlaybackSection extends ConsumerWidget {
 // 离线缓存 section
 // ---------------------------------------------------------------------------
 
+/// Shared destructive-confirmation dialog used by the cache and library delete
+/// actions. Returns `true` only when the user confirms.
+Future<bool> _confirmDestructive(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+}) async {
+  final l10n = AppLocalizations.of(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+          ),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
+}
+
 /// Manually downloaded songs: their list, per-download removal and a full
 /// clear.
 ///
@@ -397,28 +430,13 @@ class _OfflineCacheSection extends ConsumerWidget {
     String label,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.removeDownloadTitle),
-        content: Text(l10n.removeDownloadBody(label)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await _confirmDestructive(
+      context,
+      title: l10n.removeDownloadTitle,
+      message: l10n.removeDownloadBody(label),
+      confirmLabel: l10n.delete,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
 
     await ref.read(offlineCacheMaintenanceProvider).onRemove(entry.id);
     ref.invalidate(offlineCacheEntriesProvider);
@@ -433,28 +451,13 @@ class _OfflineCacheSection extends ConsumerWidget {
   /// Confirms, then removes every pinned download.
   Future<void> _confirmClearOffline(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.clearOfflineTitle),
-        content: Text(l10n.clearOfflineBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.clear),
-          ),
-        ],
-      ),
+    final confirmed = await _confirmDestructive(
+      context,
+      title: l10n.clearOfflineTitle,
+      message: l10n.clearOfflineBody,
+      confirmLabel: l10n.clear,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     final freed = ref.read(offlineCacheUsageProvider).value ?? 0;
@@ -543,28 +546,13 @@ class _CacheLocationDialog extends ConsumerWidget {
   /// Asks for confirmation, then deletes every cached file and row.
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.clearCacheTitle),
-        content: Text(l10n.clearCacheBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.clear),
-          ),
-        ],
-      ),
+    final confirmed = await _confirmDestructive(
+      context,
+      title: l10n.clearCacheTitle,
+      message: l10n.clearCacheBody,
+      confirmLabel: l10n.clear,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     final freed = ref.read(combinedCacheUsageProvider).value ?? 0;
@@ -894,28 +882,13 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
     String path,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.deleteScanRootTitle),
-        content: Text(l10n.deleteScanRootBody(path)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.delete),
-          ),
-        ],
-      ),
+    final confirmed = await _confirmDestructive(
+      context,
+      title: l10n.deleteScanRootTitle,
+      message: l10n.deleteScanRootBody(path),
+      confirmLabel: l10n.delete,
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     await ref.read(musicLibraryRepositoryProvider).removeScanRoot(path);
