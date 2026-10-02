@@ -48,8 +48,8 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 | D4 | Bilibili 接入 | 原生直连 + WBI + 安全凭证；Web 走无凭证代理 | 实测第三方 Origin 一律 403（见 `bilibili-source.md`） |
 | D5 | 本地扫描 | **`audio_metadata_reader`**（纯 Dart） | 零原生依赖，3392 首 < 200ms，字段齐全 |
 | D6 | 缓存 | **drift（SQLite + FTS5）** | 关系查询、迁移、后台 isolate、Flutter Favorite |
-| D7 | 系统集成 | **`audio_service`** 统一层 | 一个 AudioHandler 覆盖通知栏 / MPRIS / SMTC / MediaSession |
-| D8 | 凭证存储 | **`flutter_secure_storage`** | SESSDATA 是全账号 bearer token |
+| D7 | 系统集成 | **`audio_service`** 统一层 | 一个 AudioHandler 覆盖 Android 通知栏 / Linux MPRIS / macOS·iOS Now Playing；Windows 暂无 OS 媒体控制（需额外插件，v1.1 评估） |
+| D8 | 凭证存储 | **未启用（登录留 v1.1）；届时用 `flutter_secure_storage`** | SESSDATA 是全账号 bearer token；当前无登录实现，代码中无凭证落盘 |
 | D9 | 离线缓存 | Bilibili 音频缓存到本地，**默认 1 GiB 可配置**，LRU 淘汰 | 见 `local-library.md` §4 |
 | D10 | 歌词 | **保留 `LyricsProvider` 抽象**（2026-10-01 已落地为 `Lyric` / `LyricsProvider` / `lrc_parser`，见 §6.4） | Bilibili 无歌词源；网易云匿名源已实现 LRC 整行 + 翻译 |
 | D11 | Web | **推迟至 v2** | CORS 全阻断，需代理且无法登录，性价比低 |
@@ -105,8 +105,10 @@ flind_player/
 ├── lib/
 │   ├── main.dart                       # ProviderScope + bootstrap
 │   ├── app/
-│   │   ├── app.dart                    # MaterialApp.router
-│   │   ├── router.dart                 # go_router
+│   │   ├── app.dart                    # MaterialApp + 应用外壳（HomeShell）
+│   │   ├── app_scroll_behavior.dart    # 全局滚动行为
+│   │   ├── l10n.dart / language.dart   # locale 解析与语言设置
+│   │   ├── theme_mode.dart             # 主题模式设置
 │   │   ├── theme/                      # M3 主题 + 自适应断点
 │   │   └── di/
 │   │       └── application_overrides.dart  # 生产 Provider 装配（单一入口）
@@ -126,9 +128,8 @@ flind_player/
 │   │   └── cache/                      # 封面缓存 + 音频离线缓存（DownloadManager）
 │   ├── platform/
 │   │   ├── audio_handler.dart          # audio_service AudioHandler（桥接 PlaybackController）
-│   │   ├── media_session/              # 各平台媒体会话绑定
-│   │   ├── tray/                       # 桌面托盘
-│   │   └── window/                     # window_manager
+│   │   ├── permissions/                # 权限服务
+│   │   └── tray/                       # 桌面托盘（window_manager 在 main.dart 直接装配）
 │   ├── features/                       # 一屏一目录
 │   │   ├── home/                       # Bilibili 主入口
 │   │   ├── library/
@@ -136,7 +137,6 @@ flind_player/
 │   │   ├── queue/
 │   │   ├── playlists/
 │   │   ├── search/                     # 多源切换搜索（SegmentedButton + onlineSearchProvider）
-│   │   ├── account/                    # Bilibili 登录
 │   │   └── settings/
 │   └── shared/                         # 通用组件、布局断点、扩展
 ├── android/  linux/  windows/  web/  macos/  ios/
@@ -335,7 +335,7 @@ Track → PlaybackController.playQueue(queue)
 |---|---|---|
 | Android | MediaSession + 通知栏 + 锁屏 | `audio_service`（FGS `mediaPlayback` + `POST_NOTIFICATIONS`） |
 | Linux | MPRIS2 / 媒体键 | `audio_service_mpris` ^0.2.1 |
-| Windows | SMTC | `audio_service_win`（备选 `smtc_windows` ^1.1.0） |
+| Windows | （未接入 OS 媒体控制；仅桌面托盘 / 窗口） | 需 `audio_service_win` / `smtc_windows` 一类插件，v1.1 评估 |
 | macOS | MPNowPlayingInfoCenter | `audio_service` darwin 内置 |
 | iOS | MPNowPlayingInfoCenter | `audio_service` 内置 |
 | Web | Media Session API | 推迟（D11） |
@@ -395,19 +395,19 @@ Track → PlaybackController.playQueue(queue)
 | `just_audio` | 主播放引擎 | Apache-2.0 / MIT | 是 |
 | `audio_service` | 系统集成 | MIT | 是 |
 | `audio_session` | 音频焦点 | MIT | 是 |
-| `media_kit`（+ libs） | 逃生舱引擎 | MIT；libmpv/FFmpeg 为 LGPL-2.1+ | 是 |
+| `just_audio_media_kit`（+ `media_kit_libs_linux` / `media_kit_libs_windows_audio`） | 桌面播放引擎 | MIT；libmpv/FFmpeg 为 LGPL-2.1+ | 是 |
 | `audio_service_mpris` | Linux MPRIS | MIT | 是 |
-| `audio_service_win` | Windows SMTC | MIT | 是 |
-| `tray_manager` | 桌面托盘 | MIT | 是 |
+| `tray_manager`（vendored 0.5.3） | 桌面托盘 | MIT | 是 |
 | `window_manager` | 桌面窗口 | MIT | 是 |
 | `drift` / `drift_flutter` | SQLite + FTS5 | MIT | 是 |
+| `sqlite3_flutter_libs` | SQLite 原生库 | MIT | 是 |
 | `audio_metadata_reader` | 元数据解析 | MIT | 是 |
 | `permission_handler` | 权限申请 | MIT | 是 |
 | `file_picker` | 目录选择 | MIT | 是 |
-| `on_audio_query_pluse` | Android MediaStore | Apache-2.0 | 是 |
-| `flutter_secure_storage` | 凭证存储 | BSD-3-Clause | 是 |
-| `go_router` | 路由 | BSD-3-Clause | 是 |
-| `dio` | HTTP 客户端 | MIT | 是 |
+| `flutter_riverpod` | 状态管理 / DI | MIT | 是 |
+| `shared_preferences` | 轻量设置持久化 | BSD-3-Clause | 是 |
+| `crypto` / `pointycastle` | 网易云 weapi/eapi 加密 | MIT / MIT | 是 |
+| `dio` | HTTP 客户端（WBI / 网易云签名请求） | MIT | 是 |
 
 ### 12.2 GPL-3.0 带来的两点变化
 
