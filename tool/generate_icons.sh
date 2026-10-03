@@ -6,7 +6,7 @@
 #
 # PREREQUISITES:
 #   - ffmpeg (image manipulation)
-#   - Python 3 (ICO generation, monochrome tray icon)
+#   - Python 3 (adaptive foreground alpha, ICO validation)
 #   - ImageMagick (`convert`, multi-resolution .ico assembly)
 #   - flutter_launcher_icons (installed as a dev dependency)
 #
@@ -16,8 +16,9 @@
 #
 # TO UPDATE THE ARTWORK:
 #   1. Replace docs/FlindPlayer.png (1120x1120 RGBA, transparent rounded corners)
-#      and/or docs/FlindPlayer.ico with your refined artwork.
-#   2. Run this script — everything regenerates automatically.
+#      with your refined master artwork.
+#   2. Run this script — everything regenerates automatically, including
+#      docs/FlindPlayer.ico and the tray assets under assets/tray/.
 #
 # The script uses two approaches for the foreground:
 #   - A Python pixel-manipulation step for precise alpha handling (coral removal
