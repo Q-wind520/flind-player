@@ -57,7 +57,7 @@ echo ""
 mkdir -p "$ICON_DIR" "$TRAY_DIR"
 
 # --- 2. Full-bleed app icon (1024x1024, RGB, no alpha) -----------------------
-echo "[1/6] Generating full-bleed app_icon.png (1024x1024, RGB)..."
+echo "[1/5] Generating full-bleed app_icon.png (1024x1024, RGB)..."
 ffmpeg -y -f lavfi -i "color=c=$CORAL_HEX:s=1120x1120" \
   -i "$SOURCE_ARTWORK" \
   -filter_complex "[0:v][1:v]overlay=format=auto,scale=1024:1024:flags=lanczos" \
@@ -66,7 +66,7 @@ ffmpeg -y -f lavfi -i "color=c=$CORAL_HEX:s=1120x1120" \
 echo "  -> $ICON_DIR/app_icon.png"
 
 # --- 3. Adaptive foreground (1024x1024, RGBA, transparent background) --------
-echo "[2/6] Generating adaptive foreground (1024x1024, RGBA, coral removed)..."
+echo "[2/5] Generating adaptive foreground (1024x1024, RGBA, coral removed)..."
 python3 - "$SOURCE_ARTWORK" "$ICON_DIR/app_icon_foreground.png" \
   "${CORAL_RGB[0]}" "${CORAL_RGB[1]}" "${CORAL_RGB[2]}" "$COLOR_THRESHOLD" <<'PYEOF'
 import subprocess, math, sys
@@ -111,69 +111,39 @@ print(f"  -> {output}")
 PYEOF
 
 # --- 4. Linux icon (256x256, RGB, no alpha) ----------------------------------
-echo "[3/6] Generating app_icon_256.png (256x256, RGB)..."
+echo "[3/5] Generating app_icon_256.png (256x256, RGB)..."
 ffmpeg -y -i "$ICON_DIR/app_icon.png" \
   -vf "scale=256:256:flags=lanczos" \
   -pix_fmt rgb24 -frames:v 1 -update 1 \
   "$ICON_DIR/app_icon_256.png" 2>/dev/null
 echo "  -> $ICON_DIR/app_icon_256.png"
 
-# --- 5. Monochrome tray icons (96x96, white/black on transparent) -----------
-echo "[4/6] Generating monochrome tray icons (96x96, white + black on transparent)..."
-python3 - "$ICON_DIR/app_icon_foreground.png" "$TRAY_DIR" <<'PYEOF'
-import subprocess, sys
-
-source = sys.argv[1]
-outdir = sys.argv[2]
-
-# Scale foreground to 96x96 and read as raw RGBA
-result = subprocess.run([
-    'ffmpeg', '-i', source, '-vf', 'scale=96:96:flags=lanczos',
-    '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'
-], capture_output=True)
-data = result.stdout
-width, height = 96, 96
-assert len(data) == width * height * 4
-
-# The two tray variants only differ by glyph colour; the alpha mask is shared.
-# White suits a dark panel, black a light one (see lib/platform/tray/tray_service.dart).
-for name, value in (('tray_icon_white.png', 255), ('tray_icon_black.png', 0)):
-    out = bytearray(len(data))
-    for i in range(0, len(data), 4):
-        out[i] = value; out[i+1] = value; out[i+2] = value
-        out[i+3] = data[i+3]
-    output = f'{outdir}/{name}'
-    proc = subprocess.Popen([
-        'ffmpeg', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgba',
-        '-s', f'{width}x{height}', '-r', '1', '-i', '-',
-        '-frames:v', '1', '-update', '1', output
-    ], stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    proc.communicate(bytes(out))
-    assert proc.returncode == 0, "ffmpeg write failed"
-    print(f"  -> {output}")
-PYEOF
-
-# --- 6. Run flutter_launcher_icons for platform-specific assets ---------------
-echo "[5/6] Running flutter_launcher_icons..."
+# --- 4. Run flutter_launcher_icons for platform-specific assets ---------------
+echo "[4/5] Running flutter_launcher_icons..."
 if [ "$SKIP_FLUTTER" = true ]; then
   echo "  (skipped --use --skip-flutter to bypass)"
 else
   dart run flutter_launcher_icons 2>&1
 fi
 
-# --- 7. Multi-resolution .ico files ------------------------------------------
-# flutter_launcher_icons 0.14.x emits a single 48x48 Windows icon; Windows and
-# the Inno Setup installer both want the full 16..256 ladder, so rebuild them.
-echo "[6/6] Building multi-resolution .ico files (ImageMagick)..."
+# --- 5. App + tray icons from the rounded master -----------------------------
+# The full-bleed `app_icon.png` has square corners; the Windows exe, the Inno
+# installer and the tray all use the rounded master artwork instead, so their
+# rounding matches docs/FlindPlayer.png. flutter_launcher_icons 0.14.x also
+# emits only a single 48x48 Windows icon, so the full 16..256 ladder is rebuilt
+# here (rc.exe rejects non-PNG/BMP entries; the check below guards that).
+echo "[5/5] Building app/tray icons from the master (ImageMagick)..."
 ICO_SIZES="256,128,64,48,32,24,16"
-convert "$ICON_DIR/app_icon.png" -define "icon:auto-resize=$ICO_SIZES" \
+convert "$SOURCE_ARTWORK" -define "icon:auto-resize=$ICO_SIZES" \
   "windows/runner/resources/app_icon.ico"
 cp "windows/runner/resources/app_icon.ico" "docs/FlindPlayer.ico"
-convert "$TRAY_DIR/tray_icon_white.png" -define "icon:auto-resize=$ICO_SIZES" \
+convert "$SOURCE_ARTWORK" -define "icon:auto-resize=$ICO_SIZES" \
   "$TRAY_DIR/tray_icon.ico"
+convert "$SOURCE_ARTWORK" -resize 96x96 "$TRAY_DIR/tray_icon.png"
 echo "  -> windows/runner/resources/app_icon.ico"
 echo "  -> docs/FlindPlayer.ico"
 echo "  -> $TRAY_DIR/tray_icon.ico"
+echo "  -> $TRAY_DIR/tray_icon.png"
 
 echo ""
 echo "[check] Validating windows/runner/resources/app_icon.ico..."

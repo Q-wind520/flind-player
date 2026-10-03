@@ -219,12 +219,6 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
     unawaited(_guard('hide on close', windowManager.hide));
   }
 
-  /// Re-applies the tray icon when the system switches light/dark mode.
-  @override
-  void didChangePlatformBrightness() {
-    unawaited(_guard('setIcon (brightness)', _applyTrayIcon));
-  }
-
   /// Rebuilds the tray menu in the new language when the system locale changes.
   @override
   void didChangeLocales(List<Locale>? locales) {
@@ -236,14 +230,9 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
     await trayManager.setIcon(await _resolveTrayIcon());
   }
 
-  /// A white glyph vanishes on a light panel (and a dark glyph on a dark one),
-  /// so two monochrome variants ship and the one matching the panel brightness
-  /// is chosen. `platformBrightness` follows the system theme, which on Linux
-  /// is also what the panel follows.
-  static String _trayIconAsset(Brightness brightness) =>
-      brightness == Brightness.dark
-      ? 'assets/tray/tray_icon_white.png' // dark panel -> white glyph
-      : 'assets/tray/tray_icon_black.png'; // light panel -> dark glyph
+  /// The single tray artwork, shared with the app icon.
+  static const String _trayIconPngAsset = 'assets/tray/tray_icon.png';
+  static const String _trayIconIcoAsset = 'assets/tray/tray_icon.ico';
 
   /// Resolves the bundled icon to the value [TrayManager.setIcon] expects on
   /// each platform.
@@ -252,19 +241,18 @@ class TrayService with TrayListener, WindowListener, WidgetsBindingObserver {
   /// understands `.ico` — a PNG path silently yields a NULL handle and a blank
   /// tray icon. The Dart-side `setIcon` resolves a relative path against
   /// `<exe>/data/flutter_assets/`, so the bundled multi-resolution `.ico` is
-  /// referenced directly. On macOS/Linux the monochrome PNG matching the panel
-  /// brightness is copied into app support and its filesystem path returned.
+  /// referenced directly. On macOS/Linux the PNG is copied into app support and
+  /// its filesystem path returned.
   Future<String> _resolveTrayIcon() async {
     if (Platform.isWindows) {
-      return 'assets/tray/tray_icon.ico';
+      return _trayIconIcoAsset;
     }
-    final asset = _trayIconAsset(
-      PlatformDispatcher.instance.platformBrightness,
-    );
     final directory = await getApplicationSupportDirectory();
-    final file = File(p.join(directory.path, p.basename(asset)));
+    final file = File(
+      p.join(directory.path, p.basename(_trayIconPngAsset)),
+    );
     if (!await file.exists()) {
-      final data = await rootBundle.load(asset);
+      final data = await rootBundle.load(_trayIconPngAsset);
       await file.create(recursive: true);
       await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
     }
