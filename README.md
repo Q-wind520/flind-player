@@ -223,9 +223,9 @@ flutter build ios --release --no-codesign
 > **不支持覆盖安装**，升级 1.0.0 前需先卸载旧预览版。卸载不会删除 `~/.local/share`（Linux）/
 > `%APPDATA%`（Windows）下的本地数据，但 Android 上卸载会清除应用数据（曲库索引、收藏、队列、离线缓存）。
 
-> **图标**：全平台图标由 `docs/FlindPlayer.png` 经 `tool/generate_icons.sh` 生成
-> （Android 自适应、iOS 无 alpha、Windows 多档 `.ico` 等）。该美术稿是当前占位设计；
-> 替换后重跑脚本即可。
+> **图标**：全平台图标由 `docs/FlindPlayer.png`（1120×1120 母版）经 `tool/generate_icons.sh` 生成
+> （Android 自适应、iOS 无 alpha、Windows 多档 `.ico`、macOS / Web 以及托盘单色图标）。替换母版后
+> 重跑脚本即可；脚本会同步 `docs/FlindPlayer.ico`、`windows/runner/resources/app_icon.ico` 与 `assets/tray/*`。
 
 ### 签名发布（Android）
 
