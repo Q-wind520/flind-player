@@ -10,7 +10,7 @@
 
 <br />
 
-<img src="https://img.shields.io/badge/version-1.0.0-2ea44f" />
+<img src="https://img.shields.io/badge/version-1.0.1-2ea44f" />
 <img src="https://img.shields.io/badge/license-GPL--3.0-red" />
 <img src="https://img.shields.io/badge/Flutter-3.13%2B-02569B?logo=flutter&logoColor=white" />
 <img src="https://img.shields.io/badge/platform-Android%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20iOS-purple" />
