@@ -326,7 +326,7 @@ class _PortraitNormal extends StatelessWidget {
     final lyricsStyle = theme.textTheme.titleMedium;
     final lineHeight =
         (lyricsStyle?.fontSize ?? 16) * (lyricsStyle?.height ?? 1.4);
-    final lyricsStripHeight = lineHeight * 5;
+    final lyricsStripHeight = lineHeight * 5 * 2;
     return Column(
       children: [
         Expanded(child: _CoverArt(track: track)),

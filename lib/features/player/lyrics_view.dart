@@ -136,12 +136,16 @@ class _LyricLineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: isCurrent ? const ValueKey<String>('lyric-current') : null,
+      // Span the pane so [CrossAxisAlignment.center] centres on the screen, not
+      // on a shrink-wrapped block that hugs the left edge.
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Text(
             line.text,
+            textAlign: TextAlign.center,
             style: theme.textTheme.titleMedium?.copyWith(
               color: isCurrent
                   ? theme.colorScheme.primary
@@ -152,6 +156,7 @@ class _LyricLineTile extends StatelessWidget {
           if (line.translation != null)
             Text(
               line.translation!,
+              textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -311,23 +316,24 @@ class LyricsPreview extends ConsumerWidget {
                             key: const ValueKey<String>('lyric-current'),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
                                   line.text,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium
-                                      ?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                                 if (line.translation != null)
                                   Text(
                                     line.translation!,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.onSurfaceVariant,
                                     ),

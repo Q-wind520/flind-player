@@ -75,8 +75,12 @@ Widget _app({
 }
 
 void main() {
-  testWidgets('highlight the current line and render its translation', (tester) async {
-    await tester.pumpWidget(_app(lyric: _lyric, position: const Duration(seconds: 2)));
+  testWidgets('highlight the current line and render its translation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(lyric: _lyric, position: const Duration(seconds: 2)),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('First'), findsOneWidget);
@@ -94,12 +98,15 @@ void main() {
         matching: find.text('Second'),
       ),
       findsNothing,
-      reason: 'a non-current line must not sit under the lyric-current container',
+      reason:
+          'a non-current line must not sit under the lyric-current container',
     );
   });
 
   testWidgets('advances the highlight with the position', (tester) async {
-    await tester.pumpWidget(_app(lyric: _lyric, position: const Duration(seconds: 6)));
+    await tester.pumpWidget(
+      _app(lyric: _lyric, position: const Duration(seconds: 6)),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Second'), findsOneWidget);
     expect(
@@ -111,7 +118,9 @@ void main() {
     );
   });
 
-  testWidgets('shows the no-lyrics placeholder when the lyric is null', (tester) async {
+  testWidgets('shows the no-lyrics placeholder when the lyric is null', (
+    tester,
+  ) async {
     await tester.pumpWidget(_app(lyric: null));
     await tester.pumpAndSettle();
     expect(find.text('暂无歌词'), findsOneWidget);
@@ -149,7 +158,10 @@ void main() {
   ) async {
     final manyLines = <LyricLine>[
       for (var i = 0; i < 40; i++)
-        LyricLine(timestamp: Duration(seconds: i), text: 'Line $i'),
+        LyricLine(
+          timestamp: Duration(seconds: i),
+          text: 'Line $i',
+        ),
     ];
 
     await tester.pumpWidget(
@@ -209,5 +221,63 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('centres the bilingual line pair in the full lyrics view', (
+    tester,
+  ) async {
+    const bilingual = Lyric(<LyricLine>[
+      LyricLine(
+        timestamp: Duration(seconds: 1),
+        text: 'Short',
+        translation: '一段明显比原文更长的中文翻译文本用于验证居中',
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      _app(lyric: bilingual, position: const Duration(seconds: 2)),
+    );
+    await tester.pumpAndSettle();
+
+    final viewCentre = tester.getCenter(find.byType(Scaffold)).dx;
+    expect(
+      tester.getCenter(find.text('Short')).dx,
+      closeTo(viewCentre, 1),
+      reason: 'the main line must stay centred when a wider translation exists',
+    );
+    expect(tester.widget<Text>(find.text('Short')).textAlign, TextAlign.center);
+    expect(
+      tester.widget<Text>(find.text('一段明显比原文更长的中文翻译文本用于验证居中')).textAlign,
+      TextAlign.center,
+    );
+  });
+
+  testWidgets('centres the bilingual line pair in the lyrics preview', (
+    tester,
+  ) async {
+    const bilingual = Lyric(<LyricLine>[
+      LyricLine(
+        timestamp: Duration(seconds: 1),
+        text: 'Short',
+        translation: '一段明显比原文更长的中文翻译文本用于验证居中',
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      _app(
+        lyric: bilingual,
+        position: const Duration(seconds: 2),
+        body: const SizedBox(height: 120, child: LyricsPreview()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final previewCentre = tester.getCenter(find.byType(LyricsPreview)).dx;
+    expect(
+      tester.getCenter(find.text('Short')).dx,
+      closeTo(previewCentre, 1),
+      reason: 'the preview teaser must centre its bilingual pair too',
+    );
+    expect(tester.widget<Text>(find.text('Short')).textAlign, TextAlign.center);
   });
 }

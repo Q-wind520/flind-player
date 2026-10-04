@@ -362,9 +362,21 @@ void main() {
       await tester.pumpAndSettle();
       final small = coverSize();
 
-      // In portrait the 400 px width is the limiting edge (the cover area is
-      // taller), so the cover is 65 % of it: 400 × 0.65 = 260.
-      expect(small, closeTo(260, 2));
+      // The cover is 65 % of the cover area's smaller edge. Measure that area
+      // so the assertion follows layout changes (e.g. the taller lyrics teaser)
+      // instead of hard-coding one viewport's geometry.
+      final coverArea = tester.getSize(
+        find
+            .ancestor(
+              of: find.byIcon(Icons.music_note),
+              matching: find.byType(LayoutBuilder),
+            )
+            .first,
+      );
+      final edge = coverArea.width < coverArea.height
+          ? coverArea.width
+          : coverArea.height;
+      expect(small, closeTo(edge * 0.65, 2));
 
       // A large landscape window: the old landscape formula capped the cover
       // at 280 here, so this also guards against landscape shrinking it.
