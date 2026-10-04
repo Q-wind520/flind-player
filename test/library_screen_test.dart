@@ -58,12 +58,7 @@ Track _track(String title, {String? artist, Duration? duration, int? id}) {
   );
 }
 
-Track _biliTrack(
-  String title, {
-  String? artist,
-  Duration? duration,
-  int? id,
-}) {
+Track _biliTrack(String title, {String? artist, Duration? duration, int? id}) {
   final bvid = 'BV_$title';
   return Track(
     id: id,
@@ -221,11 +216,7 @@ void main() {
             duration: const Duration(seconds: 65),
             id: 1,
           ),
-          _track(
-            'Beta',
-            duration: const Duration(seconds: 125),
-            id: 2,
-          ),
+          _track('Beta', duration: const Duration(seconds: 125), id: 2),
         ],
       ),
     );
@@ -256,7 +247,8 @@ void main() {
 
   testWidgets('renders the empty state when the library is empty', (
     tester,
-  ) async {    await tester.pumpWidget(_app());
+  ) async {
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     expect(find.text('曲库还是空的'), findsOneWidget);
@@ -432,7 +424,47 @@ void main() {
     expect(find.text('已缓存'), findsNothing);
   });
 
-  testWidgets('cached online track shows a disabled cached label', (
+  testWidgets(
+    'online-cached online track still offers the offline-cache action',
+    (tester) async {
+      final track = _biliTrack('Online Song');
+      await tester.pumpWidget(
+        _app(
+          tracks: [track],
+          // A play-through "online" cache entry (pinned = false) must keep
+          // offering 离线缓存 so it can be promoted to an offline download.
+          cacheEntry: (ref, t) async => CachedAudio(
+            id: 1,
+            source: t.source,
+            sourceTrackId: 'BV_Online Song:-1',
+            filePath: '/cache/audio.m4a',
+            bytes: 1024,
+            qualityId: 'q',
+            pinned: false,
+            cachedAt: DateTime(2026),
+            lastAccessedAt: DateTime(2026),
+            coverBytes: 0,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TrackActionsButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('离线缓存'), findsOneWidget);
+      expect(find.text('已缓存'), findsNothing);
+      final item = tester.widget<PopupMenuItem<dynamic>>(
+        find.ancestor(
+          of: find.text('离线缓存'),
+          matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+        ),
+      );
+      expect(item.enabled, isTrue);
+    },
+  );
+
+  testWidgets('offline-cached online track shows a disabled cached label', (
     tester,
   ) async {
     final track = _biliTrack('Online Song');
@@ -446,7 +478,7 @@ void main() {
           filePath: '/cache/audio.m4a',
           bytes: 1024,
           qualityId: 'q',
-          pinned: false,
+          pinned: true,
           cachedAt: DateTime(2026),
           lastAccessedAt: DateTime(2026),
           coverBytes: 0,
@@ -637,9 +669,7 @@ void main() {
   testWidgets('the more menu exposes local, sort and view submenus', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      _app(tracks: [_biliTrack('Online', id: 2)]),
-    );
+    await tester.pumpWidget(_app(tracks: [_biliTrack('Online', id: 2)]));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('library_more_menu')));
@@ -656,9 +686,7 @@ void main() {
     expect(find.text('导入文件'), findsOneWidget);
   });
 
-  testWidgets('the view submenu on 全部 offers all three views', (
-    tester,
-  ) async {
+  testWidgets('the view submenu on 全部 offers all three views', (tester) async {
     await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
     await tester.pumpAndSettle();
 
@@ -756,11 +784,7 @@ void main() {
   ) async {
     final track = _track('Alpha', id: 1);
     await tester.pumpWidget(
-      _app(
-        tracks: [track],
-        currentTrack: track,
-        deleteTrack: (t) async {},
-      ),
+      _app(tracks: [track], currentTrack: track, deleteTrack: (t) async {}),
     );
     await tester.pumpAndSettle();
 

@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/deletion_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/offline_cache_providers.dart';
@@ -39,11 +40,17 @@ import 'package:flind_player/shared/error_snack_bar.dart';
 ///
 /// Menu items:
 /// - 收藏 / 取消收藏    (always)
-/// - 离线缓存 / 已缓存  (online tracks only; 已缓存 is disabled)
+/// - 离线缓存 / 已缓存  (online tracks only)
 /// - 存入曲库           (when [showSaveToLibrary] is true)
 /// - 加入歌单           (always)
 /// - 移出歌单           (when [playlistId] is non-null)
 /// - 删除歌曲           (when [showDeleteTrack] is true)
+///
+/// Cache state is keyed on the **pinned/offline** flag, not on the mere
+/// existence of a cache row: a play-through "online" cache entry
+/// (`pinned = false`) still offers 离线缓存 so it can be promoted to an
+/// offline download, while a pinned entry shows a disabled 已缓存. Choosing
+/// 离线缓存 for a track that is not in the library saves it first.
 enum _TrackAction {
   favorite,
   cache,
@@ -80,13 +87,15 @@ class TrackActionsButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isFavourite =
-        ref.watch(isFavoriteProvider(track.uri)).value ?? false;
+    final isFavourite = ref.watch(isFavoriteProvider(track.uri)).value ?? false;
     final cacheEntry = ref.watch(audioCacheEntryProvider(track)).value;
     final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
 
     final isLocal = track.source == 'local';
+    // Only a pinned entry is a real offline download; a play-through online
+    // cache (pinned = false) still offers the offline-cache action.
+    final offlineCached = cacheEntry?.pinned == true;
 
     return PopupMenuButton<_TrackAction>(
       // Empty message suppresses PopupMenuButton's default "Show menu" bubble.
@@ -110,17 +119,15 @@ class TrackActionsButton extends ConsumerWidget {
         if (!isLocal)
           PopupMenuItem<_TrackAction>(
             value: _TrackAction.cache,
-            enabled: cacheEntry == null,
+            enabled: !offlineCached,
             child: Row(
               children: [
                 Icon(
-                  cacheEntry == null
-                      ? Icons.download_outlined
-                      : Icons.download_done,
+                  offlineCached ? Icons.download_done : Icons.download_outlined,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
-                Text(cacheEntry == null ? l10n.cacheOffline : l10n.cached),
+                Text(offlineCached ? l10n.cached : l10n.cacheOffline),
               ],
             ),
           ),
@@ -171,12 +178,16 @@ class TrackActionsButton extends ConsumerWidget {
     );
   }
 
-  void _onSelected(BuildContext context, WidgetRef ref, _TrackAction action) {
+  Future<void> _onSelected(
+    BuildContext context,
+    WidgetRef ref,
+    _TrackAction action,
+  ) async {
     switch (action) {
       case _TrackAction.favorite:
         _toggleFavorite(context, ref);
       case _TrackAction.cache:
-        _cacheTrack(ref);
+        await _cacheTrack(context, ref);
       case _TrackAction.saveToLibrary:
         onSaveToLibrary?.call();
       case _TrackAction.addToPlaylist:
@@ -272,8 +283,40 @@ class TrackActionsButton extends ConsumerWidget {
     }
   }
 
-  void _cacheTrack(WidgetRef ref) {
-    ref.read(downloadManagerProvider).cacheTrack(track, pinned: true);
+  /// Starts (or promotes) [track]'s offline download.
+  ///
+  /// An offline download is what brings an online track into the library, so a
+  /// track that is not in the library yet is saved first (the online
+  /// play-through cache never does this). The menu is refreshed afterwards so
+  /// 离线缓存 flips to 已缓存.
+  Future<void> _cacheTrack(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(musicLibraryRepositoryProvider);
+    var addedToLibrary = false;
+    try {
+      final existing = await repository.findByUri(track.uri);
+      if (existing == null) {
+        await repository.upsertTrack(track);
+        addedToLibrary = true;
+      }
+    } catch (error) {
+      if (context.mounted) showErrorSnackBar(context, error);
+      return;
+    }
+
+    if (addedToLibrary && context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).savedToLibrary(track.title),
+            ),
+          ),
+        );
+    }
+
+    await ref.read(downloadManagerProvider).cacheTrack(track, pinned: true);
+    ref.invalidate(audioCacheEntryProvider(track));
+    ref.invalidate(audioCacheUsageProvider);
   }
 }
-
