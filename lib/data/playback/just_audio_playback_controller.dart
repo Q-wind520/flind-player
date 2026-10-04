@@ -45,8 +45,8 @@ class JustAudioPlaybackController implements PlaybackController {
   /// Loudest volume the UI can select (140%).
   static const double maxVolume = 1.4;
 
-  /// How long the pause/switch gain ramp takes before the player is paused.
-  static const Duration _fadeDuration = Duration(milliseconds: 200);
+  /// How long the fade-in/fade-out gain ramp takes.
+  static const Duration _fadeDuration = Duration(milliseconds: 400);
 
   /// Steps the gain ramp is split into; each step is [_fadeDuration] / this.
   static const int _fadeSteps = 10;
@@ -177,9 +177,8 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
     _playIntent = true;
-    // A resume supersedes any pause fade, and must restore the user's gain.
+    // A resume supersedes any in-flight ramp.
     _fadeGeneration++;
-    await _setPlayerVolume(_volume);
     if (_isCompleted) {
       // just_audio will not restart a completed source; rewind first.
       _isCompleted = false;
@@ -187,6 +186,12 @@ class JustAudioPlaybackController implements PlaybackController {
       _cancelPositionThrottle();
       _emit();
       await _player.seek(Duration.zero);
+    }
+    if (_player.playing) {
+      // Already audible (e.g. a resumed mid-fade pause): restore the gain
+      // instead of restarting a fade-in.
+      await _setPlayerVolume(_volume);
+      return;
     }
     await _startIfReady();
   }
@@ -587,6 +592,9 @@ class JustAudioPlaybackController implements PlaybackController {
   /// Calling [AudioPlayer.play] before an audio source exists leaves its future
   /// pending forever, so commands issued while a track loads defer to
   /// [_playCurrent], which calls this after the source is ready.
+  ///
+  /// The track starts silent and its gain ramps up to the user's level, so
+  /// starting/resuming/switching fades in.
   Future<void> _startIfReady() async {
     if (_disposed ||
         _loadInFlight ||
@@ -594,7 +602,20 @@ class JustAudioPlaybackController implements PlaybackController {
         _player.audioSource == null) {
       return;
     }
+    if (_player.playing) {
+      // Already audible: an in-flight ramp owns the gain.
+      return;
+    }
+    final generation = ++_fadeGeneration;
+    await _setPlayerVolume(0);
+    if (_disposed ||
+        _fadeGeneration != generation ||
+        !_playIntent ||
+        _loadInFlight) {
+      return;
+    }
     await _player.play();
+    unawaited(_rampVolumeTo(_volume, generation));
   }
 
   /// Ramps the output gain to zero over [_fadeDuration], pauses, then restores
@@ -605,16 +626,8 @@ class JustAudioPlaybackController implements PlaybackController {
   Future<void> _fadeOutAndPause() async {
     final generation = ++_fadeGeneration;
     final target = _volume;
-    if (_isPlaying && target > 0) {
-      final start = _player.volume;
-      final stepDelay = _fadeDuration ~/ _fadeSteps;
-      for (var step = 1; step <= _fadeSteps; step++) {
-        if (_disposed || _fadeGeneration != generation) {
-          return;
-        }
-        await _setPlayerVolume(start * (1 - step / _fadeSteps));
-        await Future<void>.delayed(stepDelay);
-      }
+    if (_isPlaying && target > 0 && _player.playing) {
+      await _rampVolumeTo(0, generation);
       if (_disposed || _fadeGeneration != generation) {
         return;
       }
@@ -623,6 +636,24 @@ class JustAudioPlaybackController implements PlaybackController {
     if (!_disposed && _fadeGeneration == generation) {
       await _setPlayerVolume(target);
     }
+  }
+
+  /// Ramps the engine gain from its current value to [target] in [_fadeSteps]
+  /// steps over [_fadeDuration]. No-op once [generation] is superseded.
+  Future<void> _rampVolumeTo(double target, int generation) async {
+    final start = _player.volume;
+    final stepDelay = _fadeDuration ~/ _fadeSteps;
+    for (var step = 1; step <= _fadeSteps; step++) {
+      if (_disposed || _fadeGeneration != generation) {
+        return;
+      }
+      await _setPlayerVolume(start + (target - start) * (step / _fadeSteps));
+      await Future<void>.delayed(stepDelay);
+    }
+    if (_disposed || _fadeGeneration != generation) {
+      return;
+    }
+    await _setPlayerVolume(target);
   }
 
   /// Applies [value] to the engine, logging and swallowing failures so a

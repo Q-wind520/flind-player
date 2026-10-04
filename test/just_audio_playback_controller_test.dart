@@ -361,6 +361,25 @@ void main() {
     expect(volumes.last, closeTo(controller.currentState.volume, 0.001));
   });
 
+  test('play fades the gain in from silence', () async {
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+    await controller.pause();
+
+    platform.player!.volumes.clear();
+    await controller.play();
+    await Future<void>.delayed(timeout);
+
+    final volumes = platform.player!.volumes;
+    expect(controller.currentState.isPlaying, isTrue);
+    expect(volumes.first, 0);
+    expect(volumes.any((v) => v > 0 && v < 1), isTrue);
+    expect(volumes.last, closeTo(controller.currentState.volume, 0.001));
+  });
+
   test('switching tracks stops the outgoing one before loading', () async {
     final controller = JustAudioPlaybackController(resolver: _FakeResolver());
     addTearDown(controller.dispose);
