@@ -68,6 +68,26 @@ class JustAudioPlaybackController implements PlaybackController {
   bool _disposed = false;
   bool _handlingCompletion = false;
 
+  /// Whether the user currently wants playback to be running.
+  ///
+  /// Source loading is asynchronous ([_playCurrent]); recording the desired
+  /// state separately lets a transport command issued while a track is
+  /// resolving win over the load finishing. Without this, pausing during a
+  /// slow (first, uncached) resolve was silently undone by the trailing
+  /// `play()`, restarting the track from the beginning.
+  bool _playIntent = false;
+
+  /// True while [_playCurrent] is resolving/loading a source.
+  ///
+  /// [AudioPlayer.play] on an empty playlist never completes, so transport
+  /// commands must not reach the player until the source is loaded;
+  /// [_playCurrent] honours [_playIntent] once loading finishes.
+  bool _loadInFlight = false;
+
+  /// Incremented for every [_playCurrent]; lets a stale load that is overtaken
+  /// by a newer one abandon its work instead of clobbering the live source.
+  int _loadGeneration = 0;
+
   PlaybackState _currentState = PlaybackState.idle;
 
   DateTime? _lastPositionEmit;
@@ -114,8 +134,9 @@ class JustAudioPlaybackController implements PlaybackController {
     }
 
     _queue = next;
+    _playIntent = autoPlay;
     _emit();
-    await _playCurrent(autoPlay: autoPlay);
+    await _playCurrent();
   }
 
   @override
@@ -145,6 +166,7 @@ class JustAudioPlaybackController implements PlaybackController {
     if (_disposed) {
       return;
     }
+    _playIntent = true;
     if (_isCompleted) {
       // just_audio will not restart a completed source; rewind first.
       _isCompleted = false;
@@ -153,7 +175,7 @@ class JustAudioPlaybackController implements PlaybackController {
       _emit();
       await _player.seek(Duration.zero);
     }
-    await _player.play();
+    await _startIfReady();
   }
 
   @override
@@ -161,6 +183,7 @@ class JustAudioPlaybackController implements PlaybackController {
     if (_disposed) {
       return;
     }
+    _playIntent = false;
     await _player.pause();
   }
 
@@ -183,6 +206,7 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
     _queue = _queue.copyWith(currentIndex: target);
+    _playIntent = true;
     _emit();
     await _playCurrent();
   }
@@ -197,6 +221,7 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
     _queue = _queue.copyWith(currentIndex: target);
+    _playIntent = true;
     _emit();
     await _playCurrent();
   }
@@ -398,9 +423,23 @@ class JustAudioPlaybackController implements PlaybackController {
     }
     _handlingCompletion = true;
     try {
+      // A transport command that landed in the same instant the track ended
+      // must win. Without this, a `completed` event racing a pause would
+      // auto-advance to the next track, or (repeat-one) `seek(0)` + play the
+      // same track again — the "pause restarts the song" bug.
+      if (!_playIntent) {
+        _position = _player.position;
+        _isCompleted = true;
+        _isPlaying = false;
+        await _player.pause();
+        _emit();
+        return;
+      }
+
       if (_repeatMode == RepeatMode.one) {
+        _playIntent = true;
         await seek(Duration.zero);
-        await _player.play();
+        await _startIfReady();
         return;
       }
 
@@ -409,6 +448,7 @@ class JustAudioPlaybackController implements PlaybackController {
         _position = _player.position;
         _isCompleted = true;
         _isPlaying = false;
+        _playIntent = false;
         await _player.pause();
         _emit();
         return;
@@ -427,10 +467,19 @@ class JustAudioPlaybackController implements PlaybackController {
     }
   }
 
-  /// Resolves and plays [_queue]'s current track.
-  Future<void> _playCurrent({bool autoPlay = true}) async {
+  /// Resolves and loads [_queue]'s current track, then honours [_playIntent].
+  ///
+  /// The resolve/load is asynchronous and may take a long time for a cold
+  /// online source. User transport commands issued meanwhile update
+  /// [_playIntent] (and [_loadGeneration] when a newer track supersedes this
+  /// one); those values are re-checked after every `await` so a pause can never
+  /// be undone by the load finishing.
+  Future<void> _playCurrent() async {
     final track = _queue.currentTrack;
     if (track == null) {
+      _loadGeneration++;
+      _loadInFlight = false;
+      _playIntent = false;
       _cancelPositionThrottle();
       _isPlaying = false;
       _isBuffering = false;
@@ -441,6 +490,8 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
 
+    final generation = ++_loadGeneration;
+    _loadInFlight = true;
     _cancelPositionThrottle();
     _isCompleted = false;
     _position = Duration.zero;
@@ -449,27 +500,63 @@ class JustAudioPlaybackController implements PlaybackController {
 
     try {
       final info = await _resolver.resolve(track);
+      if (generation != _loadGeneration) {
+        return;
+      }
       await _player.setAudioSource(
         AudioSource.uri(
           info.url,
           headers: info.headers.isEmpty ? null : info.headers,
         ),
       );
+      if (generation != _loadGeneration) {
+        return;
+      }
       // Some platforms reset the gain when a new source is loaded; re-apply
       // the user's chosen volume so switching tracks never changes loudness.
       await _player.setVolume(_volume);
-      if (autoPlay) {
-        await _player.play();
+      if (generation != _loadGeneration) {
+        return;
       }
     } catch (error, stackTrace) {
+      if (generation != _loadGeneration) {
+        return;
+      }
       debugPrint(
         'JustAudioPlaybackController: failed to play "${track.uri}": '
         '$error\n$stackTrace',
       );
+      _loadInFlight = false;
       _isPlaying = false;
       _isBuffering = false;
       _emit();
+      return;
     }
+
+    _loadInFlight = false;
+    // Honour the latest intent. A pause issued while this track was resolving
+    // or loading must win over the load finishing.
+    if (_playIntent) {
+      await _startIfReady();
+    } else {
+      // Enforce the pause in case the platform auto-started the fresh source.
+      await _player.pause();
+    }
+  }
+
+  /// Starts playback once a source is loaded and no load is in flight.
+  ///
+  /// Calling [AudioPlayer.play] before an audio source exists leaves its future
+  /// pending forever, so commands issued while a track loads defer to
+  /// [_playCurrent], which calls this after the source is ready.
+  Future<void> _startIfReady() async {
+    if (_disposed ||
+        _loadInFlight ||
+        !_playIntent ||
+        _player.audioSource == null) {
+      return;
+    }
+    await _player.play();
   }
 
   void _emit() {
