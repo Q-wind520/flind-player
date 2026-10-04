@@ -78,8 +78,8 @@ class MiniSettings extends ConsumerWidget {
                   icon: Icons.tune,
                   onTap: () => _openPanel(
                     context,
-                    EmptyPanel(icon: Icons.tune, title: l10n.playerTune),
-                    portraitFraction: 0.8,
+                    const PlayerTunePanel(),
+                    portraitFraction: 0.5,
                   ),
                 ),
               ),
@@ -150,8 +150,7 @@ class MiniSettings extends ConsumerWidget {
             size: 24,
             color: color,
           ),
-          if (state.mode == SleepTimerMode.duration &&
-              state.remaining != null)
+          if (state.mode == SleepTimerMode.duration && state.remaining != null)
             Text(
               formatSleepTimerCountdown(state.remaining!),
               style: TextStyle(

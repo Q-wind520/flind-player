@@ -45,6 +45,12 @@ class JustAudioPlaybackController implements PlaybackController {
   /// Loudest volume the UI can select (140%).
   static const double maxVolume = 1.4;
 
+  /// How long the pause/switch gain ramp takes before the player is paused.
+  static const Duration _fadeDuration = Duration(milliseconds: 200);
+
+  /// Steps the gain ramp is split into; each step is [_fadeDuration] / this.
+  static const int _fadeSteps = 10;
+
   final StreamResolver _resolver;
   final AudioPlayer _player;
 
@@ -58,6 +64,7 @@ class JustAudioPlaybackController implements PlaybackController {
   RepeatMode _repeatMode = RepeatMode.off;
   bool _shuffle = false;
   double _volume = 1.0;
+  double _speed = 1.0;
 
   bool _isPlaying = false;
   bool _isBuffering = false;
@@ -87,6 +94,9 @@ class JustAudioPlaybackController implements PlaybackController {
   /// Incremented for every [_playCurrent]; lets a stale load that is overtaken
   /// by a newer one abandon its work instead of clobbering the live source.
   int _loadGeneration = 0;
+
+  /// Bumped to cancel an in-flight pause/switch gain ramp.
+  int _fadeGeneration = 0;
 
   PlaybackState _currentState = PlaybackState.idle;
 
@@ -167,6 +177,9 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
     _playIntent = true;
+    // A resume supersedes any pause fade, and must restore the user's gain.
+    _fadeGeneration++;
+    await _setPlayerVolume(_volume);
     if (_isCompleted) {
       // just_audio will not restart a completed source; rewind first.
       _isCompleted = false;
@@ -184,7 +197,7 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
     _playIntent = false;
-    await _player.pause();
+    await _fadeOutAndPause();
   }
 
   @override
@@ -269,11 +282,28 @@ class JustAudioPlaybackController implements PlaybackController {
     }
     _volume = clamped;
     _emit();
+    await _setPlayerVolume(_volume);
+  }
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    if (_disposed) {
+      return;
+    }
+    final clamped = speed.clamp(
+      PlaybackController.minSpeed,
+      PlaybackController.maxSpeed,
+    );
+    if ((clamped - _speed).abs() < 0.0001) {
+      return;
+    }
+    _speed = clamped;
+    _emit();
     try {
-      await _player.setVolume(_volume);
+      await _player.setSpeed(_speed);
     } catch (error, stackTrace) {
       debugPrint(
-        'JustAudioPlaybackController: setVolume failed: $error\n$stackTrace',
+        'JustAudioPlaybackController: setSpeed failed: $error\n$stackTrace',
       );
     }
   }
@@ -492,6 +522,14 @@ class JustAudioPlaybackController implements PlaybackController {
 
     final generation = ++_loadGeneration;
     _loadInFlight = true;
+    // Stop the outgoing track immediately: a switch must not leave the previous
+    // song audible through the (possibly slow) resolve of the next one. This
+    // also cancels any in-flight pause fade and restores the user's gain.
+    _fadeGeneration++;
+    if (_player.playing) {
+      await _player.pause();
+    }
+    await _setPlayerVolume(_volume);
     _cancelPositionThrottle();
     _isCompleted = false;
     _position = Duration.zero;
@@ -514,7 +552,7 @@ class JustAudioPlaybackController implements PlaybackController {
       }
       // Some platforms reset the gain when a new source is loaded; re-apply
       // the user's chosen volume so switching tracks never changes loudness.
-      await _player.setVolume(_volume);
+      await _setPlayerVolume(_volume);
       if (generation != _loadGeneration) {
         return;
       }
@@ -559,6 +597,46 @@ class JustAudioPlaybackController implements PlaybackController {
     await _player.play();
   }
 
+  /// Ramps the output gain to zero over [_fadeDuration], pauses, then restores
+  /// the user's gain so the next play resumes at the chosen level.
+  ///
+  /// Cancellable: a resume or track switch bumps [_fadeGeneration], aborting the
+  /// ramp and leaving the player to that command.
+  Future<void> _fadeOutAndPause() async {
+    final generation = ++_fadeGeneration;
+    final target = _volume;
+    if (_isPlaying && target > 0) {
+      final start = _player.volume;
+      final stepDelay = _fadeDuration ~/ _fadeSteps;
+      for (var step = 1; step <= _fadeSteps; step++) {
+        if (_disposed || _fadeGeneration != generation) {
+          return;
+        }
+        await _setPlayerVolume(start * (1 - step / _fadeSteps));
+        await Future<void>.delayed(stepDelay);
+      }
+      if (_disposed || _fadeGeneration != generation) {
+        return;
+      }
+    }
+    await _player.pause();
+    if (!_disposed && _fadeGeneration == generation) {
+      await _setPlayerVolume(target);
+    }
+  }
+
+  /// Applies [value] to the engine, logging and swallowing failures so a
+  /// platform that rejects the call never breaks transport handling.
+  Future<void> _setPlayerVolume(double value) async {
+    try {
+      await _player.setVolume(value);
+    } catch (error, stackTrace) {
+      debugPrint(
+        'JustAudioPlaybackController: setVolume failed: $error\n$stackTrace',
+      );
+    }
+  }
+
   void _emit() {
     if (_disposed) {
       return;
@@ -582,6 +660,7 @@ class JustAudioPlaybackController implements PlaybackController {
       hasNext: _queue.nextIndex(repeatMode: _repeatMode) != null,
       hasPrevious: _queue.previousIndex(repeatMode: _repeatMode) != null,
       volume: _volume,
+      speed: _speed,
     );
   }
 }

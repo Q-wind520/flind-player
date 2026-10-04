@@ -67,6 +67,9 @@ class _FakePlaybackController implements PlaybackController {
   }
 
   @override
+  Future<void> setSpeed(double speed) async {}
+
+  @override
   Future<void> setVolume(double volume) async {
     calls.add(('volume', volume));
     _emit(_currentState.copyWith(volume: volume));

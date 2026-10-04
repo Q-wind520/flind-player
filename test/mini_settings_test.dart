@@ -30,6 +30,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/mini_settings.dart';
+import 'package:flind_player/features/player/player_panels.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/l10n.dart';
@@ -54,6 +55,12 @@ class _FakePlaybackController implements PlaybackController {
 
   @override
   PlaybackState get currentState => _currentState;
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    calls.add(('speed', speed));
+    _emit(_currentState.copyWith(speed: speed));
+  }
 
   @override
   Future<void> setVolume(double volume) async {
@@ -238,6 +245,40 @@ void main() {
 
       expect(find.text(testL10n().playerPanelEmpty), findsOneWidget);
       expect(find.text(testL10n().playerMore), findsOneWidget);
+    });
+
+    testWidgets('tapping 调节 opens the speed slider and drives setSpeed', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final controller = _FakePlaybackController(_playingState());
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(MiniSettings.tuneKey));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlayerTunePanel), findsOneWidget);
+      expect(find.text(testL10n().playerSpeed), findsOneWidget);
+      expect(find.text(testL10n().volumePercent(100)), findsOneWidget);
+
+      final slider = find.descendant(
+        of: find.byType(PlayerTunePanel),
+        matching: find.byType(Slider),
+      );
+      expect(slider, findsOneWidget);
+
+      await tester.drag(slider, const Offset(160, 0));
+      await tester.pumpAndSettle();
+
+      expect(
+        controller.calls.where((c) => c.$1 == 'speed'),
+        isNotEmpty,
+        reason: 'dragging the speed slider must call setSpeed',
+      );
     });
 
     testWidgets('does not overflow at 280 px width', (tester) async {

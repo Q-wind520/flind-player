@@ -21,6 +21,12 @@ import 'package:flind_player/core/models/repeat_mode.dart';
 ///
 /// UI code must depend on this interface, never on a concrete engine.
 abstract interface class PlaybackController {
+  /// Slowest playback rate the UI can select (0.5×).
+  static const double minSpeed = 0.5;
+
+  /// Fastest playback rate the UI can select (2.0×).
+  static const double maxSpeed = 2.0;
+
   /// Broadcasts state updates.
   Stream<PlaybackState> get state;
 
@@ -74,6 +80,12 @@ abstract interface class PlaybackController {
   /// Implementations clamp [volume] to the supported `0.01`–`1.4` range and
   /// update [PlaybackState.volume] so the UI reflects the applied value.
   Future<void> setVolume(double volume);
+
+  /// Sets the playback rate multiplier.
+  ///
+  /// Implementations clamp [speed] to the supported `0.5`–`2.0` range and
+  /// update [PlaybackState.speed] so the UI reflects the applied value.
+  Future<void> setSpeed(double speed);
 
   Future<void> dispose();
 }

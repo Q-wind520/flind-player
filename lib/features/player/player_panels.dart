@@ -13,10 +13,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/library/widgets/playlist_picker_sheet.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
@@ -194,6 +197,88 @@ class EmptyPanel extends StatelessWidget {
     );
   }
 }
+
+/// Playback-tuning panel: the playback-speed slider.
+///
+/// Watches [playbackStateProvider] so the slider and the percentage label
+/// reflect the applied speed, and drives [PlaybackController.setSpeed] live.
+class PlayerTunePanel extends ConsumerWidget {
+  const PlayerTunePanel({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final speed = ref.watch(playbackStateProvider).value?.speed ?? 1.0;
+    final controller = ref.read(playbackControllerProvider);
+    final percent = (speed * 100).round();
+
+    return Column(
+      children: [
+        _PanelHeader(title: l10n.playerTune),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.speed,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(l10n.playerSpeed, style: theme.textTheme.titleSmall),
+                    const Spacer(),
+                    Text(
+                      l10n.volumePercent(percent),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Slider(
+                value: speed.clamp(
+                  PlaybackController.minSpeed,
+                  PlaybackController.maxSpeed,
+                ),
+                min: PlaybackController.minSpeed,
+                max: PlaybackController.maxSpeed,
+                onChanged: (value) => unawaited(controller.setSpeed(value)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _formatSpeed(PlaybackController.minSpeed),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      _formatSpeed(PlaybackController.maxSpeed),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Formats a playback rate as `1.0×`, `1.5×`, ...
+String _formatSpeed(double speed) => '${speed.toStringAsFixed(1)}×';
 
 /// Sleep-timer panel: off, minute presets, and end-of-track.
 ///

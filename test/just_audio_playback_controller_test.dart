@@ -26,6 +26,7 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
+import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/data/playback/just_audio_playback_controller.dart';
 
 /// Resolver returning a fixed, non-network stream.
@@ -85,6 +86,10 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
 
   int playCalls = 0;
   int pauseCalls = 0;
+  final List<double> volumes = <double>[];
+  final List<double> speeds = <double>[];
+  double volume = 1.0;
+  double speed = 1.0;
 
   @override
   Stream<PlaybackEventMessage> get playbackEventMessageStream => _events.stream;
@@ -142,12 +147,20 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
   Duration get position => _position;
 
   @override
-  Future<SetVolumeResponse> setVolume(SetVolumeRequest request) async =>
-      SetVolumeResponse();
+  Future<SetVolumeResponse> setVolume(SetVolumeRequest request) async {
+    volumes.add(request.volume);
+    volume = request.volume;
+    calls.add('volume:${request.volume}');
+    return SetVolumeResponse();
+  }
 
   @override
-  Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async =>
-      SetSpeedResponse();
+  Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async {
+    speeds.add(request.speed);
+    speed = request.speed;
+    calls.add('speed:${request.speed}');
+    return SetSpeedResponse();
+  }
 
   @override
   Future<SetPitchResponse> setPitch(SetPitchRequest request) async =>
@@ -310,5 +323,65 @@ void main() {
 
     expect(controller.currentState.isPlaying, isFalse);
     expect(controller.currentState.isCompleted, isTrue);
+  });
+
+  test('setSpeed applies and clamps the playback rate', () async {
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+
+    await controller.setSpeed(1.5);
+    expect(controller.currentState.speed, 1.5);
+    expect(platform.player!.speeds.last, 1.5);
+
+    await controller.setSpeed(9);
+    expect(controller.currentState.speed, PlaybackController.maxSpeed);
+    await controller.setSpeed(0.1);
+    expect(controller.currentState.speed, PlaybackController.minSpeed);
+  });
+
+  test('pause fades the gain down then restores it', () async {
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+    expect(controller.currentState.isPlaying, isTrue);
+
+    platform.player!.volumes.clear();
+    await controller.pause();
+
+    final volumes = platform.player!.volumes;
+    expect(controller.currentState.isPlaying, isFalse);
+    // The gain ramps through intermediate values on the way to silence...
+    expect(volumes.any((v) => v > 0 && v < 1), isTrue);
+    // ...and is restored so the next play resumes at the user's level.
+    expect(volumes.last, closeTo(controller.currentState.volume, 0.001));
+  });
+
+  test('switching tracks stops the outgoing one before loading', () async {
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+    final trackA = _biliTrack('A');
+    final trackB = _biliTrack('B');
+
+    await controller.playQueue(_queueOf([trackA, trackB]));
+    await Future<void>.delayed(timeout);
+
+    platform.player!.calls.clear();
+    await controller.playQueue(_queueOf([trackA, trackB]), index: 1);
+    await Future<void>.delayed(timeout);
+
+    final calls = platform.player!.calls;
+    expect(calls.indexOf('pause'), isNonNegative);
+    expect(
+      calls.indexOf('pause'),
+      lessThan(calls.indexOf('load')),
+      reason: 'the previous track must be stopped before the next loads',
+    );
+    expect(controller.currentState.currentTrack?.title, 'B');
+    expect(controller.currentState.isPlaying, isTrue);
   });
 }

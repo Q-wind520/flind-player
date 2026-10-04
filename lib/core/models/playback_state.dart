@@ -38,6 +38,11 @@ class PlaybackState {
   /// for amplified playback; engines that cannot amplify clamp it themselves.
   final double volume;
 
+  /// Playback rate multiplier, where `1.0` is normal speed.
+  ///
+  /// The player UI exposes a `0.5`–`2.0` range.
+  final double speed;
+
   const PlaybackState({
     required this.isPlaying,
     required this.isBuffering,
@@ -50,6 +55,7 @@ class PlaybackState {
     this.hasNext = false,
     this.hasPrevious = false,
     this.volume = 1.0,
+    this.speed = 1.0,
   });
 
   /// Nothing loaded, nothing playing.
@@ -75,6 +81,7 @@ class PlaybackState {
     bool? hasNext,
     bool? hasPrevious,
     double? volume,
+    double? speed,
   }) {
     return PlaybackState(
       isPlaying: isPlaying ?? this.isPlaying,
@@ -88,6 +95,7 @@ class PlaybackState {
       hasNext: hasNext ?? this.hasNext,
       hasPrevious: hasPrevious ?? this.hasPrevious,
       volume: volume ?? this.volume,
+      speed: speed ?? this.speed,
     );
   }
 
@@ -111,7 +119,8 @@ class PlaybackState {
           other.shuffleEnabled == shuffleEnabled &&
           other.hasNext == hasNext &&
           other.hasPrevious == hasPrevious &&
-          other.volume == volume;
+          other.volume == volume &&
+          other.speed == speed;
 
   @override
   int get hashCode => Object.hash(
@@ -128,6 +137,7 @@ class PlaybackState {
     hasNext,
     hasPrevious,
     volume,
+    speed,
   );
 
   @override
