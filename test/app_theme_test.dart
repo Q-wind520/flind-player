@@ -19,8 +19,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 
 void main() {
+  const seed = Color(0xFF1BA784);
+
   test('SnackBars render as floating rounded bubbles in both themes', () {
-    for (final theme in [AppTheme.light, AppTheme.dark]) {
+    for (final theme in [AppTheme.light(seed), AppTheme.dark(seed)]) {
       final snackBarTheme = theme.snackBarTheme;
       expect(snackBarTheme.behavior, SnackBarBehavior.floating);
       expect(snackBarTheme.insetPadding, isNotNull);
@@ -31,5 +33,22 @@ void main() {
         BorderRadius.circular(12),
       );
     }
+  });
+
+  test('the colour scheme is derived from the given seed', () {
+    const teal = Color(0xFF1BA784);
+    const purple = Color(0xFF8B5CF6);
+
+    final tealLight = AppTheme.light(teal);
+    final purpleLight = AppTheme.light(purple);
+
+    // Changing the seed must change the derived scheme...
+    expect(
+      tealLight.colorScheme.primary,
+      isNot(equals(purpleLight.colorScheme.primary)),
+    );
+    // ...and each builder must pin the requested brightness.
+    expect(tealLight.brightness, Brightness.light);
+    expect(AppTheme.dark(teal).brightness, Brightness.dark);
   });
 }

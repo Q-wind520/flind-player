@@ -16,6 +16,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
@@ -93,6 +94,12 @@ abstract interface class AppearanceSettingsRepository {
 
   /// Persists [mode] as the app appearance.
   Future<void> setAppThemeMode(AppThemeMode mode);
+
+  /// The persisted seed colour, falling back to [AppThemeColor.defaults].
+  Future<AppThemeColor> appThemeColor();
+
+  /// Persists [color] as the seed colour.
+  Future<void> setAppThemeColor(AppThemeColor color);
 }
 
 /// The full settings surface, composed of the three narrow slices.

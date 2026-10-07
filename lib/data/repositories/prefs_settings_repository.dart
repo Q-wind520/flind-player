@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
@@ -45,6 +46,9 @@ class PrefsSettingsRepository implements SettingsRepository {
 
   /// Preferences key for the app appearance.
   static const String appThemeModeKey = 'app.themeMode';
+
+  /// Preferences key for the app seed colour.
+  static const String appThemeColorKey = 'app.themeColorSeed';
 
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
@@ -178,6 +182,29 @@ class PrefsSettingsRepository implements SettingsRepository {
   Future<void> setAppThemeMode(AppThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(appThemeModeKey, mode.name);
+  }
+
+  @override
+  Future<AppThemeColor> appThemeColor() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getInt(appThemeColorKey);
+      // A fully transparent seed would make every derived colour invisible;
+      // treat it (and a missing value) as corrupt and keep the default.
+      if (stored == null || (stored & 0xFF000000) == 0) {
+        return AppThemeColor.defaults;
+      }
+      return AppThemeColor(stored);
+    } catch (error) {
+      debugPrint('PrefsSettingsRepository: appThemeColor read failed: $error');
+      return AppThemeColor.defaults;
+    }
+  }
+
+  @override
+  Future<void> setAppThemeColor(AppThemeColor color) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(appThemeColorKey, color.argb);
   }
 
   CacheSettings _read(SharedPreferences prefs) {

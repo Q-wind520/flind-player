@@ -16,6 +16,7 @@
 import 'dart:async';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
@@ -74,14 +75,16 @@ mixin FakeCacheSettings on FakeSettingsBase implements CacheSettingsRepository {
 }
 
 /// In-memory [AppearanceSettingsRepository].
-mixin FakeAppearanceSettings
-    on FakeSettingsBase
+mixin FakeAppearanceSettings on FakeSettingsBase
     implements AppearanceSettingsRepository {
   /// The persisted UI language.
   AppLanguage language = AppLanguage.system;
 
   /// The persisted app appearance.
   AppThemeMode themeMode = AppThemeMode.system;
+
+  /// The persisted app seed colour.
+  AppThemeColor themeColor = AppThemeColor.defaults;
 
   @override
   Future<AppLanguage> appLanguage() async => language;
@@ -94,11 +97,17 @@ mixin FakeAppearanceSettings
 
   @override
   Future<void> setAppThemeMode(AppThemeMode value) async => themeMode = value;
+
+  @override
+  Future<AppThemeColor> appThemeColor() async => themeColor;
+
+  @override
+  Future<void> setAppThemeColor(AppThemeColor value) async =>
+      themeColor = value;
 }
 
 /// In-memory [LibrarySettingsRepository].
-mixin FakeLibrarySettings
-    on FakeSettingsBase
+mixin FakeLibrarySettings on FakeSettingsBase
     implements LibrarySettingsRepository {
   /// The persisted library sort order.
   TrackSort sort = TrackSort.recentlyAdded;

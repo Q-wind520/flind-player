@@ -438,5 +438,9 @@
   },
   "searchSourcesTitle": "Search online music",
   "searchSourcesHint": "Pick a source, type a keyword and press Enter to search and play",
-  "lyricsNotFound": "No lyrics"
+  "lyricsNotFound": "No lyrics",
+  "themeColor": "Theme colour",
+  "themeColorCustom": "Custom",
+  "themeColorHex": "Hex",
+  "themeColorInvalidHex": "Enter a hex colour such as #1BA784"
 }

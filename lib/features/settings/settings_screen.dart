@@ -22,8 +22,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:flind_player/app/language.dart';
+import 'package:flind_player/app/theme_color.dart';
 import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
@@ -37,6 +39,7 @@ import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
+import 'package:flind_player/features/settings/theme_color_picker.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
@@ -60,31 +63,37 @@ class SettingsScreen extends ConsumerWidget {
       // renders underneath the system status bar.
       body: SafeArea(
         bottom: false,
-        child: ListView(
+        // The settings page is a short, fixed list with no virtualization
+        // benefit; building every section eagerly keeps the whole page
+        // reachable regardless of the viewport size.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          children: [
-            _SectionHeader(l10n.general),
-            const _GeneralSection(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SectionHeader(l10n.general),
+              const _GeneralSection(),
 
-            // ── 播放 ──
-            _SectionHeader(l10n.sectionPlayback),
-            const _PlaybackSection(),
+              // ── 播放 ──
+              _SectionHeader(l10n.sectionPlayback),
+              const _PlaybackSection(),
 
-            // ── 离线缓存 ──
-            _SectionHeader(l10n.offlineCache),
-            const _OfflineCacheSection(),
+              // ── 离线缓存 ──
+              _SectionHeader(l10n.offlineCache),
+              const _OfflineCacheSection(),
 
-            // ── 曲库 ──
-            _SectionHeader(l10n.sectionLibrary),
-            if (supportsLocalLibrary)
-              const _LibrarySection()
-            else
-              const _UnsupportedLibraryNotice(),
+              // ── 曲库 ──
+              _SectionHeader(l10n.sectionLibrary),
+              if (supportsLocalLibrary)
+                const _LibrarySection()
+              else
+                const _UnsupportedLibraryNotice(),
 
-            // ── 关于 ──
-            _SectionHeader(l10n.about),
-            const _AboutSection(),
-          ],
+              // ── 关于 ──
+              _SectionHeader(l10n.about),
+              const _AboutSection(),
+            ],
+          ),
         ),
       ),
     );
@@ -106,6 +115,8 @@ class _GeneralSection extends ConsumerWidget {
     final language = ref.watch(appLanguageProvider).value ?? AppLanguage.system;
     final themeMode =
         ref.watch(appThemeModeProvider).value ?? AppThemeMode.system;
+    final themeColor =
+        ref.watch(appThemeColorProvider).value ?? AppThemeColor.defaults;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -120,6 +131,12 @@ class _GeneralSection extends ConsumerWidget {
           title: Text(l10n.themeMode),
           subtitle: Text(_themeModeLabel(l10n, themeMode)),
           onTap: () => _pickThemeMode(context, ref, themeMode),
+        ),
+        ListTile(
+          leading: _ThemeColorSwatch(color: themeColor.toColor()),
+          title: Text(l10n.themeColor),
+          subtitle: Text(themeColor.toHex()),
+          onTap: () => _pickThemeColor(context, ref, themeColor),
         ),
       ],
     );
@@ -205,6 +222,16 @@ class _GeneralSection extends ConsumerWidget {
     );
     if (selected == null || selected == current) return;
     await ref.read(appThemeModeProvider.notifier).setThemeMode(selected);
+  }
+
+  Future<void> _pickThemeColor(
+    BuildContext context,
+    WidgetRef ref,
+    AppThemeColor current,
+  ) async {
+    final selected = await showThemeColorPicker(context, initial: current);
+    if (selected == null || selected == current) return;
+    await ref.read(appThemeColorProvider.notifier).setThemeColor(selected);
   }
 }
 
@@ -411,8 +438,12 @@ class _OfflineCacheSection extends ConsumerWidget {
               subtitle: Text(formatMegabytes(entry.bytes)),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () =>
-                    _confirmRemoveDownload(context, ref, entry, labelFor(entry)),
+                onPressed: () => _confirmRemoveDownload(
+                  context,
+                  ref,
+                  entry,
+                  labelFor(entry),
+                ),
               ),
             ),
       ],
@@ -993,6 +1024,26 @@ class _AboutSection extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // Shared widgets
 // ---------------------------------------------------------------------------
+
+/// The leading dot that previews the current seed colour.
+class _ThemeColorSwatch extends StatelessWidget {
+  const _ThemeColorSwatch({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    );
+  }
+}
 
 /// A muted section heading.
 class _SectionHeader extends StatelessWidget {

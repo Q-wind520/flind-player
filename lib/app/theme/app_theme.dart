@@ -19,18 +19,17 @@ import 'package:flutter/material.dart';
 class AppTheme {
   const AppTheme._();
 
-  /// Seed used to derive the Material 3 colour scheme (teal green).
-  static const Color seedColor = Color(0xFF1BA784);
+  /// Light theme derived from the given [seed] colour.
+  static ThemeData light(Color seed) => _build(Brightness.light, seed);
 
-  /// Light theme.
-  static final ThemeData light = _build(Brightness.light);
+  /// Dark theme derived from the given [seed] colour.
+  static ThemeData dark(Color seed) => _build(Brightness.dark, seed);
 
-  /// Dark theme.
-  static final ThemeData dark = _build(Brightness.dark);
-
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(Brightness brightness, Color seed) {
+    // TODO(theme): derive the scheme from the platform wallpaper (Material You)
+    // where the OS exposes it; no cross-platform solution yet.
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
+      seedColor: seed,
       brightness: brightness,
     );
     return ThemeData(

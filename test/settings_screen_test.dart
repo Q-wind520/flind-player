@@ -48,6 +48,7 @@ import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
 
 import 'support/fake_settings_repository.dart';
@@ -560,6 +561,32 @@ void main() {
 
     expect(settings.themeMode, AppThemeMode.dark);
     expect(find.text('深色'), findsOneWidget);
+  });
+
+  testWidgets('the theme colour can be changed and is persisted', (
+    tester,
+  ) async {
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(_app(settings: settings, store: store));
+    await tester.pumpAndSettle();
+
+    expect(find.text('主题色'), findsOneWidget);
+    expect(find.text('#1BA784'), findsOneWidget);
+
+    await tester.tap(find.text('主题色'));
+    await tester.pumpAndSettle();
+
+    const purple = AppThemeColor(0xFF8B5CF6);
+    await tester.tap(find.byKey(Key('theme-color-swatch-${purple.toHex()}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(settings.themeColor, purple);
+    expect(find.text('#8B5CF6'), findsOneWidget);
   });
 
   // -- 播放 section (two cache rows) --

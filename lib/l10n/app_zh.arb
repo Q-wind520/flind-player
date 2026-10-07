@@ -208,5 +208,9 @@
   },
   "searchSourcesTitle": "搜索在线音乐",
   "searchSourcesHint": "选择音源，输入关键词后回车即可搜索并播放",
-  "lyricsNotFound": "暂无歌词"
+  "lyricsNotFound": "暂无歌词",
+  "themeColor": "主题色",
+  "themeColorCustom": "自定义",
+  "themeColorHex": "十六进制",
+  "themeColorInvalidHex": "请输入十六进制颜色，如 #1BA784"
 }

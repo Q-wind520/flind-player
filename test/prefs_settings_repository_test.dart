@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flind_player/core/models/app_language.dart';
+import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
@@ -139,15 +140,47 @@ void main() {
     expect(await repository.appLanguage(), AppLanguage.system);
   });
 
-  test('libraryViews defaults to the scope defaults when nothing is stored',
-      () async {
+  test('appThemeColor defaults to the brand green', () async {
     final repository = PrefsSettingsRepository();
     addTearDown(repository.dispose);
 
-    final views = await repository.libraryViews();
-    expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
-    expect(views.viewOf(LibraryViewScope.playlistDetail), LibraryView.list);
+    expect(await repository.appThemeColor(), AppThemeColor.defaults);
   });
+
+  test('appThemeColor round-trips through shared_preferences', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+    const chosen = AppThemeColor(0xFF8B5CF6);
+
+    await repository.setAppThemeColor(chosen);
+
+    expect(await repository.appThemeColor(), chosen);
+  });
+
+  test(
+    'appThemeColor falls back to the default for a transparent value',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'app.themeColorSeed': 0x00123456,
+      });
+      final repository = PrefsSettingsRepository();
+      addTearDown(repository.dispose);
+
+      expect(await repository.appThemeColor(), AppThemeColor.defaults);
+    },
+  );
+
+  test(
+    'libraryViews defaults to the scope defaults when nothing is stored',
+    () async {
+      final repository = PrefsSettingsRepository();
+      addTearDown(repository.dispose);
+
+      final views = await repository.libraryViews();
+      expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
+      expect(views.viewOf(LibraryViewScope.playlistDetail), LibraryView.list);
+    },
+  );
 
   test('libraryViews round-trips a stored choice', () async {
     final repository = PrefsSettingsRepository();
@@ -170,17 +203,19 @@ void main() {
     expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
   });
 
-  test('libraryViews sanitizes a waterfall stored for the playlists scope',
-      () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      'library.view.playlists': 'waterfall',
-    });
-    final repository = PrefsSettingsRepository();
-    addTearDown(repository.dispose);
+  test(
+    'libraryViews sanitizes a waterfall stored for the playlists scope',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'library.view.playlists': 'waterfall',
+      });
+      final repository = PrefsSettingsRepository();
+      addTearDown(repository.dispose);
 
-    final views = await repository.libraryViews();
-    expect(views.viewOf(LibraryViewScope.playlists), LibraryView.showcase);
-  });
+      final views = await repository.libraryViews();
+      expect(views.viewOf(LibraryViewScope.playlists), LibraryView.showcase);
+    },
+  );
 
   test('librarySort defaults to recentlyAdded', () async {
     final repository = PrefsSettingsRepository();

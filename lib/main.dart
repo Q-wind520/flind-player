@@ -18,6 +18,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path/path.dart' as p;
@@ -39,6 +40,12 @@ import 'package:flind_player/platform/tray/tray_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Draw edge-to-edge on every Android version so the transparent system bars
+  // configured in AppSystemUiOverlay sit over the app surface instead of
+  // inheriting the Activity theme's black status bar. A no-op elsewhere.
+  if (Platform.isAndroid) {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
   // On Linux/Windows, just_audio is backed by media_kit — must be initialized
   // before any AudioPlayer is constructed.
   if (Platform.isLinux || Platform.isWindows) {
