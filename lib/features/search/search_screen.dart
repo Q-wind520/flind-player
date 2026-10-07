@@ -132,7 +132,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 icon: const Icon(Icons.clear),
                                 onPressed: _clear,
                               ),
-                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                     );

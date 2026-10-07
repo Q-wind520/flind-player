@@ -677,7 +677,6 @@ class _CustomLimitDialogState extends State<_CustomLimitDialog> {
           labelText: l10n.value,
           suffixText: 'MB',
           errorText: errorText,
-          border: const OutlineInputBorder(),
         ),
         autofocus: true,
         onChanged: (_) => setState(() {}),

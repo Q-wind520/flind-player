@@ -19,6 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
@@ -120,6 +122,7 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
 /// being constructed (the screen watches it to highlight the playing row).
 Widget _app({
   required FutureOr<List<Track>> Function(Ref ref, String query) search,
+  ThemeData? theme,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   return ProviderScope(
@@ -138,7 +141,7 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
     ],
-    child: localizedApp(const SearchScreen()),
+    child: localizedApp(const SearchScreen(), theme: theme),
   );
 }
 
@@ -149,6 +152,26 @@ Future<void> _submitQuery(WidgetTester tester, String query) async {
 }
 
 void main() {
+  testWidgets('the search field uses the themed input radius', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        search: (ref, query) async => <Track>[],
+        theme: AppTheme.light(const Color(0xFF1BA784)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final decorator = tester.widget<InputDecorator>(
+      find.byType(InputDecorator),
+    );
+    final border = decorator.decoration.border;
+    expect(border, isA<OutlineInputBorder>());
+    expect(
+      (border! as OutlineInputBorder).borderRadius,
+      BorderRadius.circular(AppRadius.md),
+    );
+  });
+
   testWidgets('renders search results after submitting a query', (
     tester,
   ) async {
@@ -225,7 +248,11 @@ void main() {
 
     await tester.tap(find.text('网易云'));
     await tester.pumpAndSettle();
-    expect(find.text('Only A'), findsOneWidget, reason: 'cached per (source, query)');
+    expect(
+      find.text('Only A'),
+      findsOneWidget,
+      reason: 'cached per (source, query)',
+    );
   });
 
   testWidgets('does not overflow at 400 px width', (tester) async {

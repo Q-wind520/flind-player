@@ -529,7 +529,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       icon: const Icon(Icons.clear),
                       onPressed: _clearSearch,
                     ),
-              border: const OutlineInputBorder(),
               isDense: true,
             ),
           );

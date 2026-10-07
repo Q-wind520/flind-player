@@ -147,7 +147,6 @@ class _ThemeColorDialogState extends State<_ThemeColorDialog> {
                     labelText: l10n.themeColorHex,
                     hintText: '#1BA784',
                     errorText: invalidHex,
-                    border: const OutlineInputBorder(),
                     isDense: true,
                   ),
                 ),

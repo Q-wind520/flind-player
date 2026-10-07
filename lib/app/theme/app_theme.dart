@@ -34,6 +34,10 @@ class AppTheme {
       seedColor: seed,
       brightness: brightness,
     );
+    final labelMedium = ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+    ).textTheme.labelMedium;
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
@@ -53,11 +57,28 @@ class AppTheme {
       listTileTheme: const ListTileThemeData(
         contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       ),
-      navigationBarTheme: const NavigationBarThemeData(
-        indicatorShape: StadiumBorder(),
+      navigationBarTheme: NavigationBarThemeData(
+        indicatorShape: const StadiumBorder(),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return labelMedium?.copyWith(
+            color: selected
+                ? colorScheme.onSurface
+                : colorScheme.onSurfaceVariant,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          );
+        }),
       ),
-      navigationRailTheme: const NavigationRailThemeData(
-        indicatorShape: StadiumBorder(),
+      navigationRailTheme: NavigationRailThemeData(
+        indicatorShape: const StadiumBorder(),
+        selectedLabelTextStyle: labelMedium?.copyWith(
+          color: colorScheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelTextStyle: labelMedium?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       inputDecorationTheme: InputDecorationThemeData(
         border: OutlineInputBorder(

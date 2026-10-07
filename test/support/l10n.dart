@@ -9,10 +9,17 @@ AppLocalizations testL10n([Locale locale = const Locale('zh')]) =>
 
 /// Wraps [child] in a [MaterialApp] wired to the app's localization delegates
 /// so widgets that call `AppLocalizations.of(context)` work under test.
-Widget localizedApp(Widget child, {Locale locale = const Locale('zh')}) =>
-    MaterialApp(
-      locale: locale,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: appSupportedLocales,
-      home: child,
-    );
+///
+/// Pass [theme] to exercise widgets that read component themes from
+/// `Theme.of(context)`; the default (null) keeps Flutter's stock theme.
+Widget localizedApp(
+  Widget child, {
+  Locale locale = const Locale('zh'),
+  ThemeData? theme,
+}) => MaterialApp(
+  locale: locale,
+  theme: theme,
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: appSupportedLocales,
+  home: child,
+);

@@ -306,7 +306,6 @@ class _BilibiliFavoritesScreenState
               decoration: InputDecoration(
                 hintText: l10n.upUid,
                 prefixIcon: const Icon(Icons.person_outline),
-                border: const OutlineInputBorder(),
                 isDense: true,
               ),
             ),

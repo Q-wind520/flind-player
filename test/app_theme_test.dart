@@ -79,4 +79,23 @@ void main() {
       );
     }
   });
+
+  test('the navigation label roles differ by weight', () {
+    final theme = AppTheme.light(seed);
+    final bar = theme.navigationBarTheme.labelTextStyle;
+    expect(bar, isNotNull);
+    expect(bar!.resolve(<WidgetState>{})!.fontWeight, FontWeight.w500);
+    expect(
+      bar.resolve(<WidgetState>{WidgetState.selected})!.fontWeight,
+      FontWeight.w600,
+    );
+    expect(
+      theme.navigationRailTheme.selectedLabelTextStyle?.fontWeight,
+      FontWeight.w600,
+    );
+    expect(
+      theme.navigationRailTheme.unselectedLabelTextStyle?.fontWeight,
+      FontWeight.w500,
+    );
+  });
 }
