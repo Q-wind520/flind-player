@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 
 void main() {
   const seed = Color(0xFF1BA784);
@@ -50,5 +51,32 @@ void main() {
     // ...and each builder must pin the requested brightness.
     expect(tealLight.brightness, Brightness.light);
     expect(AppTheme.dark(teal).brightness, Brightness.dark);
+  });
+
+  test('component themes derive from the tokens and the colour scheme', () {
+    for (final theme in [AppTheme.light(seed), AppTheme.dark(seed)]) {
+      expect(theme.cardTheme.elevation, 0);
+      final shape = theme.cardTheme.shape;
+      expect(shape, isA<RoundedRectangleBorder>());
+      expect(
+        (shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(AppRadius.sm),
+      );
+      expect(theme.dividerTheme.color, theme.colorScheme.outlineVariant);
+      expect(
+        theme.progressIndicatorTheme.linearTrackColor,
+        theme.colorScheme.outlineVariant,
+      );
+      final border = theme.inputDecorationTheme.border;
+      expect(border, isA<OutlineInputBorder>());
+      expect(
+        (border! as OutlineInputBorder).borderRadius,
+        BorderRadius.circular(AppRadius.md),
+      );
+      expect(
+        theme.listTileTheme.contentPadding,
+        const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      );
+    }
   });
 }

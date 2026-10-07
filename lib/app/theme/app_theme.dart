@@ -15,6 +15,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
+
 /// Material 3 theme for Flind Player.
 class AppTheme {
   const AppTheme._();
@@ -35,12 +37,45 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: colorScheme.surfaceContainerLow,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant,
+        thickness: 1,
+        space: 1,
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        indicatorShape: StadiumBorder(),
+      ),
+      navigationRailTheme: const NavigationRailThemeData(
+        indicatorShape: StadiumBorder(),
+      ),
+      inputDecorationTheme: InputDecorationThemeData(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        linearTrackColor: colorScheme.outlineVariant,
+        linearMinHeight: 2,
+      ),
       // Every SnackBar renders as a rounded floating bubble clear of the
       // screen edges instead of a full-width bottom bar.
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
       ),
     );
   }
