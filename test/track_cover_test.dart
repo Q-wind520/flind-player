@@ -24,7 +24,7 @@ import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'support/l10n.dart';
 
 void main() {
-  testWidgets('TrackCover rounds to the shared small radius', (tester) async {
+  testWidgets('TrackCover rounds to the shared medium radius', (tester) async {
     final track = Track(
       source: 'local',
       sourceTrackId: const LocalTrackId('/music/a.mp3'),
@@ -37,6 +37,6 @@ void main() {
     );
 
     final clip = tester.widget<ClipRRect>(find.byType(ClipRRect));
-    expect(clip.borderRadius, BorderRadius.circular(AppRadius.sm));
+    expect(clip.borderRadius, BorderRadius.circular(AppRadius.md));
   });
 }

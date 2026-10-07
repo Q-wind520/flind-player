@@ -275,7 +275,7 @@ class TrackCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
     final useFixedSize = !size.isInfinite;
-    final borderRadius = BorderRadius.circular(AppRadius.sm);
+    final borderRadius = BorderRadius.circular(AppRadius.md);
 
     Widget child = Container(
       width: useFixedSize ? size : null,
