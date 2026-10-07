@@ -30,6 +30,7 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/cover_hero.dart';
 
 import 'support/l10n.dart';
 
@@ -362,5 +363,27 @@ void main() {
 
     final surface = tester.widget<AppSurface>(find.byType(AppSurface));
     expect(surface.borderRadius, BorderRadius.circular(AppRadius.xl));
+  });
+
+  testWidgets('the mini cover is a Hero tagged for the player transition', (
+    tester,
+  ) async {
+    final state = PlaybackState(
+      isPlaying: false,
+      isBuffering: false,
+      isCompleted: false,
+      position: Duration.zero,
+      currentTrack: _track('Hero Test'),
+    );
+
+    await tester.pumpWidget(_app(state: state));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Hero && w.tag == playerCoverHeroTag('local:/music/test.mp3'),
+      ),
+      findsOneWidget,
+    );
   });
 }

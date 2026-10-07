@@ -22,6 +22,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/shared/cover_hero.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
 /// A compact bar docked above the navigation that shows the currently playing
@@ -80,8 +81,20 @@ class MiniPlayerBar extends ConsumerWidget {
               InkWell(
                 key: barKey,
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const PlayerScreen(),
+                  PageRouteBuilder<void>(
+                    transitionDuration: AppMotion.emphasized,
+                    reverseTransitionDuration: AppMotion.emphasized,
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        const PlayerScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) =>
+                            FadeTransition(
+                              opacity: CurvedAnimation(
+                                parent: animation,
+                                curve: AppMotion.emphasizedCurve,
+                              ),
+                              child: child,
+                            ),
                   ),
                 ),
                 child: Padding(
@@ -159,21 +172,26 @@ class _MiniCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
-        width: _size,
-        height: _size,
-        color: scheme.surfaceContainerHighest,
-        child: hasCover
-            ? CoverImage(
-                path: coverPath,
-                url: coverUrl,
-                size: _size,
-                errorBuilder: (context, error, stackTrace) =>
-                    _placeholder(scheme),
-              )
-            : _placeholder(scheme),
+    return CoverHero(
+      uri: track.uri,
+      coverPath: coverPath,
+      coverUrl: coverUrl,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Container(
+          width: _size,
+          height: _size,
+          color: scheme.surfaceContainerHighest,
+          child: hasCover
+              ? CoverImage(
+                  path: coverPath,
+                  url: coverUrl,
+                  size: _size,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _placeholder(scheme),
+                )
+              : _placeholder(scheme),
+        ),
       ),
     );
   }
