@@ -415,7 +415,7 @@ void main() {
 
   // The mini bar opens the same full-screen player regardless of window
   // width: no bottom sheet on compact, no docked panel on expanded.
-  group('the mini player floats on the list tone without covering rows', () {
+  group('the mini player sits below the content with a distinct surface', () {
     for (final size in <Size>[const Size(400, 800), const Size(1200, 800)]) {
       testWidgets('at ${size.width}x${size.height}', (tester) async {
         tester.view.physicalSize = size;
@@ -434,18 +434,19 @@ void main() {
         // The bar sits below the content, so it never covers a row.
         expect(bar.top, greaterThanOrEqualTo(content.bottom - 0.5));
 
-        // The strip behind it continues the list panel's tone...
-        final strip = tester.widget<ColoredBox>(
-          find
-              .ancestor(
-                of: find.byKey(MiniPlayerBar.barKey),
-                matching: find.byType(ColoredBox),
-              )
-              .first,
+        // No panel-tone strip is painted behind the bar (a transparent/glass
+        // surface may revisit the floating look later).
+        expect(
+          find.ancestor(
+            of: find.byKey(MiniPlayerBar.barKey),
+            matching: find.byWidgetPredicate(
+              (w) => w is ColoredBox && w.color == scheme.surfaceContainerLow,
+            ),
+          ),
+          findsNothing,
         );
-        expect(strip.color, scheme.surfaceContainerLow);
 
-        // ...and the bar itself is a distinct, higher tonal surface.
+        // The bar itself is a distinct, higher tonal surface.
         final surface = tester.widget<AppSurface>(
           find
               .ancestor(

@@ -27,11 +27,9 @@ import 'package:flind_player/shared/app_surface.dart';
 ///
 /// Below [AppBreakpoints.compact] navigation lives in a bottom
 /// [NavigationBar]; at or above it, a leading [NavigationRail] is used. In both
-/// layouts the [MiniPlayerBar] sits **below** the content (never over it) on a
-/// strip of the list panel's tone, so a list's tonal panel appears to continue
-/// behind the floating bar while no row is ever covered. Tapping the mini
-/// player opens the full-screen now-playing player on every platform and window
-/// size.
+/// layouts the [MiniPlayerBar] sits below the content (never over it), as a
+/// distinct tonal capsule. Tapping the mini player opens the full-screen
+/// now-playing player on every platform and window size.
 ///
 /// The shell only provides navigation chrome — each destination owns its own
 /// `Scaffold`/`AppBar`.
@@ -105,10 +103,6 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // The strip behind the floating mini player continues the list panel's
-    // tone, so the panel reads as passing under the bar on every screen.
-    final Color barStrip = Theme.of(context).colorScheme.surfaceContainerLow;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = AppBreakpoints.isCompact(constraints.biggest);
@@ -136,10 +130,7 @@ class _HomeShellState extends State<HomeShell> {
                             children: _screens,
                           ),
                         ),
-                        ColoredBox(
-                          color: barStrip,
-                          child: const MiniPlayerBar(),
-                        ),
+                        const MiniPlayerBar(),
                       ],
                     ),
                   ),
@@ -152,21 +143,18 @@ class _HomeShellState extends State<HomeShell> {
         return Scaffold(
           backgroundColor: AppSurface.colorOf(context),
           body: IndexedStack(index: _selectedIndex, children: _screens),
-          bottomNavigationBar: ColoredBox(
-            color: barStrip,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const MiniPlayerBar(),
-                NavigationBar(
-                  labelBehavior:
-                      NavigationDestinationLabelBehavior.onlyShowSelected,
-                  selectedIndex: _selectedIndex,
-                  onDestinationSelected: _onDestinationSelected,
-                  destinations: _destinations(l10n),
-                ),
-              ],
-            ),
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MiniPlayerBar(),
+              NavigationBar(
+                labelBehavior:
+                    NavigationDestinationLabelBehavior.onlyShowSelected,
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _onDestinationSelected,
+                destinations: _destinations(l10n),
+              ),
+            ],
           ),
         );
       },
