@@ -42,6 +42,7 @@ import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
+import 'package:flind_player/shared/empty_state.dart';
 
 import 'support/l10n.dart';
 
@@ -254,6 +255,16 @@ void main() {
     expect(find.text('曲库还是空的'), findsOneWidget);
     expect(find.text('导入本地音乐'), findsOneWidget);
     expect(find.byType(ListView), findsNothing);
+  });
+
+  testWidgets('empty library renders a single EmptyState panel', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app());
+    await tester.pumpAndSettle();
+
+    // The empty library panel is an EmptyState, not a bespoke layout.
+    expect(find.byType(EmptyState), findsOneWidget);
   });
 
   testWidgets('under iOS the local-library actions are replaced by a note', (

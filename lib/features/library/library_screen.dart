@@ -39,6 +39,7 @@ import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/platform_support.dart';
@@ -339,8 +340,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             // Reserve the outer gutters (more-menu on the left, the ＋ button
             // on the 歌单 page's right) so the centred ring is capped to the
             // space that actually remains, even on the narrowest viewport.
-            final rightReserved =
-                _section == LibrarySection.playlists ? 48.0 : 0.0;
+            final rightReserved = _section == LibrarySection.playlists
+                ? 48.0
+                : 0.0;
             final reserved = 48.0 + rightReserved + 8.0;
             final maxSelectorWidth = (constraints.maxWidth - reserved).clamp(
               0.0,
@@ -713,12 +715,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         if (tracks.isEmpty) {
           return _EmptyLibrary(onImport: _importFiles, onAddFolder: _addFolder);
         }
-        return _trackDisplay(
-          tracks,
-          currentUri,
-          isPlaying,
-          LibrarySection.all,
-        );
+        return _trackDisplay(tracks, currentUri, isPlaying, LibrarySection.all);
       },
     );
   }
@@ -734,7 +731,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget _buildFavouritesBody(String? currentUri, bool isPlaying) {
     final l10n = AppLocalizations.of(context);
     final favouritesAsync = ref.watch(favoritesProvider);
-    final sort = ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
+    final sort =
+        ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
     return favouritesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _LibraryError(
@@ -765,8 +763,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   ) {
     final scope = _scopeForSection(section);
     final view =
-        (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults)
-            .viewOf(scope);
+        (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults).viewOf(
+          scope,
+        );
     return TrackView(
       tracks: tracks,
       view: view,
@@ -892,7 +891,8 @@ class _LibraryFilterSelector extends StatelessWidget {
   /// The previous section, wrapping around.
   LibrarySection _retreat() {
     final values = LibrarySection.values;
-    return values[(values.indexOf(section) - 1 + values.length) % values.length];
+    return values[(values.indexOf(section) - 1 + values.length) %
+        values.length];
   }
 
   static String _label(AppLocalizations l10n, LibrarySection section) =>
@@ -967,43 +967,26 @@ class _EmptyLibrary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.library_music_outlined,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.emptyLibraryTitle, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.emptyLibraryHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.tonalIcon(
-              onPressed: onAddFolder,
-              icon: const Icon(Icons.create_new_folder_outlined),
-              label: Text(l10n.addFolder),
-            ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: onImport,
-              icon: const Icon(Icons.add),
-              label: Text(l10n.importLocalMusic),
-            ),
-          ],
-        ),
+    return EmptyState(
+      icon: Icons.library_music_outlined,
+      title: l10n.emptyLibraryTitle,
+      message: l10n.emptyLibraryHint,
+      action: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FilledButton.tonalIcon(
+            onPressed: onAddFolder,
+            icon: const Icon(Icons.create_new_folder_outlined),
+            label: Text(l10n.addFolder),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: onImport,
+            icon: const Icon(Icons.add),
+            label: Text(l10n.importLocalMusic),
+          ),
+        ],
       ),
     );
   }
@@ -1015,32 +998,11 @@ class _NoSearchResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.noMatchingTracks, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.tryAnotherKeyword,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return EmptyState(
+      icon: Icons.search_off,
+      title: l10n.noMatchingTracks,
+      message: l10n.tryAnotherKeyword,
     );
   }
 }
@@ -1051,32 +1013,11 @@ class _EmptyFavourites extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.favorite_border,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.noFavorites, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.noFavoritesHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return EmptyState(
+      icon: Icons.favorite_border,
+      title: l10n.noFavorites,
+      message: l10n.noFavoritesHint,
     );
   }
 }
@@ -1091,40 +1032,22 @@ class _LibraryError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
-            const SizedBox(height: 16),
-            Text(
-              title ?? l10n.loadLibraryFailed,
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center,
+    final scheme = Theme.of(context).colorScheme;
+    final retry = onRetry;
+    return EmptyState(
+      icon: Icons.error_outline,
+      iconSize: 48,
+      iconColor: scheme.error,
+      title: title ?? l10n.loadLibraryFailed,
+      message: describeError(l10n, error),
+      action: retry == null
+          ? null
+          : OutlinedButton.icon(
+              onPressed: retry,
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.retry),
             ),
-            const SizedBox(height: 8),
-            Text(
-              describeError(l10n, error),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retry),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }
