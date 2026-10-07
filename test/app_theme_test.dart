@@ -60,7 +60,7 @@ void main() {
       expect(shape, isA<RoundedRectangleBorder>());
       expect(
         (shape! as RoundedRectangleBorder).borderRadius,
-        BorderRadius.circular(AppRadius.sm),
+        BorderRadius.circular(AppRadius.md),
       );
       expect(theme.dividerTheme.color, theme.colorScheme.outlineVariant);
       expect(
@@ -97,5 +97,20 @@ void main() {
       theme.navigationRailTheme.unselectedLabelTextStyle?.fontWeight,
       FontWeight.w500,
     );
+  });
+
+  test('the playing row uses the primary tint and a rounded shape', () {
+    for (final theme in [AppTheme.light(seed), AppTheme.dark(seed)]) {
+      expect(
+        theme.listTileTheme.selectedTileColor,
+        AppTheme.playingRowTint(theme.colorScheme),
+      );
+      final shape = theme.listTileTheme.shape;
+      expect(shape, isA<RoundedRectangleBorder>());
+      expect(
+        (shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(AppRadius.md),
+      );
+    }
   });
 }

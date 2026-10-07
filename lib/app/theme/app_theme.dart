@@ -27,6 +27,16 @@ class AppTheme {
   /// Dark theme derived from the given [seed] colour.
   static ThemeData dark(Color seed) => _build(Brightness.dark, seed);
 
+  /// Opacity of the primary colour painted behind the currently-playing row.
+  static const double playingRowTintAlpha = 0.12;
+
+  /// The tint painted behind the currently-playing list row (and any other
+  /// `selected` list tile), at [opacity] of the scheme's primary colour.
+  static Color playingRowTint(
+    ColorScheme scheme, [
+    double opacity = playingRowTintAlpha,
+  ]) => scheme.primary.withValues(alpha: opacity);
+
   static ThemeData _build(Brightness brightness, Color seed) {
     // TODO(theme): derive the scheme from the platform wallpaper (Material You)
     // where the OS exposes it; no cross-platform solution yet.
@@ -46,7 +56,7 @@ class AppTheme {
         color: colorScheme.surfaceContainerLow,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
       ),
       dividerTheme: DividerThemeData(
@@ -54,8 +64,12 @@ class AppTheme {
         thickness: 1,
         space: 1,
       ),
-      listTileTheme: const ListTileThemeData(
-        contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        selectedTileColor: playingRowTint(colorScheme),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         indicatorShape: const StadiumBorder(),
