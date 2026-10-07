@@ -51,67 +51,94 @@ class MiniPlayerBar extends ConsumerWidget {
         ? (positionMs / durationMs).clamp(0.0, 1.0)
         : 0.0;
 
-    return AppSurface(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Thin progress line at the very top.
-          if (durationMs > 0)
-            LinearProgressIndicator(value: progress, minHeight: 2),
-          InkWell(
-            key: barKey,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const PlayerScreen()),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        0,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  // Cover art.
-                  _MiniCover(track: track),
-                  const SizedBox(width: 12),
-                  // Title and artist.
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium,
+          ],
+        ),
+        child: AppSurface(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Thin progress line at the very top.
+              if (durationMs > 0)
+                LinearProgressIndicator(value: progress, minHeight: 2),
+              InkWell(
+                key: barKey,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const PlayerScreen(),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      // Cover art.
+                      _MiniCover(track: track),
+                      const SizedBox(width: 12),
+                      // Title and artist.
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            Text(
+                              track.artist ?? l10n.unknownArtist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
                         ),
-                        Text(
-                          track.artist ?? l10n.unknownArtist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      // Play/pause.
+                      IconButton(
+                        onPressed: () => ref
+                            .read(playbackControllerProvider)
+                            .togglePlayPause(),
+                        icon: Icon(
+                          state.isPlaying ? Icons.pause : Icons.play_arrow,
                         ),
-                      ],
-                    ),
+                      ),
+                      // Next.
+                      IconButton(
+                        onPressed: state.hasNext
+                            ? () => ref.read(playbackControllerProvider).next()
+                            : null,
+                        icon: const Icon(Icons.skip_next),
+                      ),
+                    ],
                   ),
-                  // Play/pause.
-                  IconButton(
-                    onPressed: () =>
-                        ref.read(playbackControllerProvider).togglePlayPause(),
-                    icon: Icon(
-                      state.isPlaying ? Icons.pause : Icons.play_arrow,
-                    ),
-                  ),
-                  // Next.
-                  IconButton(
-                    onPressed: state.hasNext
-                        ? () => ref.read(playbackControllerProvider).next()
-                        : null,
-                    icon: const Icon(Icons.skip_next),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -133,7 +160,7 @@ class _MiniCover extends StatelessWidget {
         (coverUrl != null && coverUrl.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.sm),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         width: _size,
         height: _size,

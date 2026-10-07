@@ -29,6 +29,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
+import 'package:flind_player/shared/app_surface.dart';
 
 import 'support/l10n.dart';
 
@@ -302,7 +303,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('cover is rounded with the shared small radius', (tester) async {
+  testWidgets('cover is rounded with the shared medium radius', (tester) async {
     final state = PlaybackState(
       isPlaying: false,
       isBuffering: false,
@@ -323,7 +324,7 @@ void main() {
           )
           .first,
     );
-    expect(clip.borderRadius, BorderRadius.circular(AppRadius.sm));
+    expect(clip.borderRadius, BorderRadius.circular(AppRadius.md));
   });
 
   testWidgets('progress track colour comes from the theme, not a literal', (
@@ -345,5 +346,21 @@ void main() {
       find.byType(LinearProgressIndicator),
     );
     expect(bar.backgroundColor, isNull);
+  });
+
+  testWidgets('renders as a floating rounded capsule', (tester) async {
+    final state = PlaybackState(
+      isPlaying: false,
+      isBuffering: false,
+      isCompleted: false,
+      position: Duration.zero,
+      currentTrack: _track('Capsule Test'),
+    );
+
+    await tester.pumpWidget(_app(state: state));
+    await tester.pumpAndSettle();
+
+    final surface = tester.widget<AppSurface>(find.byType(AppSurface));
+    expect(surface.borderRadius, BorderRadius.circular(AppRadius.xl));
   });
 }
