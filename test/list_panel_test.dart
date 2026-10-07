@@ -36,7 +36,7 @@ void main() {
     );
     final decoration = decorated.decoration as BoxDecoration;
     expect(decoration.color, theme.colorScheme.surfaceContainerLow);
-    expect(decoration.borderRadius, BorderRadius.circular(AppRadius.xl));
+    expect(decoration.borderRadius, _topRadius);
 
     final clip = tester.widget<ClipRRect>(
       find
@@ -46,6 +46,25 @@ void main() {
           )
           .first,
     );
-    expect(clip.borderRadius, BorderRadius.circular(AppRadius.xl));
+    expect(clip.borderRadius, _topRadius);
+
+    // The panel is edge-to-edge on the sides and bottom; only the top keeps a
+    // gap so its rounded corners read against the page.
+    final outer = tester.widget<Padding>(
+      find
+          .descendant(
+            of: find.byType(ListPanel),
+            matching: find.byType(Padding),
+          )
+          .first,
+    );
+    expect(outer.padding, const EdgeInsets.only(top: AppSpacing.xs));
   });
 }
+
+/// Only the top two corners are rounded; the panel is flush to the sides and
+/// bottom.
+const BorderRadius _topRadius = BorderRadius.only(
+  topLeft: Radius.circular(AppRadius.xl),
+  topRight: Radius.circular(AppRadius.xl),
+);

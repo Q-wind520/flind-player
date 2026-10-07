@@ -17,12 +17,13 @@ import 'package:flutter/material.dart';
 
 import 'package:flind_player/app/theme/app_tokens.dart';
 
-/// A tonal, rounded panel the main track lists sit on.
+/// A tonal panel the main track lists sit on.
 ///
 /// The page background stays [`AppSurface`] (`surfaceContainerHigh`) and the
 /// panel is `surfaceContainerLow`, so a list reads as a sheet resting on the
-/// page. The panel clips its child to the rounded corners and casts a very
-/// subtle shadow so it stays quiet in both light and dark themes.
+/// page. It is flush to the sides and bottom with only its top corners rounded,
+/// and casts a very subtle shadow so it stays quiet in both light and dark
+/// themes.
 class ListPanel extends StatelessWidget {
   const ListPanel({super.key, required this.child, this.padding});
 
@@ -35,14 +36,15 @@ class ListPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final radius = BorderRadius.circular(AppRadius.xl);
+    // Edge-to-edge on the sides and bottom; only the top keeps a gap and
+    // rounded corners, so the panel reads as a sheet tucked under the content
+    // above it.
+    const radius = BorderRadius.only(
+      topLeft: Radius.circular(AppRadius.xl),
+      topRight: Radius.circular(AppRadius.xl),
+    );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.md,
-        AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
