@@ -34,6 +34,7 @@ import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/player/player_screen.dart';
+import 'package:flind_player/shared/cover_hero.dart';
 
 import 'support/l10n.dart';
 
@@ -382,6 +383,29 @@ void main() {
             .first,
       );
       expect(clip.borderRadius, BorderRadius.circular(AppRadius.xl));
+    });
+
+    testWidgets('the player cover is a Hero tagged for the transition', (
+      tester,
+    ) async {
+      final track = _track('Now Playing');
+      final state = PlaybackState(
+        isPlaying: true,
+        isBuffering: false,
+        isCompleted: false,
+        position: Duration.zero,
+        currentTrack: track,
+      );
+
+      await tester.pumpWidget(_playerApp(playbackState: state));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Hero && w.tag == playerCoverHeroTag(track.uri),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an active favourite is tinted with the error role', (

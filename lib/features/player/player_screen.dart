@@ -30,6 +30,7 @@ import 'package:flind_player/features/player/mini_settings.dart';
 import 'package:flind_player/features/player/player_panels.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/shared/cover_hero.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/empty_state.dart';
@@ -469,21 +470,26 @@ class _PlayerCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      child: Container(
-        width: size,
-        height: size,
-        color: scheme.surfaceContainerHighest,
-        child: hasCover
-            ? CoverImage(
-                path: coverPath,
-                url: coverUrl,
-                size: size,
-                errorBuilder: (context, error, stackTrace) =>
-                    _placeholder(scheme),
-              )
-            : _placeholder(scheme),
+    return CoverHero(
+      uri: track.uri,
+      coverPath: coverPath,
+      coverUrl: coverUrl,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        child: Container(
+          width: size,
+          height: size,
+          color: scheme.surfaceContainerHighest,
+          child: hasCover
+              ? CoverImage(
+                  path: coverPath,
+                  url: coverUrl,
+                  size: size,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _placeholder(scheme),
+                )
+              : _placeholder(scheme),
+        ),
       ),
     );
   }
