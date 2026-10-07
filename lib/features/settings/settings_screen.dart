@@ -48,6 +48,7 @@ import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/format_bytes.dart';
 import 'package:flind_player/shared/platform_support.dart';
+import 'package:flind_player/shared/section_header.dart';
 
 /// Application settings: playback (cache), library, and about sections.
 class SettingsScreen extends ConsumerWidget {
@@ -71,26 +72,26 @@ class SettingsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _SectionHeader(l10n.general),
+              SectionHeader(l10n.general),
               const _GeneralSection(),
 
               // ── 播放 ──
-              _SectionHeader(l10n.sectionPlayback),
+              SectionHeader(l10n.sectionPlayback),
               const _PlaybackSection(),
 
               // ── 离线缓存 ──
-              _SectionHeader(l10n.offlineCache),
+              SectionHeader(l10n.offlineCache),
               const _OfflineCacheSection(),
 
               // ── 曲库 ──
-              _SectionHeader(l10n.sectionLibrary),
+              SectionHeader(l10n.sectionLibrary),
               if (supportsLocalLibrary)
                 const _LibrarySection()
               else
                 const _UnsupportedLibraryNotice(),
 
               // ── 关于 ──
-              _SectionHeader(l10n.about),
+              SectionHeader(l10n.about),
               const _AboutSection(),
             ],
           ),
@@ -939,21 +940,11 @@ class _ScanRootHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
-      child: Row(
-        children: [
-          Text(
-            l10n.scanRoots,
-            style: Theme.of(context).textTheme.titleSmall
-                ?.copyWith(color: Theme.of(context).colorScheme.primary),
-          ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.create_new_folder_outlined),
-            onPressed: isSyncing ? null : onAdd,
-          ),
-        ],
+    return SectionHeader(
+      l10n.scanRoots,
+      trailing: IconButton(
+        icon: const Icon(Icons.create_new_folder_outlined),
+        onPressed: isSyncing ? null : onAdd,
       ),
     );
   }
@@ -1040,27 +1031,6 @@ class _ThemeColorSwatch extends StatelessWidget {
         color: color,
         shape: BoxShape.circle,
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-    );
-  }
-}
-
-/// A muted section heading.
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Text(
-        title,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: theme.colorScheme.primary,
-        ),
       ),
     );
   }
