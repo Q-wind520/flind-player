@@ -414,6 +414,26 @@ void main() {
 
   // The mini bar opens the same full-screen player regardless of window
   // width: no bottom sheet on compact, no docked panel on expanded.
+  group('the mini player floats over the content', () {
+    for (final size in <Size>[const Size(400, 800), const Size(1200, 800)]) {
+      testWidgets('at ${size.width}x${size.height}', (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(_app(playback: _playingState()));
+        await tester.pumpAndSettle();
+
+        final content = tester.getRect(find.byType(IndexedStack));
+        final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
+        // The bar overlaps the content, so the list tone can extend behind it
+        // and the last row can still scroll clear of it.
+        expect(bar.overlaps(content), isTrue);
+        expect(bar.top, lessThan(content.bottom));
+      });
+    }
+  });
+
   group('mini player opens the full-screen player', () {
     for (final size in <Size>[const Size(400, 800), const Size(1200, 800)]) {
       testWidgets('at ${size.width}x${size.height}', (tester) async {
