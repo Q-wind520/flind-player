@@ -58,6 +58,9 @@ app.*.map.json
 .codegraph
 .omo/
 
+# Superpowers brainstorm mockups / session state
+.superpowers/
+
 # Signing material — defense in depth; android/.gitignore already covers the
 # android/ paths, but a keystore kept at the repo root must never be committed.
 *.jks
