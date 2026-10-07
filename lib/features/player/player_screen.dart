@@ -31,7 +31,7 @@ import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
-import 'package:flind_player/shared/responsive_center.dart';
+import 'package:flind_player/shared/empty_state.dart';
 
 /// The "now playing" screen: artwork, progress and transport controls.
 ///
@@ -84,7 +84,11 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
 
         final Widget body;
         if (!hasTrack) {
-          body = const _NothingPlaying();
+          body = EmptyState(
+            icon: Icons.play_circle_outline,
+            title: AppLocalizations.of(context).notPlaying,
+            message: AppLocalizations.of(context).notPlayingHint,
+          );
         } else if (landscape) {
           body = _LandscapeBody(
             state: state,
@@ -440,10 +444,7 @@ class _CoverArt extends StatelessWidget {
         return Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: _PlayerCover(
-              track: track,
-              size: _coverSizeFor(constraints),
-            ),
+            child: _PlayerCover(track: track, size: _coverSizeFor(constraints)),
           ),
         );
       },
@@ -698,8 +699,7 @@ class _FavoriteButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isFavourite =
-        ref.watch(isFavoriteProvider(track.uri)).value ?? false;
+    final isFavourite = ref.watch(isFavoriteProvider(track.uri)).value ?? false;
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
 
@@ -730,43 +730,6 @@ class _FavoriteButton extends ConsumerWidget {
       ),
       padding: EdgeInsets.zero,
       constraints: BoxConstraints.tightFor(width: size, height: size),
-    );
-  }
-}
-
-
-/// Shown when nothing is loaded.
-class _NothingPlaying extends StatelessWidget {
-  const _NothingPlaying();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.play_circle_outline,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.notPlaying, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.notPlayingHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

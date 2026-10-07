@@ -29,6 +29,7 @@ import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/duration_format.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
+import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/responsive_center.dart';
 
 /// Online music search across the registered sources: pick a source, submit a
@@ -165,8 +166,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildBody(String sourceId) {
+    final l10n = AppLocalizations.of(context);
     if (_submittedQuery.isEmpty) {
-      return const _SearchHint();
+      return EmptyState(
+        icon: Icons.search,
+        title: l10n.searchSourcesTitle,
+        message: l10n.searchSourcesHint,
+      );
     }
 
     final resultsAsync = ref.watch(
@@ -180,13 +186,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _SearchError(
         error: error,
-        onRetry: () => ref.invalidate(
-          onlineSearchProvider((sourceId, _submittedQuery)),
-        ),
+        onRetry: () =>
+            ref.invalidate(onlineSearchProvider((sourceId, _submittedQuery))),
       ),
       data: (tracks) {
         if (tracks.isEmpty) {
-          return const _NoResults();
+          return EmptyState(
+            icon: Icons.search_off,
+            title: l10n.noResults,
+            message: l10n.tryAnotherKeyword,
+          );
         }
         return ListView.builder(
           itemCount: tracks.length,
@@ -294,78 +303,6 @@ class _SearchResultCover extends StatelessWidget {
                     Icon(Icons.music_note, color: scheme.onSurfaceVariant),
               )
             : Icon(Icons.music_note, color: scheme.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
-/// Shown before any query is submitted.
-class _SearchHint extends StatelessWidget {
-  const _SearchHint();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.searchSourcesTitle, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.searchSourcesHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Shown when a completed search returned no tracks.
-class _NoResults extends StatelessWidget {
-  const _NoResults();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.noResults, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.tryAnotherKeyword,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }
