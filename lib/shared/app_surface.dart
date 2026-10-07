@@ -22,10 +22,19 @@ import 'package:flutter/material.dart';
 /// transparent / glass style can be introduced in one place without touching
 /// each widget — keeping the mini player and the rest of the app in sync.
 class AppSurface extends StatelessWidget {
-  const AppSurface({super.key, required this.child, this.borderRadius});
+  const AppSurface({
+    super.key,
+    required this.child,
+    this.borderRadius,
+    this.color,
+  });
 
   final Widget child;
   final BorderRadius? borderRadius;
+
+  /// Overrides the flat surface colour for chrome that must stand out from the
+  /// page (e.g. the floating mini player). Defaults to [colorOf].
+  final Color? color;
 
   /// The flat colour every surface uses today.
   static Color colorOf(BuildContext context) =>
@@ -33,7 +42,7 @@ class AppSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: colorOf(context),
+    color: color ?? colorOf(context),
     borderRadius: borderRadius,
     clipBehavior: borderRadius == null ? Clip.none : Clip.antiAlias,
     child: child,

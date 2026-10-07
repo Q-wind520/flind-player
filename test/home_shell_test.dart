@@ -43,6 +43,7 @@ import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
+import 'package:flind_player/shared/app_surface.dart';
 
 import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
@@ -414,7 +415,7 @@ void main() {
 
   // The mini bar opens the same full-screen player regardless of window
   // width: no bottom sheet on compact, no docked panel on expanded.
-  group('the mini player floats over the content', () {
+  group('the mini player floats on the list tone without covering rows', () {
     for (final size in <Size>[const Size(400, 800), const Size(1200, 800)]) {
       testWidgets('at ${size.width}x${size.height}', (tester) async {
         tester.view.physicalSize = size;
@@ -424,12 +425,36 @@ void main() {
         await tester.pumpWidget(_app(playback: _playingState()));
         await tester.pumpAndSettle();
 
+        final scheme = Theme.of(
+          tester.element(find.byType(HomeShell)),
+        ).colorScheme;
         final content = tester.getRect(find.byType(IndexedStack));
         final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
-        // The bar overlaps the content, so the list tone can extend behind it
-        // and the last row can still scroll clear of it.
-        expect(bar.overlaps(content), isTrue);
-        expect(bar.top, lessThan(content.bottom));
+
+        // The bar sits below the content, so it never covers a row.
+        expect(bar.top, greaterThanOrEqualTo(content.bottom - 0.5));
+
+        // The strip behind it continues the list panel's tone...
+        final strip = tester.widget<ColoredBox>(
+          find
+              .ancestor(
+                of: find.byKey(MiniPlayerBar.barKey),
+                matching: find.byType(ColoredBox),
+              )
+              .first,
+        );
+        expect(strip.color, scheme.surfaceContainerLow);
+
+        // ...and the bar itself is a distinct, higher tonal surface.
+        final surface = tester.widget<AppSurface>(
+          find
+              .ancestor(
+                of: find.byKey(MiniPlayerBar.barKey),
+                matching: find.byType(AppSurface),
+              )
+              .first,
+        );
+        expect(surface.color, scheme.surfaceContainerHighest);
       });
     }
   });

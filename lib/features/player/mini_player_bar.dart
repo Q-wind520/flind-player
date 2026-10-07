@@ -102,6 +102,9 @@ class MiniPlayerBar extends ConsumerWidget {
           ],
         ),
         child: AppSurface(
+          // A lighter tonal surface than the page and the list panel, so the
+          // floating capsule reads as a distinct layer.
+          color: scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppRadius.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,

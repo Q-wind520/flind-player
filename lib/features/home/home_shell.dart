@@ -27,9 +27,9 @@ import 'package:flind_player/shared/app_surface.dart';
 ///
 /// Below [AppBreakpoints.compact] navigation lives in a bottom
 /// [NavigationBar]; at or above it, a leading [NavigationRail] is used. In both
-/// layouts the [MiniPlayerBar] floats over the content: the content scrolls
-/// behind it and reserves its height as a bottom inset, so a list's tonal panel
-/// extends under the bar and the last row still clears it. Tapping the mini
+/// layouts the [MiniPlayerBar] sits **below** the content (never over it) on a
+/// strip of the list panel's tone, so a list's tonal panel appears to continue
+/// behind the floating bar while no row is ever covered. Tapping the mini
 /// player opens the full-screen now-playing player on every platform and window
 /// size.
 ///
@@ -44,13 +44,6 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
-
-  /// Key on the floating mini player so its height can be measured after
-  /// layout and reserved as the content's bottom inset.
-  final GlobalKey _miniPlayerKey = GlobalKey();
-
-  /// The measured height of the floating mini player (0 when nothing plays).
-  double _miniPlayerHeight = 0;
 
   static const List<Widget> _screens = <Widget>[
     SearchScreen(),
@@ -109,61 +102,16 @@ class _HomeShellState extends State<HomeShell> {
     setState(() => _selectedIndex = index);
   }
 
-  /// Measures [MiniPlayerBar] once it has laid out so the content can reserve
-  /// exactly its height as a bottom inset.
-  void _measureMiniPlayer() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final box = _miniPlayerKey.currentContext?.findRenderObject() as RenderBox?;
-      final height = box?.size.height ?? 0;
-      if ((height - _miniPlayerHeight).abs() > 0.5) {
-        setState(() => _miniPlayerHeight = height);
-      }
-    });
-  }
-
-  /// Wraps [content] with the floating [MiniPlayerBar] overlaid at its bottom.
-  ///
-  /// The content's `MediaQuery` bottom padding is raised by the bar's measured
-  /// height, so a scrollable inside reserves room for it: the list tone extends
-  /// behind the bar while the last row scrolls clear of it.
-  Widget _withMiniPlayerOverlay(Widget content) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Builder(
-            builder: (context) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                padding: MediaQuery.of(context).padding.copyWith(
-                  bottom:
-                      MediaQuery.of(context).padding.bottom + _miniPlayerHeight,
-                ),
-              ),
-              child: content,
-            ),
-          ),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: KeyedSubtree(
-            key: _miniPlayerKey,
-            child: const MiniPlayerBar(),
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    _measureMiniPlayer();
+    // The strip behind the floating mini player continues the list panel's
+    // tone, so the panel reads as passing under the bar on every screen.
+    final Color barStrip = Theme.of(context).colorScheme.surfaceContainerLow;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = AppBreakpoints.isCompact(constraints.biggest);
-        final content = IndexedStack(index: _selectedIndex, children: _screens);
 
         if (!compact) {
           return Scaffold(
@@ -179,7 +127,22 @@ class _HomeShellState extends State<HomeShell> {
                     labelType: NavigationRailLabelType.selected,
                     destinations: _railDestinations(l10n),
                   ),
-                  Expanded(child: _withMiniPlayerOverlay(content)),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: IndexedStack(
+                            index: _selectedIndex,
+                            children: _screens,
+                          ),
+                        ),
+                        ColoredBox(
+                          color: barStrip,
+                          child: const MiniPlayerBar(),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -188,12 +151,22 @@ class _HomeShellState extends State<HomeShell> {
 
         return Scaffold(
           backgroundColor: AppSurface.colorOf(context),
-          body: _withMiniPlayerOverlay(content),
-          bottomNavigationBar: NavigationBar(
-            labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onDestinationSelected,
-            destinations: _destinations(l10n),
+          body: IndexedStack(index: _selectedIndex, children: _screens),
+          bottomNavigationBar: ColoredBox(
+            color: barStrip,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const MiniPlayerBar(),
+                NavigationBar(
+                  labelBehavior:
+                      NavigationDestinationLabelBehavior.onlyShowSelected,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _onDestinationSelected,
+                  destinations: _destinations(l10n),
+                ),
+              ],
+            ),
           ),
         );
       },
