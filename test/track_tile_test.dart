@@ -64,4 +64,28 @@ void main() {
     final tile = tester.widget<ListTile>(find.byType(ListTile));
     expect(tile.selectedTileColor, AppTheme.playingRowTint(scheme, 0));
   });
+
+  testWidgets('the tint fades out when the row stops being current', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(isCurrent: true));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(_app(isCurrent: false));
+    await tester.pump(const Duration(milliseconds: 125));
+
+    final scheme = Theme.of(tester.element(find.byType(TrackTile))).colorScheme;
+    final mid = tester.widget<ListTile>(find.byType(ListTile));
+    // Still selected while the tint drains, or ListTile would ignore the
+    // animated `selectedTileColor` and snap the background off.
+    expect(mid.selected, isTrue);
+    final alpha = mid.selectedTileColor!.a;
+    expect(alpha, greaterThan(0));
+    expect(alpha, lessThan(AppTheme.playingRowTintAlpha));
+
+    await tester.pumpAndSettle();
+    final settled = tester.widget<ListTile>(find.byType(ListTile));
+    expect(settled.selected, isFalse);
+    expect(settled.selectedTileColor, AppTheme.playingRowTint(scheme, 0));
+  });
 }

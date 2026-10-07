@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/cupertino.dart' hide RepeatMode;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -384,6 +386,75 @@ void main() {
         (w) => w is Hero && w.tag == playerCoverHeroTag('local:/music/test.mp3'),
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('the player route fades on non-Apple platforms', (tester) async {
+    late Route<void> route;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            route = playerRoute(context);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    expect(route, isA<PageRouteBuilder<void>>());
+  });
+
+  testWidgets('the player route keeps the native gesture on Apple platforms', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      late Route<void> route;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              route = playerRoute(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      expect(route, isA<CupertinoPageRoute<void>>());
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('opening the player flies the cover without a Hero clash', (
+    tester,
+  ) async {
+    final state = PlaybackState(
+      isPlaying: false,
+      isBuffering: false,
+      isCompleted: false,
+      position: Duration.zero,
+      currentTrack: _track('Flight Test'),
+    );
+
+    await tester.pumpWidget(_app(state: state));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(MiniPlayerBar.barKey));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerScreen), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Hero && w.tag == playerCoverHeroTag('local:/music/test.mp3'),
+      ),
+      findsWidgets,
     );
   });
 }

@@ -67,7 +67,9 @@ class TrackTile extends StatelessWidget {
       builder: (context, tint, child) => ListTile(
         onTap: unavailable ? null : onTap,
         enabled: !unavailable,
-        selected: isCurrent,
+        // Keep the row selected while the tint drains so the background fades
+        // out over the same 250 ms instead of snapping off.
+        selected: isCurrent || tint > 0.001,
         selectedTileColor: AppTheme.playingRowTint(
           scheme,
           AppTheme.playingRowTintAlpha * tint,

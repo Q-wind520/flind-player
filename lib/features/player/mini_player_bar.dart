@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,6 +25,36 @@ import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 import 'package:flind_player/shared/cover_image.dart';
+
+/// The route that opens the full-screen player from the mini bar.
+///
+/// On platforms without a system back gesture the panel fades in over
+/// [AppMotion.emphasized]; on Apple platforms the native [CupertinoPageRoute]
+/// is kept (at the same duration) so the interactive edge-swipe-back still
+/// works instead of being silently dropped.
+Route<void> playerRoute(BuildContext context) {
+  final duration = AppMotion.emphasized;
+  final platform = Theme.of(context).platform;
+  if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
+    return CupertinoPageRoute<void>(
+      builder: (_) => const PlayerScreen(),
+    );
+  }
+  return PageRouteBuilder<void>(
+    transitionDuration: duration,
+    reverseTransitionDuration: duration,
+    pageBuilder: (context, animation, secondaryAnimation) =>
+        const PlayerScreen(),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: AppMotion.emphasizedCurve,
+          ),
+          child: child,
+        ),
+  );
+}
 
 /// A compact bar docked above the navigation that shows the currently playing
 /// track and basic transport controls.
@@ -80,23 +111,7 @@ class MiniPlayerBar extends ConsumerWidget {
                 LinearProgressIndicator(value: progress, minHeight: 2),
               InkWell(
                 key: barKey,
-                onTap: () => Navigator.of(context).push(
-                  PageRouteBuilder<void>(
-                    transitionDuration: AppMotion.emphasized,
-                    reverseTransitionDuration: AppMotion.emphasized,
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const PlayerScreen(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) =>
-                            FadeTransition(
-                              opacity: CurvedAnimation(
-                                parent: animation,
-                                curve: AppMotion.emphasizedCurve,
-                              ),
-                              child: child,
-                            ),
-                  ),
-                ),
+                onTap: () => Navigator.of(context).push(playerRoute(context)),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
