@@ -48,4 +48,17 @@ void main() {
     expect(find.text('本地'), findsOneWidget);
     expect(find.text('B站'), findsOneWidget);
   });
+
+  testWidgets('SourceBadge uses the medium label role', (tester) async {
+    await tester.pumpWidget(
+      localizedApp(const Scaffold(body: SourceBadge(source: 'local'))),
+    );
+
+    final text = tester.widget<Text>(find.text('本地'));
+    final context = tester.element(find.text('本地'));
+    expect(
+      text.style?.fontSize,
+      Theme.of(context).textTheme.labelMedium?.fontSize,
+    );
+  });
 }

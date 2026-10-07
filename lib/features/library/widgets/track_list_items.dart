@@ -248,7 +248,7 @@ class SourceBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: theme.textTheme.labelSmall?.copyWith(
+        style: theme.textTheme.labelMedium?.copyWith(
           color: scheme.onSecondaryContainer,
         ),
       ),
