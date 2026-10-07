@@ -17,6 +17,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
@@ -299,5 +300,29 @@ void main() {
 
     expect(find.text('一个非常非常长的歌曲标题用来验证在窄屏下不会溢出'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cover is rounded with the shared small radius', (tester) async {
+    final state = PlaybackState(
+      isPlaying: false,
+      isBuffering: false,
+      isCompleted: false,
+      position: Duration.zero,
+      duration: const Duration(minutes: 3),
+      currentTrack: _track('Cover Test'),
+    );
+
+    await tester.pumpWidget(_app(state: state));
+    await tester.pumpAndSettle();
+
+    final clip = tester.widget<ClipRRect>(
+      find
+          .descendant(
+            of: find.byType(MiniPlayerBar),
+            matching: find.byType(ClipRRect),
+          )
+          .first,
+    );
+    expect(clip.borderRadius, BorderRadius.circular(AppRadius.sm));
   });
 }

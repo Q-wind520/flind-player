@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
@@ -355,6 +356,32 @@ void main() {
 
       // SnackBar should confirm.
       expect(find.text('已取消收藏'), findsOneWidget);
+    });
+
+    testWidgets('player cover is rounded with the shared large radius', (
+      tester,
+    ) async {
+      final track = _track('Now Playing');
+      final state = PlaybackState(
+        isPlaying: true,
+        isBuffering: false,
+        isCompleted: false,
+        position: Duration.zero,
+        currentTrack: track,
+      );
+
+      await tester.pumpWidget(_playerApp(playbackState: state));
+      await tester.pumpAndSettle();
+
+      final clip = tester.widget<ClipRRect>(
+        find
+            .descendant(
+              of: find.byType(PlayerScreen),
+              matching: find.byType(ClipRRect),
+            )
+            .first,
+      );
+      expect(clip.borderRadius, BorderRadius.circular(AppRadius.xl));
     });
   });
 

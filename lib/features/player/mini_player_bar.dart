@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_screen.dart';
@@ -136,7 +137,7 @@ class _MiniCover extends StatelessWidget {
         (coverUrl != null && coverUrl.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         width: _size,
         height: _size,

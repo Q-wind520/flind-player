@@ -20,6 +20,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -469,7 +470,7 @@ class _PlayerCover extends StatelessWidget {
         (coverUrl != null && coverUrl.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: Container(
         width: size,
         height: size,

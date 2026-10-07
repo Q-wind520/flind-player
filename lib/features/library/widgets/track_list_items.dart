@@ -15,6 +15,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -274,7 +275,7 @@ class TrackCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
     final useFixedSize = !size.isInfinite;
-    final borderRadius = useFixedSize ? size * 0.16 : 4.0;
+    final borderRadius = BorderRadius.circular(AppRadius.sm);
 
     Widget child = Container(
       width: useFixedSize ? size : null,
@@ -291,10 +292,7 @@ class TrackCover extends StatelessWidget {
           : _placeholder(scheme),
     );
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: child,
-    );
+    return ClipRRect(borderRadius: borderRadius, child: child);
   }
 
   Widget _placeholder(ColorScheme scheme) => Center(
