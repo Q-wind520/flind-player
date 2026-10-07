@@ -15,6 +15,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
@@ -59,44 +60,53 @@ class TrackTile extends StatelessWidget {
     final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
 
-    return ListTile(
-      onTap: unavailable ? null : onTap,
-      enabled: !unavailable,
-      selected: isCurrent,
-      leading: TrackCover(track: track, size: 48),
-      title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Row(
-        children: [
-          Expanded(
-            child: Text(
-              unavailable
-                  ? l10n.trackUnavailable
-                  : track.artist ?? l10n.unknownArtist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: isCurrent ? 1 : 0),
+      duration: AppMotion.standard,
+      curve: AppMotion.standardCurve,
+      builder: (context, tint, child) => ListTile(
+        onTap: unavailable ? null : onTap,
+        enabled: !unavailable,
+        selected: isCurrent,
+        selectedTileColor: AppTheme.playingRowTint(
+          scheme,
+          AppTheme.playingRowTintAlpha * tint,
+        ),
+        leading: TrackCover(track: track, size: 48),
+        title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Row(
+          children: [
+            Expanded(
+              child: Text(
+                unavailable
+                    ? l10n.trackUnavailable
+                    : track.artist ?? l10n.unknownArtist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          SourceBadge(source: track.source),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isPlaying) ...[
-            Icon(Icons.graphic_eq, size: 20, color: scheme.primary),
             const SizedBox(width: 8),
+            SourceBadge(source: track.source),
           ],
-          Text(
-            formatTrackDuration(track.duration),
-            style: theme.textTheme.labelMedium,
-          ),
-          TrackActionsButton(
-            track: track,
-            playlistId: playlistId,
-            showDeleteTrack: showDeleteTrack,
-          ),
-        ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isPlaying) ...[
+              Icon(Icons.graphic_eq, size: 20, color: scheme.primary),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              formatTrackDuration(track.duration),
+              style: theme.textTheme.labelMedium,
+            ),
+            TrackActionsButton(
+              track: track,
+              playlistId: playlistId,
+              showDeleteTrack: showDeleteTrack,
+            ),
+          ],
+        ),
       ),
     );
   }
