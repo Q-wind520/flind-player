@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
 /// Spacing scale in logical pixels, on a 4pt base.
@@ -40,4 +41,25 @@ class AppRadius {
 
   /// Fully rounded (chips, pills).
   static const double pill = 999;
+}
+
+/// Motion durations and curves, shared by every animated transition.
+@immutable
+class AppMotion {
+  const AppMotion._();
+
+  /// Short feedback: presses and colour transitions.
+  static const Duration fast = Duration(milliseconds: 150);
+
+  /// The default duration for most state changes.
+  static const Duration standard = Duration(milliseconds: 250);
+
+  /// Large transitions, such as the mini player growing into the player.
+  static const Duration emphasized = Duration(milliseconds: 400);
+
+  /// The default easing for state changes.
+  static const Curve standardCurve = Curves.easeInOutCubic;
+
+  /// The easing for large entrance transitions.
+  static const Curve emphasizedCurve = Curves.easeOutCubic;
 }

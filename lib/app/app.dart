@@ -21,6 +21,7 @@ import 'package:flind_player/app/l10n.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/system_ui_overlay.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/app/theme_color.dart';
 import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
@@ -52,6 +53,8 @@ class FlindApp extends ConsumerWidget {
       theme: AppTheme.light(themeColor.toColor()),
       darkTheme: AppTheme.dark(themeColor.toColor()),
       themeMode: themeModeForAppThemeMode(themeMode),
+      // A theme-colour / brightness change cross-fades instead of snapping.
+      themeAnimationDuration: AppMotion.standard,
       // Lets the mouse/trackpad drag scrollables (e.g. the library's section
       // pager) on desktop, where Flutter's default behaviour excludes them.
       scrollBehavior: const AppScrollBehavior(),
