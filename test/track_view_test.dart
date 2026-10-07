@@ -10,6 +10,7 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
+import 'package:flind_player/shared/list_panel.dart';
 
 import 'support/l10n.dart';
 
@@ -102,5 +103,41 @@ void main() {
 
     await tester.tap(find.text('Song 2'));
     expect(played, [1]);
+  });
+
+  testWidgets('list view sits on a ListPanel', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        TrackView(
+          tracks: [_track(1)],
+          view: LibraryView.list,
+          currentUri: null,
+          isPlaying: false,
+          onPlay: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ListPanel), findsOneWidget);
+  });
+
+  testWidgets('grid and waterfall views do not use a ListPanel', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        TrackView(
+          tracks: [_track(1)],
+          view: LibraryView.showcase,
+          currentUri: null,
+          isPlaying: false,
+          onPlay: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ListPanel), findsNothing);
   });
 }

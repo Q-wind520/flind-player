@@ -57,9 +57,15 @@ class ListPanel extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: radius,
-          child: Padding(
-            padding: padding ?? const EdgeInsets.all(AppSpacing.xs),
-            child: child,
+          // A transparent Material so list tiles inside the panel keep a
+          // Material ancestor for their background and ink splashes (the
+          // panel's own colour is painted by the DecoratedBox behind).
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: padding ?? const EdgeInsets.all(AppSpacing.xs),
+              child: child,
+            ),
           ),
         ),
       ),

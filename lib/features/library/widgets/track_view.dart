@@ -12,6 +12,7 @@ import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/library/widgets/waterfall_track_card.dart';
+import 'package:flind_player/shared/list_panel.dart';
 
 /// Renders [tracks] in the layout chosen by [view].
 class TrackView extends StatelessWidget {
@@ -44,21 +45,23 @@ class TrackView extends StatelessWidget {
   }
 
   Widget _list() {
-    return ListView.builder(
-      itemCount: tracks.length,
-      itemBuilder: (context, index) {
-        final track = tracks[index];
-        final isCurrent = currentUri != null && track.uri == currentUri;
-        return TrackTile(
-          track: track,
-          isCurrent: isCurrent,
-          isPlaying: isCurrent && isPlaying,
-          unavailable: track.id == null,
-          playlistId: playlistId,
-          showDeleteTrack: showDeleteTrack,
-          onTap: () => onPlay(index),
-        );
-      },
+    return ListPanel(
+      child: ListView.builder(
+        itemCount: tracks.length,
+        itemBuilder: (context, index) {
+          final track = tracks[index];
+          final isCurrent = currentUri != null && track.uri == currentUri;
+          return TrackTile(
+            track: track,
+            isCurrent: isCurrent,
+            isPlaying: isCurrent && isPlaying,
+            unavailable: track.id == null,
+            playlistId: playlistId,
+            showDeleteTrack: showDeleteTrack,
+            onTap: () => onPlay(index),
+          );
+        },
+      ),
     );
   }
 
