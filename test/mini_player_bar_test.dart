@@ -325,4 +325,25 @@ void main() {
     );
     expect(clip.borderRadius, BorderRadius.circular(AppRadius.sm));
   });
+
+  testWidgets('progress track colour comes from the theme, not a literal', (
+    tester,
+  ) async {
+    final state = PlaybackState(
+      isPlaying: true,
+      isBuffering: false,
+      isCompleted: false,
+      position: const Duration(seconds: 30),
+      duration: const Duration(minutes: 3),
+      currentTrack: _track('Progress Test'),
+    );
+
+    await tester.pumpWidget(_app(state: state));
+    await tester.pumpAndSettle();
+
+    final bar = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    );
+    expect(bar.backgroundColor, isNull);
+  });
 }

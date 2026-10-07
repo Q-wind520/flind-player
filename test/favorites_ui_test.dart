@@ -383,6 +383,47 @@ void main() {
       );
       expect(clip.borderRadius, BorderRadius.circular(AppRadius.xl));
     });
+
+    testWidgets('an active favourite is tinted with the error role', (
+      tester,
+    ) async {
+      final track = _track('Now Playing');
+      final favRepo = _InMemoryFavoritesRepository();
+      await favRepo.addFavorite(track);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            playbackStateProvider.overrideWith(
+              (ref) => Stream.value(
+                PlaybackState(
+                  isPlaying: true,
+                  isBuffering: false,
+                  isCompleted: false,
+                  position: Duration.zero,
+                  currentTrack: track,
+                ),
+              ),
+            ),
+            favoritesRepositoryProvider.overrideWithValue(favRepo),
+            favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
+          ],
+          child: localizedApp(const PlayerScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byIcon(Icons.favorite));
+      final button = tester.widget<IconButton>(
+        find
+            .ancestor(
+              of: find.byIcon(Icons.favorite),
+              matching: find.byType(IconButton),
+            )
+            .first,
+      );
+      expect(button.color, Theme.of(context).colorScheme.error);
+    });
   });
 
   group('Overflow safety', () {

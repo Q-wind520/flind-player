@@ -723,9 +723,9 @@ class _FavoriteButton extends ConsumerWidget {
       },
       icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
       iconSize: iconSize,
-      // Active favourites stay red in every theme; the inactive heart is a
+      // Active favourites use the theme's error role; the inactive heart is a
       // muted assist control, matching the playlist button.
-      color: isFavourite ? Colors.red : scheme.onSurfaceVariant,
+      color: isFavourite ? scheme.error : scheme.onSurfaceVariant,
       style: IconButton.styleFrom(
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
