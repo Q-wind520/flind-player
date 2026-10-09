@@ -274,32 +274,17 @@ class _PortraitBody extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.08),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
+          child: _PortraitPager(
+            expanded: lyricsExpanded,
+            onExpandedChanged: (value) {
+              if (value) {
+                onLyricsTap();
+              } else {
+                onLyricsCollapse();
+              }
             },
-            child: lyricsExpanded
-                ? LyricsView(
-                    key: const ValueKey('lyrics'),
-                    onTap: onLyricsCollapse,
-                  )
-                : _PortraitNormal(
-                    key: const ValueKey('normal'),
-                    track: track,
-                    onLyricsTap: onLyricsTap,
-                  ),
+            normal: _PortraitNormal(track: track, onLyricsTap: onLyricsTap),
+            lyrics: LyricsView(onTap: onLyricsCollapse),
           ),
         ),
         _ProgressBar(state: state),
@@ -313,11 +298,112 @@ class _PortraitBody extends StatelessWidget {
   }
 }
 
+/// A horizontal, follow-the-finger pager between the cover and the lyrics.
+///
+/// `value` 0 shows the cover, 1 shows the lyrics. A horizontal drag over the
+/// cover / lyrics preview drives the page; a commit reports the new state (the
+/// parent stores it) so taps and swipes stay in sync. The detector only claims
+/// horizontal drags, so the lyrics pane's vertical scroll is untouched.
+class _PortraitPager extends StatefulWidget {
+  const _PortraitPager({
+    required this.expanded,
+    required this.onExpandedChanged,
+    required this.normal,
+    required this.lyrics,
+  });
+
+  final bool expanded;
+  final ValueChanged<bool> onExpandedChanged;
+  final Widget normal;
+  final Widget lyrics;
+
+  @override
+  State<_PortraitPager> createState() => _PortraitPagerState();
+}
+
+class _PortraitPagerState extends State<_PortraitPager>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: AppMotion.standard,
+    value: widget.expanded ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(covariant _PortraitPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.expanded != oldWidget.expanded) {
+      _c.animateTo(widget.expanded ? 1 : 0, curve: AppMotion.standardCurve);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _onEnd(DragEndDetails details) {
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    final bool showLyrics;
+    if (velocity < -700) {
+      showLyrics = true;
+    } else if (velocity > 700) {
+      showLyrics = false;
+    } else {
+      showLyrics = _c.value > 0.4;
+    }
+    _c.animateTo(showLyrics ? 1 : 0, curve: AppMotion.standardCurve);
+    widget.onExpandedChanged(showLyrics);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragUpdate: (details) {
+            _c.value = (_c.value - details.delta.dx / width).clamp(0.0, 1.0);
+          },
+          onHorizontalDragEnd: _onEnd,
+          child: ClipRect(
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (context, child) {
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Transform.translate(
+                        offset: Offset(-_c.value * width, 0),
+                        child: Opacity(
+                          opacity: 1 - _c.value,
+                          child: widget.normal,
+                        ),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Transform.translate(
+                        offset: Offset((1 - _c.value) * width, 0),
+                        child: widget.lyrics,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// The collapsed portrait content: adaptive cover and the 5-line lyrics
 /// teaser strip. The title and artist live in the shared header row.
 class _PortraitNormal extends StatelessWidget {
   const _PortraitNormal({
-    super.key,
     required this.track,
     required this.onLyricsTap,
   });
