@@ -27,6 +27,7 @@ import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/data/services/cover_original_resolver.dart';
 import 'package:flind_player/data/services/cover_prefetch_coordinator.dart';
 import 'package:flind_player/data/services/cover_service.dart';
 
@@ -50,6 +51,16 @@ final coverCacheStoreProvider = Provider<CoverCacheStore>((ref) {
 final coverDownloaderProvider = Provider<CoverDownloader>(
   (ref) => CoverDownloader(),
 );
+
+/// Resolves a track's full-resolution cover for the original-image viewer:
+/// the remote URL first (via [CoverDownloader]), then the local artwork file.
+final coverOriginalResolverProvider = Provider<CoverOriginalResolver>((ref) {
+  final downloader = ref.watch(coverDownloaderProvider);
+  return CoverOriginalResolver(
+    fetchRemote: downloader.download,
+    readLocal: readFileBytes,
+  );
+});
 
 /// Resolves a remote cover URL to a locally cached file path.
 ///
