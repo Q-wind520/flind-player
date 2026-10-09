@@ -100,4 +100,28 @@ void main() {
     );
     expect(material.type, MaterialType.transparency);
   });
+
+  testWidgets('honours an explicit tint override', (tester) async {
+    const override = Color(0xCC112233);
+    final theme = AppTheme.light(const Color(0xFF1BA784));
+    await tester.pumpWidget(
+      localizedApp(
+        const Scaffold(
+          body: GlassSurface(tint: override, child: Text('tinted')),
+        ),
+        theme: theme,
+      ),
+    );
+
+    final decorations = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byType(GlassSurface),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((d) => d.decoration)
+        .whereType<BoxDecoration>();
+    expect(decorations.any((d) => d.color == override), isTrue);
+  });
 }

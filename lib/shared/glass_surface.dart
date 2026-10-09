@@ -31,6 +31,7 @@ class GlassSurface extends StatelessWidget {
     this.borderRadius,
     this.blurSigma = AppGlass.blurSigma,
     this.border,
+    this.tint,
     this.boxShadow,
   });
 
@@ -45,6 +46,9 @@ class GlassSurface extends StatelessWidget {
   /// Optional edge highlight, painted above the child.
   final Border? border;
 
+  /// Overrides the translucent tint (defaults to [AppGlass.tintOn]).
+  final Color? tint;
+
   /// Optional shadow behind the surface.
   final List<BoxShadow>? boxShadow;
 
@@ -57,7 +61,7 @@ class GlassSurface extends StatelessWidget {
       filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
       child: DecoratedBox(
         position: DecorationPosition.background,
-        decoration: BoxDecoration(color: AppGlass.tintOn(scheme)),
+        decoration: BoxDecoration(color: tint ?? AppGlass.tintOn(scheme)),
         child: Material(
           // A transparent ink host so descendants (taps on the mini player)
           // paint their splashes above the glass instead of on the Scaffold's

@@ -219,6 +219,7 @@ class _HomeShellState extends State<HomeShell> {
               const MiniPlayerBar(),
               GlassSurface(
                 border: AppGlass.topEdgeOn(scheme),
+                tint: AppGlass.navBarTintOn(scheme),
                 child: NavigationBar(
                   labelBehavior:
                       NavigationDestinationLabelBehavior.onlyShowSelected,

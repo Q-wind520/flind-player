@@ -40,4 +40,18 @@ void main() {
     expect(shadow.blurRadius, 18);
     expect(shadow.offset, const Offset(0, 6));
   });
+
+  test('the nav bar tint is more opaque than the shared glass tint', () {
+    final light = ColorScheme.fromSeed(seedColor: const Color(0xFF1BA784));
+    final dark = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF1BA784),
+      brightness: Brightness.dark,
+    );
+    expect(AppGlass.navBarTintOn(light).a, closeTo(0.90, 0.001));
+    expect(AppGlass.navBarTintOn(dark).a, closeTo(0.85, 0.001));
+    expect(
+      AppGlass.navBarTintOn(light).a,
+      greaterThan(AppGlass.tintOn(light).a),
+    );
+  });
 }

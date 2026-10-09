@@ -77,6 +77,12 @@ class AppGlass {
     alpha: scheme.brightness == Brightness.light ? 0.72 : 0.62,
   );
 
+  /// A more opaque tint for the full-width bottom navigation bar, whose larger
+  /// area would otherwise read as too see-through over busy content.
+  static Color navBarTintOn(ColorScheme scheme) => scheme.surface.withValues(
+    alpha: scheme.brightness == Brightness.light ? 0.90 : 0.85,
+  );
+
   /// A 1px highlight along the top edge of a glass sheet.
   static Border topEdgeOn(ColorScheme scheme) => Border(
     top: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),

@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
@@ -440,6 +441,19 @@ void main() {
         ),
         findsOneWidget,
       );
+      // The nav bar uses the more opaque tint so it is not too see-through.
+      final navGlass = tester.widget<GlassSurface>(
+        find
+            .ancestor(
+              of: find.byType(NavigationBar),
+              matching: find.byType(GlassSurface),
+            )
+            .first,
+      );
+      final scheme = Theme.of(
+        tester.element(find.byType(HomeShell)),
+      ).colorScheme;
+      expect(navGlass.tint, AppGlass.navBarTintOn(scheme));
       expect(
         find.ancestor(
           of: find.byKey(MiniPlayerBar.barKey),
