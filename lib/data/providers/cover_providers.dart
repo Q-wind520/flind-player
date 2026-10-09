@@ -29,6 +29,7 @@ import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/cover_original_resolver.dart';
 import 'package:flind_player/data/services/cover_prefetch_coordinator.dart';
+import 'package:flind_player/data/services/cover_saver.dart';
 import 'package:flind_player/data/services/cover_service.dart';
 
 /// Content-addressed remote-cover cache rooted at `<app support>/cache/cover`.
@@ -60,6 +61,15 @@ final coverOriginalResolverProvider = Provider<CoverOriginalResolver>((ref) {
     fetchRemote: downloader.download,
     readLocal: readFileBytes,
   );
+});
+
+/// The platform's cover saver: the photo album on mobile, a file dialog on
+/// desktop.
+final coverSaverProvider = Provider<CoverSaver>((ref) {
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.android || TargetPlatform.iOS => const AlbumCoverSaver(),
+    _ => const FileCoverSaver(),
+  };
 });
 
 /// Resolves a remote cover URL to a locally cached file path.
