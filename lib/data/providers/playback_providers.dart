@@ -16,6 +16,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/playback_state.dart';
+import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
 import 'package:flind_player/data/cache/cached_stream_resolver.dart';
@@ -49,3 +50,24 @@ final playbackControllerProvider = Provider<PlaybackController>((ref) {
 final playbackStateProvider = StreamProvider<PlaybackState>(
   (ref) => ref.watch(playbackControllerProvider).state,
 );
+
+/// The track that would play on "previous" from the current queue, or `null`
+/// when there is none (queue start with repeat off, or nothing playing).
+final previousTrackProvider = Provider<Track?>((ref) {
+  final state = ref.watch(playbackStateProvider).value;
+  if (state == null || state.currentTrack == null) return null;
+  final queue = ref.watch(playbackControllerProvider).queue;
+  final index = queue.previousIndex(repeatMode: state.repeatMode);
+  if (index == null || index < 0 || index >= queue.tracks.length) return null;
+  return queue.tracks[index];
+});
+
+/// The track that would play on "next" from the current queue, or `null`.
+final nextTrackProvider = Provider<Track?>((ref) {
+  final state = ref.watch(playbackStateProvider).value;
+  if (state == null || state.currentTrack == null) return null;
+  final queue = ref.watch(playbackControllerProvider).queue;
+  final index = queue.nextIndex(repeatMode: state.repeatMode);
+  if (index == null || index < 0 || index >= queue.tracks.length) return null;
+  return queue.tracks[index];
+});
