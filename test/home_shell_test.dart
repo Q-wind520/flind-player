@@ -453,6 +453,48 @@ void main() {
       final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
       expect(content.bottom, greaterThanOrEqualTo(bar.bottom - 0.5));
     });
+
+    testWidgets('wide: the mini bar overlays the content and reserves height', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(_app(playback: _playingState()));
+      await tester.pumpAndSettle();
+
+      final content = tester.getRect(find.byType(IndexedStack));
+      final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
+      expect(bar.overlaps(content), isTrue);
+      expect(
+        find.ancestor(
+          of: find.byKey(MiniPlayerBar.barKey),
+          matching: find.byType(GlassSurface),
+        ),
+        findsOneWidget,
+      );
+      // The content reserves the bar's height, so its last row stays reachable.
+      final inset = MediaQuery.of(
+        tester.element(find.byType(IndexedStack)),
+      ).padding.bottom;
+      expect(inset, greaterThan(0));
+    });
+
+    testWidgets('wide: idle reserves no space for the mini bar', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Default playback state is idle (no track).
+      await tester.pumpWidget(_app());
+      await tester.pumpAndSettle();
+
+      final inset = MediaQuery.of(
+        tester.element(find.byType(IndexedStack)),
+      ).padding.bottom;
+      expect(inset, 0);
+    });
   });
 
   group('mini player opens the full-screen player', () {

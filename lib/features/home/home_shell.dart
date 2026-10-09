@@ -45,6 +45,13 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
+  /// Key on the wide-layout mini player so its height can be measured after
+  /// layout and reserved as the content's bottom inset.
+  final GlobalKey _miniPlayerKey = GlobalKey();
+
+  /// Measured height of the wide-layout mini player (0 when nothing plays).
+  double _miniPlayerHeight = 0;
+
   static const List<Widget> _screens = <Widget>[
     SearchScreen(),
     LibraryScreen(),
@@ -102,6 +109,40 @@ class _HomeShellState extends State<HomeShell> {
     setState(() => _selectedIndex = index);
   }
 
+  /// Measures the wide-layout mini player once it has laid out so the content
+  /// behind it can reserve exactly its height as a bottom inset.
+  ///
+  /// The mini bar appears asynchronously (the playback stream resolves after
+  /// the first frame), so a one-shot measure is not enough: [SizeChangedLayoutNotifier]
+  /// re-runs it whenever the bar appears, disappears or changes height.
+  void _syncMiniPlayerHeight() {
+    if (!mounted) return;
+    final box = _miniPlayerKey.currentContext?.findRenderObject() as RenderBox?;
+    final height = box?.size.height ?? 0;
+    if ((height - _miniPlayerHeight).abs() > 0.5) {
+      setState(() => _miniPlayerHeight = height);
+    }
+  }
+
+  /// The wide-layout mini bar, wrapped so a size change re-syncs the reserved
+  /// bottom inset.
+  Widget _wideMiniPlayer() {
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (notification) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _syncMiniPlayerHeight(),
+        );
+        return false;
+      },
+      child: SizeChangedLayoutNotifier(
+        child: KeyedSubtree(
+          key: _miniPlayerKey,
+          child: const MiniPlayerBar(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -124,15 +165,32 @@ class _HomeShellState extends State<HomeShell> {
                     destinations: _railDestinations(l10n),
                   ),
                   Expanded(
-                    child: Column(
+                    child: Stack(
                       children: [
-                        Expanded(
-                          child: IndexedStack(
-                            index: _selectedIndex,
-                            children: _screens,
+                        Positioned.fill(
+                          child: Builder(
+                            builder: (context) => MediaQuery(
+                              data: MediaQuery.of(context).copyWith(
+                                padding: MediaQuery.of(context).padding
+                                    .copyWith(
+                                      bottom:
+                                          MediaQuery.of(context).padding.bottom +
+                                          _miniPlayerHeight,
+                                    ),
+                              ),
+                              child: IndexedStack(
+                                index: _selectedIndex,
+                                children: _screens,
+                              ),
+                            ),
                           ),
                         ),
-                        const MiniPlayerBar(),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: _wideMiniPlayer(),
+                        ),
                       ],
                     ),
                   ),
