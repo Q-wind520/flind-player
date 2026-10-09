@@ -481,6 +481,28 @@ void main() {
     expect(find.text('关于'), findsOneWidget);
   });
 
+  testWidgets('the scroll view leaves room for the shell bottom inset', (
+    tester,
+  ) async {
+    final settings = FakeSettingsRepository(CacheSettings.defaults);
+    final store = _FakeCacheStore();
+    addTearDown(settings.dispose);
+
+    await tester.pumpWidget(
+      _app(
+        settings: settings,
+        store: store,
+        mediaPadding: const EdgeInsets.only(bottom: 72),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scroll = tester.widget<SingleChildScrollView>(
+      find.byType(SingleChildScrollView),
+    );
+    expect(scroll.padding, const EdgeInsets.fromLTRB(0, 8, 0, 80));
+  });
+
   testWidgets('language follows the system by default and can switch', (
     tester,
   ) async {

@@ -58,17 +58,27 @@ class GlassSurface extends StatelessWidget {
       child: DecoratedBox(
         position: DecorationPosition.background,
         decoration: BoxDecoration(color: AppGlass.tintOn(scheme)),
-        child: DecoratedBox(
-          position: DecorationPosition.foreground,
-          decoration: BoxDecoration(border: border, borderRadius: radius),
-          child: child,
+        child: Material(
+          // A transparent ink host so descendants (taps on the mini player)
+          // paint their splashes above the glass instead of on the Scaffold's
+          // Material behind it.
+          type: MaterialType.transparency,
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(border: border, borderRadius: radius),
+            child: child,
+          ),
         ),
       ),
     );
 
-    if (radius != null) {
-      surface = ClipRRect(borderRadius: radius, child: surface);
-    }
+    // Always clip: an unclipped BackdropFilter blurs whatever lies behind it up
+    // to the nearest ancestor clip (which can be the whole screen), so a
+    // square-cornered bar must still bound its blur with a zero-radius clip.
+    surface = ClipRRect(
+      borderRadius: radius ?? BorderRadius.zero,
+      child: surface,
+    );
 
     return DecoratedBox(
       position: DecorationPosition.background,

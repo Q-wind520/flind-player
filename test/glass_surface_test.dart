@@ -64,4 +64,40 @@ void main() {
     expect(decorations.any((d) => d.color == tint), isTrue);
     expect(tint.a, lessThan(1));
   });
+
+  testWidgets('always clips the blur, even without a radius', (tester) async {
+    await tester.pumpWidget(
+      localizedApp(
+        const Scaffold(body: GlassSurface(child: Text('square'))),
+        theme: AppTheme.light(const Color(0xFF1BA784)),
+      ),
+    );
+
+    expect(
+      find.descendant(
+        of: find.byType(GlassSurface),
+        matching: find.byType(ClipRRect),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('hosts a transparent Material for descendant ink', (tester) async {
+    await tester.pumpWidget(
+      localizedApp(
+        const Scaffold(body: GlassSurface(child: Text('ink'))),
+        theme: AppTheme.light(const Color(0xFF1BA784)),
+      ),
+    );
+
+    final material = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(GlassSurface),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(material.type, MaterialType.transparency);
+  });
 }

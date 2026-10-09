@@ -68,7 +68,14 @@ class SettingsScreen extends ConsumerWidget {
         // benefit; building every section eagerly keeps the whole page
         // reachable regardless of the viewport size.
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          // The shell extends this screen behind the bottom chrome, so the
+          // scroll content must also reserve the chrome's bottom inset.
+          padding: EdgeInsets.fromLTRB(
+            0,
+            8,
+            0,
+            8 + MediaQuery.paddingOf(context).bottom,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

@@ -495,6 +495,27 @@ void main() {
       ).padding.bottom;
       expect(inset, 0);
     });
+
+    testWidgets('wide: reserves the inset after resizing while playing', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(_app(playback: _playingState()));
+      await tester.pumpAndSettle();
+
+      // Switch to the wide layout while a track is already playing, so the
+      // mini bar is full size on its very first layout there.
+      tester.view.physicalSize = const Size(1200, 800);
+      await tester.pumpAndSettle();
+
+      final inset = MediaQuery.of(
+        tester.element(find.byType(IndexedStack)),
+      ).padding.bottom;
+      expect(inset, greaterThan(0));
+    });
   });
 
   group('mini player opens the full-screen player', () {

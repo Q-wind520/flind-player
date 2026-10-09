@@ -127,6 +127,12 @@ class _HomeShellState extends State<HomeShell> {
   /// The wide-layout mini bar, wrapped so a size change re-syncs the reserved
   /// bottom inset.
   Widget _wideMiniPlayer() {
+    // The notifier deliberately skips the initial layout, so measure once when
+    // the wide subtree is first built (and again on any size change). The
+    // sync is guarded, so re-scheduling it each build settles immediately.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncMiniPlayerHeight(),
+    );
     return NotificationListener<SizeChangedLayoutNotification>(
       onNotification: (notification) {
         WidgetsBinding.instance.addPostFrameCallback(
