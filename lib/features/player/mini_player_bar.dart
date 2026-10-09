@@ -21,7 +21,7 @@ import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/player_screen.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/glass_surface.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -90,85 +90,71 @@ class MiniPlayerBar extends ConsumerWidget {
         AppSpacing.sm,
         AppSpacing.sm,
       ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: AppSurface(
-          // A lighter tonal surface than the page and the list panel, so the
-          // floating capsule reads as a distinct layer.
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Thin progress line at the very top.
-              if (durationMs > 0)
-                LinearProgressIndicator(value: progress, minHeight: 2),
-              InkWell(
-                key: barKey,
-                onTap: () => Navigator.of(context).push(playerRoute(context)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      // Cover art.
-                      _MiniCover(track: track),
-                      const SizedBox(width: 12),
-                      // Title and artist.
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            Text(
-                              track.artist ?? l10n.unknownArtist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
+      child: GlassSurface(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        boxShadow: AppGlass.shadow,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Thin progress line at the very top.
+            if (durationMs > 0)
+              LinearProgressIndicator(value: progress, minHeight: 2),
+            InkWell(
+              key: barKey,
+              onTap: () => Navigator.of(context).push(playerRoute(context)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    // Cover art.
+                    _MiniCover(track: track),
+                    const SizedBox(width: 12),
+                    // Title and artist.
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            track.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          Text(
+                            track.artist ?? l10n.unknownArtist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                        ],
                       ),
-                      // Play/pause.
-                      IconButton(
-                        onPressed: () => ref
-                            .read(playbackControllerProvider)
-                            .togglePlayPause(),
-                        icon: Icon(
-                          state.isPlaying ? Icons.pause : Icons.play_arrow,
-                        ),
+                    ),
+                    // Play/pause.
+                    IconButton(
+                      onPressed: () => ref
+                          .read(playbackControllerProvider)
+                          .togglePlayPause(),
+                      icon: Icon(
+                        state.isPlaying ? Icons.pause : Icons.play_arrow,
                       ),
-                      // Next.
-                      IconButton(
-                        onPressed: state.hasNext
-                            ? () => ref.read(playbackControllerProvider).next()
-                            : null,
-                        icon: const Icon(Icons.skip_next),
-                      ),
-                    ],
-                  ),
+                    ),
+                    // Next.
+                    IconButton(
+                      onPressed: state.hasNext
+                          ? () => ref.read(playbackControllerProvider).next()
+                          : null,
+                      icon: const Icon(Icons.skip_next),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

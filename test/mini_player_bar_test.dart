@@ -31,7 +31,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/glass_surface.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 
 import 'support/l10n.dart';
@@ -322,7 +322,7 @@ void main() {
     final clip = tester.widget<ClipRRect>(
       find
           .descendant(
-            of: find.byType(MiniPlayerBar),
+            of: find.byType(CoverHero),
             matching: find.byType(ClipRRect),
           )
           .first,
@@ -351,7 +351,7 @@ void main() {
     expect(bar.backgroundColor, isNull);
   });
 
-  testWidgets('renders as a floating rounded capsule', (tester) async {
+  testWidgets('renders as a floating glass capsule', (tester) async {
     final state = PlaybackState(
       isPlaying: false,
       isBuffering: false,
@@ -363,8 +363,20 @@ void main() {
     await tester.pumpWidget(_app(state: state));
     await tester.pumpAndSettle();
 
-    final surface = tester.widget<AppSurface>(find.byType(AppSurface));
-    expect(surface.borderRadius, BorderRadius.circular(AppRadius.xl));
+    final glass = tester.widget<GlassSurface>(
+      find.descendant(
+        of: find.byType(MiniPlayerBar),
+        matching: find.byType(GlassSurface),
+      ),
+    );
+    expect(glass.borderRadius, BorderRadius.circular(AppRadius.xl));
+    expect(
+      find.descendant(
+        of: find.byType(MiniPlayerBar),
+        matching: find.byType(BackdropFilter),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the mini cover is a Hero tagged for the player transition', (
