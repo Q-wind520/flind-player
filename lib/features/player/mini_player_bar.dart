@@ -41,6 +41,8 @@ Route<void> playerRoute(BuildContext context) {
     );
   }
   return PageRouteBuilder<void>(
+    // Non-opaque so the dismiss drawer can dim the app behind it.
+    opaque: false,
     transitionDuration: duration,
     reverseTransitionDuration: duration,
     pageBuilder: (context, animation, secondaryAnimation) =>

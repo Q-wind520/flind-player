@@ -48,7 +48,104 @@ class PlayerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AppSurface(child: SafeArea(child: const PlayerView())),
+      // Transparent so the non-opaque route shows the app behind while the
+      // dismiss drawer takes over the background.
+      backgroundColor: Colors.transparent,
+      body: _PlayerDismissWrapper(
+        child: AppSurface(child: SafeArea(child: const PlayerView())),
+      ),
+    );
+  }
+}
+
+/// The header drag handle that dismisses the player.
+const Key playerDismissHandleKey = Key('player_dismiss_handle');
+
+/// Provides the dismiss drag callbacks to the header.
+class _PlayerDismissScope extends InheritedWidget {
+  const _PlayerDismissScope({
+    required this.onDrag,
+    required this.onEnd,
+    required super.child,
+  });
+
+  final void Function(double dyFraction) onDrag;
+  final void Function(double velocity) onEnd;
+
+  static _PlayerDismissScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PlayerDismissScope>();
+
+  @override
+  bool updateShouldNotify(_PlayerDismissScope oldWidget) => false;
+}
+
+/// Slides the player down with a header drag and pops on commit, dimming the
+/// app behind (the route is non-opaque).
+class _PlayerDismissWrapper extends StatefulWidget {
+  const _PlayerDismissWrapper({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PlayerDismissWrapper> createState() => _PlayerDismissWrapperState();
+}
+
+class _PlayerDismissWrapperState extends State<_PlayerDismissWrapper>
+    with SingleTickerProviderStateMixin {
+  /// 0 = resting, 1 = fully dismissed.
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: AppMotion.standard,
+    value: 0,
+  );
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _onDrag(double dyFraction) {
+    _c.value = (_c.value + dyFraction).clamp(0.0, 1.0);
+  }
+
+  void _onEnd(double velocity) {
+    if (_c.value > 0.4 || velocity > 700) {
+      _c.animateTo(1, curve: AppMotion.emphasizedCurve).then((_) {
+        if (mounted) Navigator.of(context).maybePop();
+      });
+    } else {
+      _c.animateTo(0, curve: AppMotion.standardCurve);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _PlayerDismissScope(
+      onDrag: _onDrag,
+      onEnd: _onEnd,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) {
+          final height = MediaQuery.sizeOf(context).height;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.5 * _c.value),
+                ),
+              ),
+              Positioned.fill(
+                child: Transform.translate(
+                  offset: Offset(0, _c.value * height),
+                  child: widget.child,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -212,7 +309,8 @@ class _HeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
+    final dismiss = _PlayerDismissScope.maybeOf(context);
+    final handle = Row(
       children: [
         IconButton(
           icon: const Icon(Icons.keyboard_arrow_down),
@@ -247,6 +345,16 @@ class _HeaderRow extends StatelessWidget {
         // is truly screen-centred.
         const SizedBox(width: 48),
       ],
+    );
+    if (dismiss == null) return handle;
+    return GestureDetector(
+      key: playerDismissHandleKey,
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: (details) =>
+          dismiss.onDrag(details.delta.dy / MediaQuery.sizeOf(context).height),
+      onVerticalDragEnd: (details) =>
+          dismiss.onEnd(details.velocity.pixelsPerSecond.dy),
+      child: handle,
     );
   }
 }
