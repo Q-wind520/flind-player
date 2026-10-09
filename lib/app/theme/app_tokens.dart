@@ -13,8 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'package:flutter/animation.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 /// Spacing scale in logical pixels, on a 4pt base.
 @immutable
@@ -62,4 +61,33 @@ class AppMotion {
 
   /// The easing for large entrance transitions.
   static const Curve emphasizedCurve = Curves.easeOutCubic;
+}
+
+/// Frosted-glass tokens for the bottom chrome.
+@immutable
+class AppGlass {
+  const AppGlass._();
+
+  /// Backdrop blur strength (Gaussian sigma).
+  static const double blurSigma = 14;
+
+  /// The translucent tint laid over the blur. Heavier in light mode so text
+  /// stays legible; lighter in dark mode so the glass reads as glass.
+  static Color tintOn(ColorScheme scheme) => scheme.surface.withValues(
+    alpha: scheme.brightness == Brightness.light ? 0.72 : 0.62,
+  );
+
+  /// A 1px highlight along the top edge of a glass sheet.
+  static Border topEdgeOn(ColorScheme scheme) => Border(
+    top: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+  );
+
+  /// The soft shadow shared by glass sheets and the floating mini capsule.
+  static const List<BoxShadow> shadow = [
+    BoxShadow(
+      color: Color(0x1F000000), // ~12% black
+      blurRadius: 18,
+      offset: Offset(0, 6),
+    ),
+  ];
 }
