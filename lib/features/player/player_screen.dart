@@ -25,6 +25,7 @@ import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
+import 'package:flind_player/features/player/cover_viewer_screen.dart';
 import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/mini_settings.dart';
 import 'package:flind_player/features/player/player_panels.dart';
@@ -470,25 +471,31 @@ class _PlayerCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
 
-    return CoverHero(
-      uri: track.uri,
-      coverPath: coverPath,
-      coverUrl: coverUrl,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        child: Container(
-          width: size,
-          height: size,
-          color: scheme.surfaceContainerHighest,
-          child: hasCover
-              ? CoverImage(
-                  path: coverPath,
-                  url: coverUrl,
-                  size: size,
-                  errorBuilder: (context, error, stackTrace) =>
-                      _placeholder(scheme),
-                )
-              : _placeholder(scheme),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // Desktop: right-click. Touch: long-press.
+      onSecondaryTap: () => Navigator.of(context).push(coverViewerRoute(track)),
+      onLongPress: () => Navigator.of(context).push(coverViewerRoute(track)),
+      child: CoverHero(
+        uri: track.uri,
+        coverPath: coverPath,
+        coverUrl: coverUrl,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          child: Container(
+            width: size,
+            height: size,
+            color: scheme.surfaceContainerHighest,
+            child: hasCover
+                ? CoverImage(
+                    path: coverPath,
+                    url: coverUrl,
+                    size: size,
+                    errorBuilder: (context, error, stackTrace) =>
+                        _placeholder(scheme),
+                  )
+                : _placeholder(scheme),
+          ),
         ),
       ),
     );
