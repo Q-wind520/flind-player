@@ -35,10 +35,9 @@ import 'package:flutter/material.dart';
 /// the Flutter SDK — no custom drag recognizer is needed, because the only
 /// thing missing on desktop is the pointer-kind permission.
 ///
-/// Deliberately **not** overridden here: [buildScrollbar] and
-/// [buildOverscrollIndicator]. PiliPlus strips scrollbars on desktop, but that
-/// is a look-and-feel decision affecting every scrollable in the app, so this
-/// behaviour stays limited to pointer kinds.
+/// Scrollbars are removed everywhere: the app has its own visual language and
+/// the default desktop scrollbar reads as noise over the frosted chrome, so
+/// [buildScrollbar] returns its child untouched.
 class AppScrollBehavior extends MaterialScrollBehavior {
   /// Creates the app-wide scroll behaviour.
   const AppScrollBehavior();
@@ -52,4 +51,11 @@ class AppScrollBehavior extends MaterialScrollBehavior {
     PointerDeviceKind.invertedStylus,
     PointerDeviceKind.unknown,
   };
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }

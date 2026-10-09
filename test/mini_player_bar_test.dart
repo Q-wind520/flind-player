@@ -379,6 +379,26 @@ void main() {
     );
   });
 
+  testWidgets('the progress bar sits at the bottom of the capsule', (
+    tester,
+  ) async {
+    final state = PlaybackState(
+      isPlaying: true,
+      isBuffering: false,
+      isCompleted: false,
+      position: const Duration(seconds: 30),
+      duration: const Duration(minutes: 3),
+      currentTrack: _track('Progress Position'),
+    );
+
+    await tester.pumpWidget(_app(state: state));
+    await tester.pumpAndSettle();
+
+    final progress = tester.getRect(find.byType(LinearProgressIndicator));
+    final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
+    expect(progress.top, greaterThanOrEqualTo(bar.bottom - 0.5));
+  });
+
   testWidgets('the mini cover is a Hero tagged for the player transition', (
     tester,
   ) async {

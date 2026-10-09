@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,6 +29,34 @@ void main() {
       expect(behavior.dragDevices, contains(PointerDeviceKind.mouse));
       expect(behavior.dragDevices, contains(PointerDeviceKind.trackpad));
       expect(behavior.dragDevices, contains(PointerDeviceKind.stylus));
+    });
+  });
+
+  group('desktop scrollbars', () {
+    testWidgets('AppScrollBehavior strips the scrollbar on desktop', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await tester.pumpWidget(_listApp(const AppScrollBehavior()));
+        await tester.pumpAndSettle();
+        expect(find.byType(Scrollbar), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('the framework default keeps the desktop scrollbar', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await tester.pumpWidget(_listApp(null));
+        await tester.pumpAndSettle();
+        expect(find.byType(Scrollbar), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
   });
 
@@ -84,6 +113,13 @@ Widget _pagerApp(ScrollBehavior? behavior) => MaterialApp(
       Center(child: Text('page-1')),
     ],
   ),
+);
+
+/// A tall [ListView] under a [MaterialApp] using [behavior], so a desktop
+/// scrollbar would appear for the default behaviour.
+Widget _listApp(ScrollBehavior? behavior) => MaterialApp(
+  scrollBehavior: behavior,
+  home: ListView(children: const <Widget>[SizedBox(height: 1000)]),
 );
 
 /// Drags the pager leftwards with a **mouse** pointer and releases.

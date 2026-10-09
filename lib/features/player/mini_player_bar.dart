@@ -96,9 +96,6 @@ class MiniPlayerBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Thin progress line at the very top.
-            if (durationMs > 0)
-              LinearProgressIndicator(value: progress, minHeight: 2),
             InkWell(
               key: barKey,
               onTap: () => Navigator.of(context).push(playerRoute(context)),
@@ -154,6 +151,9 @@ class MiniPlayerBar extends ConsumerWidget {
                 ),
               ),
             ),
+            // Thin progress line at the very bottom, clipped by the capsule.
+            if (durationMs > 0)
+              LinearProgressIndicator(value: progress, minHeight: 2),
           ],
         ),
       ),
