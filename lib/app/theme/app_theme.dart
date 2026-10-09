@@ -72,6 +72,9 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
+        // Transparent so the shared GlassSurface behind it provides the
+        // frosted material instead of an opaque bar.
+        backgroundColor: Colors.transparent,
         indicatorShape: const StadiumBorder(),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);

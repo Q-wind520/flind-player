@@ -113,4 +113,10 @@ void main() {
       );
     }
   });
+
+  test('the bottom navigation bar is transparent so glass can show through', () {
+    for (final theme in [AppTheme.light(seed), AppTheme.dark(seed)]) {
+      expect(theme.navigationBarTheme.backgroundColor, Colors.transparent);
+    }
+  });
 }
