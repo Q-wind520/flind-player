@@ -43,7 +43,7 @@ import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/glass_surface.dart';
 
 import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
@@ -415,49 +415,44 @@ void main() {
 
   // The mini bar opens the same full-screen player regardless of window
   // width: no bottom sheet on compact, no docked panel on expanded.
-  group('the mini player sits below the content with a distinct surface', () {
-    for (final size in <Size>[const Size(400, 800), const Size(1200, 800)]) {
-      testWidgets('at ${size.width}x${size.height}', (tester) async {
-        tester.view.physicalSize = size;
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.reset);
+  group('the glass chrome overlays the content', () {
+    testWidgets('compact: extendBody and a glass bottom chrome', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-        await tester.pumpWidget(_app(playback: _playingState()));
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(_app(playback: _playingState()));
+      await tester.pumpAndSettle();
 
-        final scheme = Theme.of(
-          tester.element(find.byType(HomeShell)),
-        ).colorScheme;
-        final content = tester.getRect(find.byType(IndexedStack));
-        final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
-
-        // The bar sits below the content, so it never covers a row.
-        expect(bar.top, greaterThanOrEqualTo(content.bottom - 0.5));
-
-        // No panel-tone strip is painted behind the bar (a transparent/glass
-        // surface may revisit the floating look later).
-        expect(
-          find.ancestor(
-            of: find.byKey(MiniPlayerBar.barKey),
-            matching: find.byWidgetPredicate(
-              (w) => w is ColoredBox && w.color == scheme.surfaceContainerLow,
-            ),
-          ),
-          findsNothing,
-        );
-
-        // The bar itself is a distinct, higher tonal surface.
-        final surface = tester.widget<AppSurface>(
-          find
-              .ancestor(
-                of: find.byKey(MiniPlayerBar.barKey),
-                matching: find.byType(AppSurface),
-              )
-              .first,
-        );
-        expect(surface.color, scheme.surfaceContainerHighest);
-      });
-    }
+      final scaffold = tester.widget<Scaffold>(
+        find
+            .ancestor(
+              of: find.byType(NavigationBar),
+              matching: find.byType(Scaffold),
+            )
+            .first,
+      );
+      expect(scaffold.extendBody, isTrue);
+      expect(
+        find.ancestor(
+          of: find.byType(NavigationBar),
+          matching: find.byType(GlassSurface),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(
+          of: find.byKey(MiniPlayerBar.barKey),
+          matching: find.byType(GlassSurface),
+        ),
+        findsOneWidget,
+      );
+      // The body extends behind the bottom chrome, so the glass has content
+      // to blur.
+      final content = tester.getRect(find.byType(IndexedStack));
+      final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
+      expect(content.bottom, greaterThanOrEqualTo(bar.bottom - 0.5));
+    });
   });
 
   group('mini player opens the full-screen player', () {

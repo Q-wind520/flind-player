@@ -16,12 +16,14 @@
 import 'package:flutter/material.dart';
 
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/glass_surface.dart';
 
 /// Adaptive application shell.
 ///
@@ -140,19 +142,26 @@ class _HomeShellState extends State<HomeShell> {
           );
         }
 
+        final scheme = Theme.of(context).colorScheme;
         return Scaffold(
           backgroundColor: AppSurface.colorOf(context),
+          // The list extends behind the bottom chrome so the frosted bars blur
+          // it instead of sitting on a flat background.
+          extendBody: true,
           body: IndexedStack(index: _selectedIndex, children: _screens),
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const MiniPlayerBar(),
-              NavigationBar(
-                labelBehavior:
-                    NavigationDestinationLabelBehavior.onlyShowSelected,
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: _onDestinationSelected,
-                destinations: _destinations(l10n),
+              GlassSurface(
+                border: AppGlass.topEdgeOn(scheme),
+                child: NavigationBar(
+                  labelBehavior:
+                      NavigationDestinationLabelBehavior.onlyShowSelected,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _onDestinationSelected,
+                  destinations: _destinations(l10n),
+                ),
               ),
             ],
           ),
