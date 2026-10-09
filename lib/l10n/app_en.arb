@@ -442,5 +442,9 @@
   "themeColor": "Theme colour",
   "themeColorCustom": "Custom",
   "themeColorHex": "Hex",
-  "themeColorInvalidHex": "Enter a hex colour such as #1BA784"
+  "themeColorInvalidHex": "Enter a hex colour such as #1BA784",
+  "downloadCover": "Download cover",
+  "coverSaved": "Cover saved",
+  "coverSaveFailed": "Failed to save cover",
+  "coverOriginalUnavailable": "Original image unavailable"
 }
