@@ -384,6 +384,7 @@ Widget _app({
   List<Track> favourites = const <Track>[],
   _FakePlaylistRepository? playlistRepo,
   Size size = const Size(400, 800),
+  double bottomPadding = 0,
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -413,7 +414,10 @@ Widget _app({
     ],
     child: localizedApp(
       MediaQuery(
-        data: MediaQueryData(size: size),
+        data: MediaQueryData(
+          size: size,
+          padding: EdgeInsets.only(bottom: bottomPadding),
+        ),
         child: const LibraryScreen(),
       ),
     ),
@@ -428,6 +432,24 @@ Future<void> _openPlaylists(WidgetTester tester) async {
 
 void main() {
   group('playlists section', () {
+    testWidgets('the playlists grid reserves the injected bottom inset', (
+      tester,
+    ) async {
+      _setSize(tester, 400, 800);
+      final repo = _FakePlaylistRepository(
+        playlists: [_playlist(2, 'Road Trip', PlaylistKind.custom)],
+      );
+
+      await tester.pumpWidget(
+        _app(playlistRepo: repo, bottomPadding: 72),
+      );
+      await tester.pumpAndSettle();
+      await _openPlaylists(tester);
+
+      final grid = tester.widget<GridView>(find.byType(GridView));
+      expect((grid.padding! as EdgeInsets).bottom, 12 + 72);
+    });
+
     testWidgets('switching to 歌单 shows the pinned favourites row and the '
         'empty state', (tester) async {
       _setSize(tester, 400, 800);

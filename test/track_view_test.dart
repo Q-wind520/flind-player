@@ -31,6 +31,23 @@ Widget _wrap(Widget child) => ProviderScope(
   child: localizedApp(Scaffold(body: child)),
 );
 
+/// Like [_wrap] but with a bottom system inset injected, mirroring what the
+/// shell adds for the floating bottom chrome.
+Widget _wrapWithBottomInset(Widget child, double bottom) => ProviderScope(
+  overrides: [
+    isFavoriteProvider.overrideWith((ref, uri) async => false),
+    audioCacheEntryProvider.overrideWith((ref, track) async => null),
+  ],
+  child: localizedApp(
+    Scaffold(
+      body: MediaQuery(
+        data: MediaQueryData(padding: EdgeInsets.only(bottom: bottom)),
+        child: child,
+      ),
+    ),
+  ),
+);
+
 void main() {
   testWidgets('list view renders TrackTile rows', (tester) async {
     await tester.pumpWidget(
@@ -139,5 +156,47 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ListPanel), findsNothing);
+  });
+
+  testWidgets('showcase grid reserves the injected bottom inset', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrapWithBottomInset(
+        TrackView(
+          tracks: [_track(1)],
+          view: LibraryView.showcase,
+          currentUri: null,
+          isPlaying: false,
+          onPlay: (_) {},
+        ),
+        72,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    expect((grid.padding! as EdgeInsets).bottom, 12 + 72);
+  });
+
+  testWidgets('waterfall reserves the injected bottom inset', (tester) async {
+    await tester.pumpWidget(
+      _wrapWithBottomInset(
+        TrackView(
+          tracks: [_track(1)],
+          view: LibraryView.waterfall,
+          currentUri: null,
+          isPlaying: false,
+          onPlay: (_) {},
+        ),
+        72,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final masonry = tester.widget<MasonryGridView>(
+      find.byType(MasonryGridView),
+    );
+    expect((masonry.padding! as EdgeInsets).bottom, 12 + 72);
   });
 }

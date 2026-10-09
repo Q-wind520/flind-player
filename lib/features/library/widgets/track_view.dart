@@ -37,10 +37,14 @@ class TrackView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The shell floats the bottom chrome over the content, so scrollables must
+    // reserve its height themselves; a view with an explicit `padding` does
+    // not pick up the injected `MediaQuery` inset automatically.
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return switch (view) {
       LibraryView.list => _list(),
-      LibraryView.showcase => _grid(),
-      LibraryView.waterfall => _waterfall(),
+      LibraryView.showcase => _grid(bottomInset),
+      LibraryView.waterfall => _waterfall(bottomInset),
     };
   }
 
@@ -65,9 +69,9 @@ class TrackView extends StatelessWidget {
     );
   }
 
-  Widget _grid() {
+  Widget _grid(double bottomInset) {
     return GridView.builder(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 220,
         childAspectRatio: 0.82,
@@ -90,12 +94,12 @@ class TrackView extends StatelessWidget {
     );
   }
 
-  Widget _waterfall() {
+  Widget _waterfall(double bottomInset) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = (constraints.maxWidth / 180).round().clamp(2, 6);
         return MasonryGridView.count(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
           crossAxisCount: columns,
           mainAxisSpacing: 10,
           crossAxisSpacing: 10,

@@ -44,6 +44,9 @@ class PlaylistsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    // The shell floats the bottom chrome over the content, so a view with an
+    // explicit padding must reserve its height itself.
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     final custom = ref.watch(customPlaylistsProvider);
     final favoritesCount = ref
         .watch(playlistTracksProvider(favoritesPlaylistId))
@@ -54,7 +57,7 @@ class PlaylistsSection extends ConsumerWidget {
     // fall back to the list branch so the empty-state notice stays visible.
     if (view == LibraryView.showcase && custom.isNotEmpty) {
       return GridView.count(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
         crossAxisCount: 2,
         childAspectRatio: 0.82,
         crossAxisSpacing: 10,
@@ -82,7 +85,7 @@ class PlaylistsSection extends ConsumerWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.fromLTRB(0, 4, 0, 4 + bottomInset),
       children: [
         _FavoritesRow(trackCount: favoritesCount, onTap: onOpenFavorites),
         if (custom.isEmpty)
