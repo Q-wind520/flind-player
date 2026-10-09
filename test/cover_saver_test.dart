@@ -13,6 +13,12 @@ import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/services/cover_saver.dart';
 
 void main() {
+  test('album name drops the extension the gallery appends', () {
+    expect(albumCoverBaseName('A - B.jpg'), 'A - B');
+    expect(albumCoverBaseName('cover.png'), 'cover');
+    expect(albumCoverBaseName('noext'), 'noext');
+  });
+
   test('selects the album saver on mobile', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {

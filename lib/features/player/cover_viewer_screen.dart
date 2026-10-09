@@ -46,6 +46,9 @@ class CoverViewerScreen extends ConsumerStatefulWidget {
 class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
   late final Future<CoverOriginal?> _original;
 
+  /// True while a save is in flight, so repeated taps are ignored.
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,17 +56,23 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
   }
 
   Future<void> _save(CoverOriginal original) async {
-    final result = await ref.read(coverSaverProvider).save(original);
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    switch (result) {
-      case CoverSaveResult.saved:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.coverSaved)));
-      case CoverSaveResult.cancelled:
-        break;
-      case CoverSaveResult.failed:
-        messenger.showSnackBar(SnackBar(content: Text(l10n.coverSaveFailed)));
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final result = await ref.read(coverSaverProvider).save(original);
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+      switch (result) {
+        case CoverSaveResult.saved:
+          messenger.showSnackBar(SnackBar(content: Text(l10n.coverSaved)));
+        case CoverSaveResult.cancelled:
+          break;
+        case CoverSaveResult.failed:
+          messenger.showSnackBar(SnackBar(content: Text(l10n.coverSaveFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -102,21 +111,20 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
     }
     if (original == null) {
       final l10n = AppLocalizations.of(context);
-      final scheme = Theme.of(context).colorScheme;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               Icons.image_not_supported_outlined,
               size: 56,
-              color: scheme.onSurfaceVariant,
+              color: Colors.white70,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
               l10n.coverOriginalUnavailable,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: Colors.white70,
               ),
             ),
           ],
@@ -142,7 +150,6 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
     CoverOriginal? original,
     bool loading,
   ) {
-    final scheme = Theme.of(context).colorScheme;
     return Positioned(
       top: 0,
       left: 0,
@@ -151,15 +158,18 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
         children: [
           IconButton(
             icon: const Icon(Icons.close),
-            color: scheme.onSurface,
+            // Fixed light-on-dark chrome: the viewer sits on a dark scrim in
+            // both themes, so theme-semantic colours can vanish.
+            color: Colors.white,
             tooltip: l10n.close,
             onPressed: () => Navigator.of(context).maybePop(),
           ),
           const Spacer(),
           TextButton.icon(
-            onPressed: (original == null || loading)
+            onPressed: (original == null || loading || _saving)
                 ? null
                 : () => _save(original),
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             icon: const Icon(Icons.download_outlined),
             label: Text(l10n.downloadCover),
           ),

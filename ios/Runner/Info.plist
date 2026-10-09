@@ -70,5 +70,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>保存封面图到相册</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>访问相册以保存封面图</string>
 </dict>
 </plist>

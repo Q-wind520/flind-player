@@ -5,6 +5,7 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, version 3 of the License.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -43,6 +44,19 @@ class _FakeSaver implements CoverSaver {
     calls++;
     return result;
   }
+}
+
+/// A saver that stays pending until [complete] is called.
+class _BlockingSaver implements CoverSaver {
+  final Completer<CoverSaveResult> _completer = Completer<CoverSaveResult>();
+  int calls = 0;
+  @override
+  Future<CoverSaveResult> save(CoverOriginal original) {
+    calls++;
+    return _completer.future;
+  }
+
+  void complete() => _completer.complete(CoverSaveResult.saved);
 }
 
 Widget _app({
@@ -100,5 +114,88 @@ void main() {
       find.widgetWithText(TextButton, l10n.downloadCover),
     );
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets('the viewer chrome is legible on the dark scrim', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        resolver: CoverOriginalResolver(
+          fetchRemote: (url) async => _png,
+          readLocal: (path) async => _png,
+        ),
+        saver: _FakeSaver(CoverSaveResult.saved),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final close = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.close),
+    );
+    expect(close.color, Colors.white);
+  });
+
+  testWidgets('ignores repeated taps while a save is in flight', (tester) async {
+    final saver = _BlockingSaver();
+    await tester.pumpWidget(
+      _app(
+        resolver: CoverOriginalResolver(
+          fetchRemote: (url) async => _png,
+          readLocal: (path) async => _png,
+        ),
+        saver: saver,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final l10n = lookupAppLocalizations(const Locale('zh'));
+    await tester.tap(find.text(l10n.downloadCover));
+    await tester.pump();
+    await tester.tap(find.text(l10n.downloadCover), warnIfMissed: false);
+    await tester.pump();
+
+    expect(saver.calls, 1);
+
+    saver.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('stays silent when a save is cancelled', (tester) async {
+    final saver = _FakeSaver(CoverSaveResult.cancelled);
+    await tester.pumpWidget(
+      _app(
+        resolver: CoverOriginalResolver(
+          fetchRemote: (url) async => _png,
+          readLocal: (path) async => _png,
+        ),
+        saver: saver,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final l10n = lookupAppLocalizations(const Locale('zh'));
+    await tester.tap(find.text(l10n.downloadCover));
+    await tester.pumpAndSettle();
+
+    expect(saver.calls, 1);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('reports a failure when a save fails', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        resolver: CoverOriginalResolver(
+          fetchRemote: (url) async => _png,
+          readLocal: (path) async => _png,
+        ),
+        saver: _FakeSaver(CoverSaveResult.failed),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final l10n = lookupAppLocalizations(const Locale('zh'));
+    await tester.tap(find.text(l10n.downloadCover));
+    await tester.pumpAndSettle();
+
+    expect(find.text(l10n.coverSaveFailed), findsOneWidget);
   });
 }

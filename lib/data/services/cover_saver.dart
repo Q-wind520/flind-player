@@ -15,11 +15,17 @@
 
 import 'package:file_picker/file_picker.dart';
 import 'package:gal/gal.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:flind_player/data/services/cover_original_resolver.dart';
 
 /// The outcome of saving a cover image.
 enum CoverSaveResult { saved, cancelled, failed }
+
+/// The album-save name for [suggestedName]: the bare base name, because the
+/// gallery plugin appends its own extension.
+String albumCoverBaseName(String suggestedName) =>
+    p.basenameWithoutExtension(suggestedName);
 
 /// Persists a resolved cover to the platform's destination.
 abstract class CoverSaver {
@@ -37,7 +43,10 @@ class AlbumCoverSaver implements CoverSaver {
       if (!await Gal.hasAccess()) {
         if (!await Gal.requestAccess()) return CoverSaveResult.failed;
       }
-      await Gal.putImageBytes(original.bytes, name: original.suggestedName);
+      await Gal.putImageBytes(
+        original.bytes,
+        name: albumCoverBaseName(original.suggestedName),
+      );
       return CoverSaveResult.saved;
     } catch (_) {
       return CoverSaveResult.failed;
