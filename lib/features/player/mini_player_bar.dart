@@ -75,8 +75,6 @@ class MiniPlayerBar extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final scheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
     final durationMs = state.duration?.inMilliseconds ?? 0;
     final positionMs = state.position.inMilliseconds;
     final progress = durationMs > 0
@@ -96,59 +94,30 @@ class MiniPlayerBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            InkWell(
-              key: barKey,
-              onTap: () => Navigator.of(context).push(playerRoute(context)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    // Cover art.
-                    _MiniCover(track: track),
-                    const SizedBox(width: 12),
-                    // Title and artist.
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            track.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          Text(
-                            track.artist ?? l10n.unknownArtist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _MiniLabelStrip(current: track)),
+                  // Play/pause.
+                  IconButton(
+                    onPressed: () =>
+                        ref.read(playbackControllerProvider).togglePlayPause(),
+                    icon: Icon(
+                      state.isPlaying ? Icons.pause : Icons.play_arrow,
                     ),
-                    // Play/pause.
-                    IconButton(
-                      onPressed: () => ref
-                          .read(playbackControllerProvider)
-                          .togglePlayPause(),
-                      icon: Icon(
-                        state.isPlaying ? Icons.pause : Icons.play_arrow,
-                      ),
-                    ),
-                    // Next.
-                    IconButton(
-                      onPressed: state.hasNext
-                          ? () => ref.read(playbackControllerProvider).next()
-                          : null,
-                      icon: const Icon(Icons.skip_next),
-                    ),
-                  ],
-                ),
+                  ),
+                  // Next.
+                  IconButton(
+                    onPressed: state.hasNext
+                        ? () => ref.read(playbackControllerProvider).next()
+                        : null,
+                    icon: const Icon(Icons.skip_next),
+                  ),
+                ],
               ),
             ),
             // Thin progress line at the very bottom, clipped by the capsule.
@@ -157,6 +126,169 @@ class MiniPlayerBar extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The swipeable cover + title/artist strip: `[previous][current][next]`,
+/// following the finger, committing to the neighbour past the threshold.
+class _MiniLabelStrip extends ConsumerStatefulWidget {
+  const _MiniLabelStrip({required this.current});
+
+  final Track current;
+
+  @override
+  ConsumerState<_MiniLabelStrip> createState() => _MiniLabelStripState();
+}
+
+class _MiniLabelStripState extends ConsumerState<_MiniLabelStrip>
+    with SingleTickerProviderStateMixin {
+  /// -1 = next shown, 0 = resting on current, +1 = previous shown.
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: AppMotion.standard,
+    lowerBound: -1,
+    upperBound: 1,
+    value: 0,
+  );
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _commit(int direction) async {
+    await _c.animateTo(direction.toDouble(), curve: AppMotion.standardCurve);
+    final controller = ref.read(playbackControllerProvider);
+    if (direction > 0) {
+      await controller.previous();
+    } else {
+      await controller.next();
+    }
+    if (mounted) _c.value = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Re-centre when the loaded track actually changes.
+    ref.listen(playbackStateProvider, (previous, next) {
+      if (previous?.value?.currentTrack?.uri !=
+              next.value?.currentTrack?.uri &&
+          !_c.isAnimating) {
+        _c.value = 0;
+      }
+    });
+    final previousTrack = ref.watch(previousTrackProvider);
+    final nextTrack = ref.watch(nextTrackProvider);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return SizedBox(
+          height: 40,
+          child: GestureDetector(
+            key: MiniPlayerBar.barKey,
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).push(playerRoute(context)),
+            onHorizontalDragUpdate: (details) {
+              _c.value = (_c.value + details.delta.dx / width).clamp(-1.0, 1.0);
+            },
+            onHorizontalDragEnd: (details) {
+              final velocity = details.velocity.pixelsPerSecond.dx;
+              if ((_c.value <= -0.4 || velocity < -700) && nextTrack != null) {
+                _commit(-1);
+              } else if ((_c.value >= 0.4 || velocity > 700) &&
+                  previousTrack != null) {
+                _commit(1);
+              } else {
+                _c.animateTo(0, curve: AppMotion.standardCurve);
+              }
+            },
+            child: ClipRect(
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (context, child) {
+                  final dx = -_c.value * width;
+                  return Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      _pane(previousTrack, dx - width, width, hero: false),
+                      _pane(widget.current, dx, width, hero: true),
+                      _pane(nextTrack, dx + width, width, hero: false),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _pane(Track? track, double left, double width, {required bool hero}) {
+    final value = track;
+    if (value == null) return const SizedBox.shrink();
+    return Positioned(
+      left: left,
+      width: width,
+      top: 0,
+      bottom: 0,
+      child: _MiniLabel(track: value, hero: hero),
+    );
+  }
+}
+
+/// Cover + title/artist for one carousel pane. Only the centred pane carries a
+/// [CoverHero] (neighbours must not share the tag).
+class _MiniLabel extends StatelessWidget {
+  const _MiniLabel({required this.track, required this.hero});
+
+  final Track track;
+  final bool hero;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final cover = _MiniCover(track: track);
+    return Row(
+      children: [
+        if (hero)
+          CoverHero(
+            uri: track.uri,
+            coverPath: track.coverPath,
+            coverUrl: track.coverUrl,
+            child: cover,
+          )
+        else
+          cover,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              Text(
+                track.artist ?? l10n.unknownArtist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -176,26 +308,21 @@ class _MiniCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
 
-    return CoverHero(
-      uri: track.uri,
-      coverPath: coverPath,
-      coverUrl: coverUrl,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          width: _size,
-          height: _size,
-          color: scheme.surfaceContainerHighest,
-          child: hasCover
-              ? CoverImage(
-                  path: coverPath,
-                  url: coverUrl,
-                  size: _size,
-                  errorBuilder: (context, error, stackTrace) =>
-                      _placeholder(scheme),
-                )
-              : _placeholder(scheme),
-        ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        width: _size,
+        height: _size,
+        color: scheme.surfaceContainerHighest,
+        child: hasCover
+            ? CoverImage(
+                path: coverPath,
+                url: coverUrl,
+                size: _size,
+                errorBuilder: (context, error, stackTrace) =>
+                    _placeholder(scheme),
+              )
+            : _placeholder(scheme),
       ),
     );
   }
