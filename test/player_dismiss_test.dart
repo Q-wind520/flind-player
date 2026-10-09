@@ -5,6 +5,7 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, version 3 of the License.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,6 +73,20 @@ Widget _host() => ProviderScope(
 );
 
 void main() {
+  testWidgets('wraps the player in BlockSemantics', (tester) async {
+    await tester.pumpWidget(_host());
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(PlayerScreen),
+        matching: find.byType(BlockSemantics),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('dragging the header down past the threshold dismisses', (
     tester,
   ) async {
@@ -84,6 +99,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PlayerScreen), findsNothing);
+  });
+
+  testWidgets('the header drag handle is absent on Apple platforms', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      await tester.pumpWidget(_host());
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // iOS keeps the native edge-swipe-back and the close button instead of
+      // the custom drawer (a Cupertino route is opaque, so the reveal would
+      // show a void).
+      expect(find.byKey(playerDismissHandleKey), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('a short downward drag springs back', (tester) async {

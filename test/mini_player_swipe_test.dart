@@ -133,6 +133,37 @@ void main() {
     expect(controller.previousCalls, 0);
   });
 
+  testWidgets('a left drag moves the strip toward the next track', (
+    tester,
+  ) async {
+    final controller = FakePlaybackController();
+    await tester.pumpWidget(_app(controller));
+    await tester.pumpAndSettle();
+
+    final rest = tester.getTopLeft(find.text('Song 1')).dx;
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(MiniPlayerBar.barKey)),
+    );
+    // Several steps so the horizontal recogniser wins the arena.
+    for (var i = 0; i < 5; i++) {
+      await gesture.moveBy(const Offset(-40, 0));
+      await tester.pump();
+    }
+
+    // A left drag must carry the (current) strip leftward, bringing the next
+    // track in from the right.
+    expect(tester.getTopLeft(find.text('Song 1')).dx, lessThan(rest));
+    // The next track must be nearer the centre than the previous one.
+    final centre = tester.getCenter(find.byKey(MiniPlayerBar.barKey)).dx;
+    final nextX = tester.getTopLeft(find.text('Song 2')).dx;
+    final prevX = tester.getTopLeft(find.text('Song 0')).dx;
+    expect((nextX - centre).abs(), lessThan((prevX - centre).abs()));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('does not skip when there is no neighbour', (tester) async {
     final controller = FakePlaybackController();
     // A single-track queue has no neighbours.

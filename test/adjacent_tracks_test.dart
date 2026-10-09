@@ -98,6 +98,16 @@ void main() {
     expect(last.read(nextTrackProvider)?.title, 'Song 0');
   });
 
+  test('repeats the current track under repeat one', () async {
+    final container = await _ready(
+      _container(queue: _queue(1, 3), repeatMode: RepeatMode.one),
+    );
+    addTearDown(container.dispose);
+    // Both neighbours are the current track, so a carousel shows one Hero.
+    expect(container.read(previousTrackProvider)?.title, 'Song 1');
+    expect(container.read(nextTrackProvider)?.title, 'Song 1');
+  });
+
   test('returns null when nothing is playing', () async {
     final container = await _ready(
       ProviderContainer(

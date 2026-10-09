@@ -154,21 +154,39 @@ class _MiniLabelStripState extends ConsumerState<_MiniLabelStrip>
     value: 0,
   );
 
+  /// A chosen direction whose settle animation is still running; committed when
+  /// the animation completes. Cleared if a new drag interrupts it.
+  int? _pendingCommit;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addStatusListener(_onAnimationStatus);
+  }
+
   @override
   void dispose() {
+    _c.removeStatusListener(_onAnimationStatus);
     _c.dispose();
     super.dispose();
   }
 
-  Future<void> _commit(int direction) async {
-    await _c.animateTo(direction.toDouble(), curve: AppMotion.standardCurve);
+  void _onAnimationStatus(AnimationStatus status) {
+    final direction = _pendingCommit;
+    if (status != AnimationStatus.completed || direction == null) return;
+    _pendingCommit = null;
     final controller = ref.read(playbackControllerProvider);
     if (direction > 0) {
-      await controller.previous();
+      controller.previous();
     } else {
-      await controller.next();
+      controller.next();
     }
     if (mounted) _c.value = 0;
+  }
+
+  void _commit(int direction) {
+    _pendingCommit = direction;
+    _c.animateTo(direction.toDouble(), curve: AppMotion.standardCurve);
   }
 
   @override
@@ -193,6 +211,7 @@ class _MiniLabelStripState extends ConsumerState<_MiniLabelStrip>
             key: MiniPlayerBar.barKey,
             behavior: HitTestBehavior.opaque,
             onTap: () => Navigator.of(context).push(playerRoute(context)),
+            onHorizontalDragStart: (_) => _pendingCommit = null,
             onHorizontalDragUpdate: (details) {
               _c.value = (_c.value + details.delta.dx / width).clamp(-1.0, 1.0);
             },
@@ -211,7 +230,7 @@ class _MiniLabelStripState extends ConsumerState<_MiniLabelStrip>
               child: AnimatedBuilder(
                 animation: _c,
                 builder: (context, child) {
-                  final dx = -_c.value * width;
+                  final dx = _c.value * width;
                   return Stack(
                     fit: StackFit.expand,
                     clipBehavior: Clip.hardEdge,

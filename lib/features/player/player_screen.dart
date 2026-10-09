@@ -51,8 +51,10 @@ class PlayerScreen extends StatelessWidget {
       // Transparent so the non-opaque route shows the app behind while the
       // dismiss drawer takes over the background.
       backgroundColor: Colors.transparent,
-      body: _PlayerDismissWrapper(
-        child: AppSurface(child: SafeArea(child: const PlayerView())),
+      body: BlockSemantics(
+        child: _PlayerDismissWrapper(
+          child: AppSurface(child: SafeArea(child: const PlayerView())),
+        ),
       ),
     );
   }
@@ -347,6 +349,12 @@ class _HeaderRow extends StatelessWidget {
       ],
     );
     if (dismiss == null) return handle;
+    // A Cupertino route is opaque, so the drawer reveal would show a void;
+    // Apple platforms keep the native edge-swipe-back and the close button.
+    final platform = Theme.of(context).platform;
+    if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
+      return handle;
+    }
     return GestureDetector(
       key: playerDismissHandleKey,
       behavior: HitTestBehavior.opaque,
