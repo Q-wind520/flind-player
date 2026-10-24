@@ -19,6 +19,7 @@ import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 class _FakeFavoritesRepository implements FavoritesRepository {
   @override
@@ -71,6 +72,7 @@ void _portrait(WidgetTester tester) {
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   testWidgets('a long left-swipe over the cover enters the lyrics pane', (
     tester,
   ) async {

@@ -20,6 +20,7 @@ import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 class _FakeFavoritesRepository implements FavoritesRepository {
   @override
@@ -73,6 +74,7 @@ Widget _host() => ProviderScope(
 );
 
 void main() {
+  setUpAll(disableTestMotion);
   testWidgets('wraps the player in BlockSemantics', (tester) async {
     await tester.pumpWidget(_host());
     await tester.tap(find.text('open'));
@@ -117,6 +119,30 @@ void main() {
     } finally {
       debugDefaultTargetPlatformOverride = null;
     }
+  });
+
+  testWidgets('pulling down rounds the player into a sheet over a scrim', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host());
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(playerDismissHandleKey)),
+    );
+    await gesture.moveBy(const Offset(0, 120));
+    await tester.pump();
+
+    final surface = tester.widget<ClipRRect>(
+      find.byKey(const Key('player_dismiss_surface')),
+    );
+    expect(surface.borderRadius, isA<BorderRadius>());
+    expect((surface.borderRadius as BorderRadius).topLeft.x, greaterThan(0));
+    expect(find.byKey(const Key('player_dismiss_scrim')), findsOneWidget);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('a short downward drag springs back', (tester) async {

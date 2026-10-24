@@ -361,6 +361,26 @@ void main() {
     expect(volumes.last, closeTo(controller.currentState.volume, 0.001));
   });
 
+  test('pause flips isPlaying before the fade-out completes', () async {
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+    expect(controller.currentState.isPlaying, isTrue);
+
+    final pause = controller.pause();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    // The button/UI state changes on the press; the engine keeps playing
+    // silently for the fade window before it actually pauses.
+    expect(controller.currentState.isPlaying, isFalse);
+    expect(platform.player!.isPlaying, isTrue);
+
+    await pause;
+    expect(platform.player!.isPlaying, isFalse);
+  });
+
   test('play fades the gain in from silence', () async {
     final controller = JustAudioPlaybackController(resolver: _FakeResolver());
     addTearDown(controller.dispose);

@@ -54,6 +54,7 @@ import 'package:flind_player/features/settings/settings_screen.dart';
 import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 // ---------------------------------------------------------------------------
 // Size matrix
@@ -450,6 +451,7 @@ void _reportOverflow(Object? exception, String label) {
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   setUp(() {
     _capturedErrors = <FlutterErrorDetails>[];
     _previousOnError = null;

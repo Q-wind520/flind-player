@@ -16,10 +16,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/play_mode_button.dart';
 import 'package:flind_player/features/player/player_panels.dart';
-import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
@@ -54,7 +55,8 @@ class MiniSettings extends ConsumerWidget {
     final volume = ref.watch(playbackStateProvider).value?.volume ?? 1.0;
     final sleepState = ref.watch(sleepTimerProvider);
 
-    return AppSurface(
+    return Material(
+      type: MaterialType.transparency,
       child: SizedBox(
         height: kMiniSettingsHeight,
         child: Row(
@@ -63,10 +65,12 @@ class MiniSettings extends ConsumerWidget {
               child: Center(
                 child: _barButton(
                   key: moreKey,
-                  icon: Icons.more_vert,
+                  icon: AppIcons.moreVert,
                   onTap: () => _openPanel(
                     context,
-                    EmptyPanel(icon: Icons.more_vert, title: l10n.playerMore),
+                    EmptyPanel(icon: AppIcons.moreVert, title: l10n.playerMore),
+                    portraitFraction: 0.45,
+                    landscapeHeight: 300,
                   ),
                 ),
               ),
@@ -75,11 +79,12 @@ class MiniSettings extends ConsumerWidget {
               child: Center(
                 child: _barButton(
                   key: tuneKey,
-                  icon: Icons.tune,
+                  icon: AppIcons.tune,
                   onTap: () => _openPanel(
                     context,
                     const PlayerTunePanel(),
                     portraitFraction: 0.5,
+                    landscapeHeight: 380,
                   ),
                 ),
               ),
@@ -138,6 +143,7 @@ class MiniSettings extends ConsumerWidget {
         const SleepTimerPanel(),
         portraitFraction: 0.5,
         landscapeFraction: 0.5,
+        landscapeHeight: 480,
       ),
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
@@ -146,7 +152,7 @@ class MiniSettings extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            active ? Icons.timer : Icons.timer_outlined,
+            active ? AppIcons.timer : AppIcons.timerOutlined,
             size: 24,
             color: color,
           ),
@@ -189,12 +195,23 @@ class VolumeBar extends ConsumerWidget {
     final controller = ref.read(playbackControllerProvider);
     final percent = (volume * 100).round();
 
-    return AppSurface(
+    return Material(
+      // An opaque floating pill: it sits above the settings slot instead of
+      // reading as a flat full-width bar, and the parent hides MiniSettings
+      // underneath so the two rows never paint over each other.
+      color: scheme.surfaceContainerHigh,
+      elevation: 10,
+      shadowColor: Colors.black.withValues(alpha: 0.45),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+      ),
       child: SizedBox(
         height: kMiniSettingsHeight,
         child: Row(
           children: [
-            const SizedBox(width: 16),
+            const SizedBox(width: AppSpacing.lg),
             Icon(_volumeIcon(volume), color: scheme.onSurfaceVariant),
             Expanded(
               child: Slider(
@@ -208,7 +225,7 @@ class VolumeBar extends ConsumerWidget {
               l10n.volumePercent(percent),
               style: Theme.of(context).textTheme.labelMedium,
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: AppSpacing.lg),
           ],
         ),
       ),
@@ -222,11 +239,13 @@ Future<void> _openPanel(
   Widget panel, {
   double portraitFraction = 0.66,
   double landscapeFraction = 0.34,
+  double? landscapeHeight,
 }) {
   return showPlayerPanel<void>(
     context,
     portraitFraction: portraitFraction,
     landscapeFraction: landscapeFraction,
+    landscapeHeight: landscapeHeight,
     builder: (_) => panel,
   );
 }
@@ -234,10 +253,10 @@ Future<void> _openPanel(
 /// The speaker icon for a linear-gain [volume].
 IconData _volumeIcon(double volume) {
   if (volume <= 0.01) {
-    return Icons.volume_off;
+    return AppIcons.volumeOff;
   }
   if (volume < 0.5) {
-    return Icons.volume_down;
+    return AppIcons.volumeDown;
   }
-  return Icons.volume_up;
+  return AppIcons.volumeUp;
 }

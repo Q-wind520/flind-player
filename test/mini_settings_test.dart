@@ -19,6 +19,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
@@ -31,9 +32,11 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/mini_settings.dart';
 import 'package:flind_player/features/player/player_panels.dart';
+import 'package:flind_player/features/player/player_progress_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 /// A fake [PlaybackController] that records volume changes and emits the
 /// resulting [PlaybackState].
@@ -100,7 +103,10 @@ class _FakePlaybackController implements PlaybackController {
   @override
   Future<void> previous() async {}
   @override
-  Future<void> seek(Duration position) async {}
+  Future<void> seek(Duration position) async {
+    calls.add(('seek', position));
+  }
+
   @override
   Future<void> setRepeatMode(RepeatMode mode) async {}
   @override
@@ -167,6 +173,7 @@ Widget _app(_FakePlaybackController controller) {
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   group('MiniSettings', () {
     testWidgets('renders all five buttons by their icons', (tester) async {
       tester.view.physicalSize = const Size(800, 900);
@@ -177,13 +184,13 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.more_vert), findsOneWidget);
-      expect(find.byIcon(Icons.tune), findsOneWidget);
-      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.volume_up), findsOneWidget);
-      expect(find.byIcon(Icons.playlist_play), findsOneWidget);
+      expect(find.byIcon(AppIcons.moreVert), findsOneWidget);
+      expect(find.byIcon(AppIcons.tune), findsOneWidget);
+      expect(find.byIcon(AppIcons.timerOutlined), findsOneWidget);
+      expect(find.byIcon(AppIcons.volumeUp), findsOneWidget);
+      expect(find.byIcon(AppIcons.playlistPlay), findsOneWidget);
       // The playlist button moved to the transport row.
-      expect(find.byIcon(Icons.queue_music), findsOneWidget);
+      expect(find.byIcon(AppIcons.queueMusic), findsOneWidget);
     });
 
     testWidgets(
@@ -197,7 +204,7 @@ void main() {
         await tester.pumpWidget(_app(controller));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byIcon(Icons.queue_music));
+        await tester.tap(find.byIcon(AppIcons.queueMusic));
         await tester.pumpAndSettle();
 
         expect(find.text(testL10n().playerPlaylist), findsOneWidget);
@@ -230,6 +237,51 @@ void main() {
       expect(find.byType(VolumeBar), findsNothing);
       expect(find.byType(MiniSettings), findsOneWidget);
     });
+
+    testWidgets(
+      'the volume bar is opaque and covers MiniSettings in landscape',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final controller = _FakePlaybackController(_playingState());
+        await tester.pumpWidget(_app(controller));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(MiniSettings.volumeKey));
+        await tester.pumpAndSettle();
+
+        final surface = tester.widget<Material>(
+          find
+              .descendant(
+                of: find.byType(VolumeBar),
+                matching: find.byType(Material),
+              )
+              .first,
+        );
+        // A transparent bar let the MiniSettings icons paint through it.
+        expect(surface.color, isNotNull);
+        expect(surface.color!.a, 1.0);
+        expect(surface.shape, isA<RoundedRectangleBorder>());
+
+        // The pill floats above the left landscape pane's settings slot, and
+        // MiniSettings is hidden while it is open.
+        final volume = tester.getRect(find.byType(VolumeBar));
+        final settings = tester.getRect(find.byType(MiniSettings));
+        expect(volume.width, closeTo(400 - 32, 1));
+        expect(volume.bottom, closeTo(settings.bottom - 12, 1));
+        final visibility = tester.widget<Visibility>(
+          find
+              .ancestor(
+                of: find.byType(MiniSettings),
+                matching: find.byType(Visibility),
+              )
+              .first,
+        );
+        expect(visibility.visible, isFalse);
+      },
+    );
 
     testWidgets('tapping 更多 opens a panel showing 暂无内容', (tester) async {
       tester.view.physicalSize = const Size(800, 900);
@@ -308,17 +360,39 @@ void main() {
         await tester.pumpAndSettle();
 
         final titleDy = tester.getTopLeft(find.text('Test Song')).dy;
-        final coverDy = tester.getTopLeft(find.byIcon(Icons.music_note)).dy;
+        final coverDy = tester.getTopLeft(find.byIcon(AppIcons.musicNote)).dy;
         final lyricsDy = tester.getTopLeft(find.byType(LyricsPreview)).dy;
-        final sliderDy = tester.getTopLeft(find.byType(Slider)).dy;
-        final transportDy = tester.getTopLeft(find.byIcon(Icons.play_arrow)).dy;
+        final progressDy = tester.getTopLeft(find.byType(PlayerProgressBar)).dy;
+        final transportDy = tester
+            .getTopLeft(find.byIcon(AppIcons.playArrow))
+            .dy;
 
         expect(titleDy, lessThan(coverDy));
         expect(coverDy, lessThan(lyricsDy));
-        expect(lyricsDy, lessThan(sliderDy));
-        expect(sliderDy, lessThan(transportDy));
+        expect(lyricsDy, lessThan(progressDy));
+        expect(progressDy, lessThan(transportDy));
       },
     );
+
+    testWidgets('dragging the progress bar seeks the track', (tester) async {
+      tester.view.physicalSize = const Size(800, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final state = _playingState().copyWith(
+        isPlaying: true,
+        duration: const Duration(minutes: 4, seconds: 19),
+      );
+      final controller = _FakePlaybackController(state);
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+
+      await tester.drag(find.byType(PlayerProgressBar), const Offset(120, 0));
+      await tester.pumpAndSettle();
+
+      final seeks = controller.calls.where((call) => call.$1 == 'seek');
+      expect(seeks, isNotEmpty);
+    });
 
     testWidgets('renders the artist exactly once in the header', (
       tester,
@@ -412,14 +486,14 @@ void main() {
       // pane then runs cover, progress, transport.
       final titleDy = tester.getTopLeft(find.text('Test Song')).dy;
       final artistDy = tester.getTopLeft(find.text('未知艺术家')).dy;
-      final coverDy = tester.getTopLeft(find.byIcon(Icons.music_note)).dy;
-      final sliderDy = tester.getTopLeft(find.byType(Slider)).dy;
-      final transportDy = tester.getTopLeft(find.byIcon(Icons.play_arrow)).dy;
+      final coverDy = tester.getTopLeft(find.byIcon(AppIcons.musicNote)).dy;
+      final progressDy = tester.getTopLeft(find.byType(PlayerProgressBar)).dy;
+      final transportDy = tester.getTopLeft(find.byIcon(AppIcons.playArrow)).dy;
 
       expect(titleDy, lessThan(artistDy));
       expect(artistDy, lessThan(coverDy));
-      expect(coverDy, lessThan(sliderDy));
-      expect(sliderDy, lessThan(transportDy));
+      expect(coverDy, lessThan(progressDy));
+      expect(progressDy, lessThan(transportDy));
 
       // MiniSettings sits inside the left pane (the left half of the screen).
       final settingsCenter = tester.getCenter(find.byType(MiniSettings));

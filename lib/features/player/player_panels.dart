@@ -14,10 +14,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -29,32 +33,43 @@ import 'package:flind_player/shared/cover_image.dart';
 /// Opens a player panel adapted to the window orientation.
 ///
 /// In portrait (width <= height) the panel slides up from the bottom as a
-/// rounded modal bottom sheet occupying [portraitFraction] of the screen
-/// height. In landscape it slides in from the right as a full-height rounded
-/// sheet occupying [landscapeFraction] of the screen width.
+/// floating rounded card occupying [portraitFraction] of the screen height.
+/// In landscape it fades/slides in from the right as a floating card whose
+/// width comes from [landscapeFraction] and whose height is [landscapeHeight]
+/// (or 680 px by default).
 Future<T?> showPlayerPanel<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   double portraitFraction = 0.66,
   double landscapeFraction = 0.34,
+  double? landscapeHeight,
 }) {
   final size = MediaQuery.sizeOf(context);
   final landscape = size.width > size.height;
 
   if (landscape) {
+    final panelWidth = (size.width * landscapeFraction).clamp(320.0, 420.0);
+    final panelHeight = math.max(
+      240.0,
+      math.min(size.height - 32, landscapeHeight ?? 680.0),
+    );
     return showGeneralDialog<T>(
       context: context,
       barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.38),
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, animation, secondaryAnimation) {
-        return Align(
-          alignment: Alignment.centerRight,
-          child: SizedBox(
-            width: size.width * landscapeFraction,
-            height: size.height,
-            child: SafeArea(
-              child: _PanelFrame(landscape: true, child: builder(context)),
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: panelWidth,
+                height: panelHeight,
+                child: _PanelFrame(landscape: true, child: builder(context)),
+              ),
             ),
           ),
         );
@@ -64,12 +79,15 @@ Future<T?> showPlayerPanel<T>(
           parent: animation,
           curve: Curves.easeOutCubic,
         );
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.12, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
         );
       },
     );
@@ -80,10 +98,19 @@ Future<T?> showPlayerPanel<T>(
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.38),
     builder: (context) {
-      return SizedBox(
-        height: size.height * portraitFraction,
-        child: _PanelFrame(landscape: false, child: builder(context)),
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md,
+        ),
+        child: SizedBox(
+          height: size.height * portraitFraction,
+          child: _PanelFrame(landscape: false, child: builder(context)),
+        ),
       );
     },
   );
@@ -107,27 +134,36 @@ class _PanelFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(AppRadius.lg);
     return Material(
       color: scheme.surfaceContainerHigh,
-      borderRadius: landscape
-          ? const BorderRadius.horizontal(left: Radius.circular(24))
-          : const BorderRadius.vertical(top: Radius.circular(24)),
+      elevation: 24,
+      shadowColor: Colors.black.withValues(alpha: 0.55),
+      borderRadius: radius,
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          if (!landscape) ...[
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(2),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.65),
+          ),
+        ),
+        child: Column(
+          children: [
+            if (!landscape) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
               ),
-            ),
+            ],
+            Expanded(child: child),
           ],
-          Expanded(child: child),
-        ],
+        ),
       ),
     );
   }
@@ -135,21 +171,50 @@ class _PanelFrame extends StatelessWidget {
 
 /// Panel header: the l10n title plus a close affordance.
 class _PanelHeader extends StatelessWidget {
-  const _PanelHeader({required this.title});
+  const _PanelHeader({required this.title, required this.icon});
 
   final String title;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       child: Row(
         children: [
-          Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Icon(icon, size: 20, color: scheme.primary),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.titleLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           IconButton(
+            tooltip: '',
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.close),
+            icon: const Icon(AppIcons.close, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: scheme.surfaceContainerLow,
+              foregroundColor: scheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -175,7 +240,7 @@ class EmptyPanel extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Column(
       children: [
-        _PanelHeader(title: title),
+        _PanelHeader(title: title, icon: icon),
         Expanded(
           child: Center(
             child: Column(
@@ -215,7 +280,7 @@ class PlayerTunePanel extends ConsumerWidget {
 
     return Column(
       children: [
-        _PanelHeader(title: l10n.playerTune),
+        _PanelHeader(title: l10n.playerTune, icon: AppIcons.tune),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -225,7 +290,7 @@ class PlayerTunePanel extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.speed,
+                      AppIcons.speed,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 12),
@@ -299,7 +364,7 @@ class SleepTimerPanel extends ConsumerWidget {
 
     return Column(
       children: [
-        _PanelHeader(title: l10n.playerSleepTimer),
+        _PanelHeader(title: l10n.playerSleepTimer, icon: AppIcons.timer),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -364,25 +429,29 @@ class _ActiveBanner extends StatelessWidget {
             formatSleepTimerCountdown(state.remaining ?? Duration.zero),
           );
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.timer,
-            size: 20,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-          const SizedBox(width: 12),
+          Icon(AppIcons.timer, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               text,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
+                color: theme.colorScheme.onSurface,
               ),
             ),
           ),
@@ -407,16 +476,48 @@ class _OptionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      title: Text(label),
-      trailing: selected
-          ? Icon(Icons.check, color: theme.colorScheme.primary)
-          : null,
-      selected: selected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
+    final scheme = theme.colorScheme;
+    final radius = BorderRadius.circular(AppRadius.md);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
       ),
-      onTap: onTap,
+      child: Material(
+        color: selected
+            ? scheme.primary.withValues(alpha: 0.12)
+            : Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: selected ? scheme.primary : scheme.onSurface,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                AnimatedOpacity(
+                  opacity: selected ? 1 : 0,
+                  duration: AppMotion.fast,
+                  child: Icon(AppIcons.check, size: 18, color: scheme.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -436,13 +537,13 @@ class PlaylistPanel extends ConsumerWidget {
 
     return Column(
       children: [
-        _PanelHeader(title: l10n.playerPlaylist),
+        _PanelHeader(title: l10n.playerPlaylist, icon: AppIcons.queueMusic),
         if (!queue.isEmpty)
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: () => _saveCurrentTrack(context, ref),
-              icon: const Icon(Icons.playlist_add, size: 18),
+              icon: const Icon(AppIcons.playlistAdd, size: 18),
               label: Text(l10n.addToPlaylist),
             ),
           ),
@@ -508,46 +609,59 @@ class _QueueRow extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        color: isCurrent
-            ? scheme.primaryContainer.withValues(alpha: 0.3)
-            : null,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            if (isCurrent) ...[
-              Icon(Icons.graphic_eq, size: 20, color: scheme.primary),
-              const SizedBox(width: 8),
-            ],
-            _QueueCover(track: track),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: isCurrent ? scheme.primary : null,
-                      fontWeight: isCurrent ? FontWeight.w600 : null,
-                    ),
-                  ),
-                  Text(
-                    track.artist ?? l10n.unknownArtist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+    final radius = BorderRadius.circular(AppRadius.sm);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 2,
+      ),
+      child: Material(
+        color: isCurrent ? AppTheme.playingRowTint(scheme) : Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
-          ],
+            child: Row(
+              children: [
+                if (isCurrent) ...[
+                  Icon(AppIcons.graphicEq, size: 18, color: scheme.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                _QueueCover(track: track),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        track.artist ?? l10n.unknownArtist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -559,7 +673,7 @@ class _QueueCover extends StatelessWidget {
   const _QueueCover({required this.track});
 
   final Track track;
-  static const double _size = 40;
+  static const double _size = 44;
 
   @override
   Widget build(BuildContext context) {
@@ -571,7 +685,7 @@ class _QueueCover extends StatelessWidget {
         (coverUrl != null && coverUrl.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         width: _size,
         height: _size,
@@ -589,6 +703,9 @@ class _QueueCover extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(ColorScheme scheme) =>
-      Icon(Icons.music_note, size: _size * 0.5, color: scheme.onSurfaceVariant);
+  Widget _placeholder(ColorScheme scheme) => Icon(
+    AppIcons.musicNote,
+    size: _size * 0.5,
+    color: scheme.onSurfaceVariant,
+  );
 }

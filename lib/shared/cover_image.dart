@@ -124,6 +124,10 @@ class _CoverImageState extends ConsumerState<CoverImage> {
           height: _edge,
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
+          // This path is already the downloaded fallback; if it cannot be
+          // decoded either, show the caller's cover placeholder instead of
+          // Flutter's red error placeholder.
+          errorBuilder: _cachedFileErrorBuilder,
         ),
       );
     }
@@ -160,6 +164,17 @@ class _CoverImageState extends ConsumerState<CoverImage> {
     }
 
     return _errorWidget(context, 'No cover', null);
+  }
+
+  /// The downloaded fallback file itself failed to decode; stop retrying and
+  /// let the caller paint its placeholder.
+  Widget _cachedFileErrorBuilder(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    _failed = true;
+    return _errorWidget(context, error, stackTrace);
   }
 
   /// A stale/evicted local file falls back to the remote (cache-first) path.

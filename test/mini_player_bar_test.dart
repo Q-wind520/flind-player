@@ -19,6 +19,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
@@ -35,6 +36,7 @@ import 'package:flind_player/shared/glass_surface.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 /// A minimal fake [PlaybackController] that records calls.
 class _FakePlaybackController implements PlaybackController {
@@ -140,6 +142,7 @@ Widget _app({
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   testWidgets('renders nothing when currentTrack is null', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
@@ -196,10 +199,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Play button visible when not playing.
-    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-    expect(find.byIcon(Icons.pause), findsNothing);
+    expect(find.byIcon(AppIcons.playArrow), findsOneWidget);
+    expect(find.byIcon(AppIcons.pause), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.play_arrow));
+    await tester.tap(find.byIcon(AppIcons.playArrow));
     await tester.pumpAndSettle();
 
     expect(fakeController.togglePlayPauseCalls, 1);
@@ -217,8 +220,8 @@ void main() {
     await tester.pumpWidget(_app(state: state));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.pause), findsOneWidget);
-    expect(find.byIcon(Icons.play_arrow), findsNothing);
+    expect(find.byIcon(AppIcons.pause), findsOneWidget);
+    expect(find.byIcon(AppIcons.playArrow), findsNothing);
   });
 
   testWidgets('next button is disabled when hasNext is false', (tester) async {
@@ -236,12 +239,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // The next IconButton should have onPressed == null (disabled).
-    final nextIcon = tester.widget<Icon>(find.byIcon(Icons.skip_next));
+    final nextIcon = tester.widget<Icon>(find.byIcon(AppIcons.skipNext));
     expect(nextIcon, isNotNull);
 
     // The IconButton wrapping it should be disabled — verify by tapping and
     // checking no next() call was made.
-    await tester.tap(find.byIcon(Icons.skip_next));
+    await tester.tap(find.byIcon(AppIcons.skipNext));
     await tester.pumpAndSettle();
     expect(fakeController.nextCalls, 0);
   });
@@ -260,7 +263,7 @@ void main() {
     await tester.pumpWidget(_app(state: state, controller: fakeController));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.skip_next));
+    await tester.tap(find.byIcon(AppIcons.skipNext));
     await tester.pumpAndSettle();
 
     expect(fakeController.nextCalls, 1);
@@ -306,7 +309,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('cover is rounded with the shared medium radius', (tester) async {
+  testWidgets('cover is rounded with the shared compact radius', (tester) async {
     final state = PlaybackState(
       isPlaying: false,
       isBuffering: false,
@@ -327,7 +330,7 @@ void main() {
           )
           .first,
     );
-    expect(clip.borderRadius, BorderRadius.circular(AppRadius.md));
+    expect(clip.borderRadius, BorderRadius.circular(AppRadius.sm));
   });
 
   testWidgets('progress track colour comes from the theme, not a literal', (
@@ -369,7 +372,7 @@ void main() {
         matching: find.byType(GlassSurface),
       ),
     );
-    expect(glass.borderRadius, BorderRadius.circular(AppRadius.xl));
+    expect(glass.borderRadius, BorderRadius.circular(AppRadius.lg));
     expect(
       find.descendant(
         of: find.byType(MiniPlayerBar),
