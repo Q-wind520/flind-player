@@ -29,14 +29,17 @@ class AppSpacing {
 }
 
 /// Corner-radius scale in logical pixels.
+///
+/// Four values only: `sm` for covers and compact controls, `md` for cards and
+/// fields, `lg` for sheets, the player artwork and floating chrome, and `pill`
+/// for fully rounded buttons and chips.
 @immutable
 class AppRadius {
   const AppRadius._();
 
   static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
+  static const double md = 16;
+  static const double lg = 24;
 
   /// Fully rounded (chips, pills).
   static const double pill = 999;

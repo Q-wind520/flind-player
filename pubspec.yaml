@@ -27,6 +27,7 @@ dependencies:
   intl: any
   just_audio: ^0.10.6
   just_audio_media_kit: ^2.1.0
+  lucide_icons_flutter: ^4.0.1
   media_kit_libs_linux: ^1.2.1
   media_kit_libs_windows_audio: ^1.0.9
   package_info_plus: ^10.2.1

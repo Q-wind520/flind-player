@@ -25,7 +25,7 @@ void main() {
       localizedApp(
         const Scaffold(
           body: GlassSurface(
-            borderRadius: BorderRadius.all(Radius.circular(AppRadius.xl)),
+            borderRadius: BorderRadius.all(Radius.circular(AppRadius.lg)),
             child: Text('glass'),
           ),
         ),
@@ -48,7 +48,7 @@ void main() {
     );
     expect(
       clip.borderRadius,
-      const BorderRadius.all(Radius.circular(AppRadius.xl)),
+      const BorderRadius.all(Radius.circular(AppRadius.lg)),
     );
 
     final tint = AppGlass.tintOn(theme.colorScheme);

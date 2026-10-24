@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/shared/section_header.dart';
 
 import 'support/l10n.dart';
@@ -34,10 +35,10 @@ void main() {
   testWidgets('renders a trailing action', (tester) async {
     await tester.pumpWidget(
       localizedApp(
-        const Scaffold(body: SectionHeader('曲库', trailing: Icon(Icons.add))),
+        const Scaffold(body: SectionHeader('曲库', trailing: Icon(AppIcons.add))),
       ),
     );
 
-    expect(find.byIcon(Icons.add), findsOneWidget);
+    expect(find.byIcon(AppIcons.add), findsOneWidget);
   });
 }
