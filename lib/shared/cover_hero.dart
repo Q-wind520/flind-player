@@ -15,6 +15,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
@@ -61,7 +62,7 @@ class CoverHero extends StatelessWidget {
       tag: playerCoverHeroTag(uri),
       flightShuttleBuilder: (context, animation, direction, from, to) =>
           ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.xl),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
             child: Container(
               color: scheme.surfaceContainerHighest,
               child: _hasCover
@@ -72,7 +73,7 @@ class CoverHero extends StatelessWidget {
                     )
                   : Center(
                       child: Icon(
-                        Icons.music_note,
+                        AppIcons.musicNote,
                         size: 40,
                         color: scheme.onSurfaceVariant,
                       ),

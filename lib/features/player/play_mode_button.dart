@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -27,16 +28,16 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 /// Each mode maps to one `(repeatMode, shuffle)` pair on the controller.
 enum PlayMode {
   /// Plays through the queue once, in order.
-  sequential(icon: Icons.playlist_play, repeat: RepeatMode.off, shuffle: false),
+  sequential(icon: AppIcons.playlistPlay, repeat: RepeatMode.off, shuffle: false),
 
   /// Loops the whole queue.
-  repeatAll(icon: Icons.repeat, repeat: RepeatMode.all, shuffle: false),
+  repeatAll(icon: AppIcons.repeat, repeat: RepeatMode.all, shuffle: false),
 
   /// Repeats the current track.
-  repeatOne(icon: Icons.repeat_one, repeat: RepeatMode.one, shuffle: false),
+  repeatOne(icon: AppIcons.repeatOne, repeat: RepeatMode.one, shuffle: false),
 
   /// Shuffles the queue without repeating.
-  shufflePlay(icon: Icons.shuffle, repeat: RepeatMode.off, shuffle: true);
+  shufflePlay(icon: AppIcons.shuffle, repeat: RepeatMode.off, shuffle: true);
 
   const PlayMode({
     required this.icon,

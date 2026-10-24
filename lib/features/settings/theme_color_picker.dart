@@ -15,6 +15,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
@@ -230,7 +231,7 @@ class _Swatch extends StatelessWidget {
         ),
         child: selected
             ? Icon(
-                Icons.check,
+                AppIcons.check,
                 color:
                     ThemeData.estimateBrightnessForColor(color) ==
                         Brightness.dark
@@ -275,7 +276,7 @@ class _CustomSwatch extends StatelessWidget {
           ),
         ),
         child: Icon(
-          Icons.colorize,
+          AppIcons.colorize,
           size: 20,
           color: selected
               ? (ThemeData.estimateBrightnessForColor(color) == Brightness.dark

@@ -18,9 +18,9 @@ import 'package:flutter/material.dart';
 /// The single background surface shared by every screen and player chrome
 /// element (mini player bar, MiniSettings, volume bar, lyrics strip).
 ///
-/// Every background goes through this widget (or [colorOf]) so a future
-/// transparent / glass style can be introduced in one place without touching
-/// each widget — keeping the mini player and the rest of the app in sync.
+/// Every page background goes through this widget (or [colorOf]) so the
+/// neutral canvas is defined once. Raised surfaces use the colour scheme's
+/// container roles instead.
 class AppSurface extends StatelessWidget {
   const AppSurface({
     super.key,
@@ -36,9 +36,9 @@ class AppSurface extends StatelessWidget {
   /// page (e.g. the floating mini player). Defaults to [colorOf].
   final Color? color;
 
-  /// The flat colour every surface uses today.
+  /// The neutral page canvas.
   static Color colorOf(BuildContext context) =>
-      Theme.of(context).colorScheme.surfaceContainerHigh;
+      Theme.of(context).colorScheme.surface;
 
   @override
   Widget build(BuildContext context) => Material(

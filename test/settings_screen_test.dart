@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
@@ -445,7 +446,7 @@ CachedAudio _cachedRow(
 /// Targets the section's summary tile: its title repeats the section header,
 /// so a plain text finder would not be unique.
 Future<void> _scrollToOfflineCache(WidgetTester tester) async {
-  await tester.scrollUntilVisible(find.widgetWithText(ListTile, '离线缓存'), 100);
+  await tester.scrollUntilVisible(find.widgetWithText(ListTile, '下载管理'), 100);
   await tester.pumpAndSettle();
 }
 
@@ -500,7 +501,7 @@ void main() {
     final scroll = tester.widget<SingleChildScrollView>(
       find.byType(SingleChildScrollView),
     );
-    expect(scroll.padding, const EdgeInsets.fromLTRB(0, 8, 0, 80));
+    expect(scroll.padding, const EdgeInsets.fromLTRB(0, 0, 0, 80));
   });
 
   testWidgets('language follows the system by default and can switch', (
@@ -630,7 +631,7 @@ void main() {
     expect(find.text('缓存上限'), findsOneWidget);
     expect(find.text('已用 300 MB / 1024 MB'), findsOneWidget);
     // The whole row opens the dialog now; the pencil is gone.
-    expect(find.byIcon(Icons.edit_outlined), findsNothing);
+    expect(find.byIcon(AppIcons.editOutlined), findsNothing);
     // Old controls must not appear.
     expect(find.text('256 MB'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
@@ -802,7 +803,7 @@ void main() {
     expect(find.text('播放时自动缓存'), findsNothing);
   });
 
-  testWidgets('no Divider widgets remain in the settings list', (tester) async {
+  testWidgets('section headers carry hairline rules', (tester) async {
     final settings = FakeSettingsRepository(CacheSettings.defaults);
     final store = _FakeCacheStore();
     addTearDown(settings.dispose);
@@ -810,7 +811,7 @@ void main() {
     await tester.pumpWidget(_app(settings: settings, store: store));
     await tester.pumpAndSettle();
 
-    expect(find.byType(Divider), findsNothing);
+    expect(find.byType(Divider), findsWidgets);
   });
 
   // -- 离线缓存 section --
@@ -829,7 +830,7 @@ void main() {
     expect(find.text('暂无已下载歌曲'), findsOneWidget);
     expect(find.text('无下载 · 已用 0 MB'), findsOneWidget);
     // Nothing to clear, so the clear action is not offered.
-    expect(find.byIcon(Icons.delete_sweep_outlined), findsNothing);
+    expect(find.byIcon(AppIcons.deleteSweep), findsNothing);
   });
 
   testWidgets('离线缓存 lists the downloads and hides the online rows', (
@@ -853,7 +854,7 @@ void main() {
     // Only the two pinned rows are counted, so the online row is not listed.
     expect(find.text('2 首 · 已用 5.5 MB'), findsOneWidget);
     expect(find.text('BV3'), findsNothing);
-    expect(find.byIcon(Icons.delete_sweep_outlined), findsOneWidget);
+    expect(find.byIcon(AppIcons.deleteSweep), findsOneWidget);
 
     // The second download sits below the fold; scroll it into view.
     await tester.scrollUntilVisible(find.text('BV2'), 100);
@@ -891,7 +892,7 @@ void main() {
     expect(find.text('BV1'), findsNothing);
 
     // The remove confirmation names the track too.
-    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.tap(find.byIcon(AppIcons.delete));
     await tester.pumpAndSettle();
     expect(find.textContaining('Song A'), findsWidgets);
   });
@@ -915,7 +916,7 @@ void main() {
       );
       return find.descendant(
         of: tile,
-        matching: find.byIcon(Icons.delete_outline),
+        matching: find.byIcon(AppIcons.delete),
       );
     }
 
@@ -976,7 +977,7 @@ void main() {
       matching: find.byType(ListTile),
     );
     await tester.tap(
-      find.descendant(of: tile, matching: find.byIcon(Icons.delete_outline)),
+      find.descendant(of: tile, matching: find.byIcon(AppIcons.delete)),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('删除'));
@@ -1000,7 +1001,7 @@ void main() {
     await tester.pumpAndSettle();
     await _scrollToOfflineCache(tester);
 
-    await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+    await tester.tap(find.byIcon(AppIcons.deleteSweep));
     await tester.pumpAndSettle();
 
     expect(find.text('清空离线缓存？'), findsOneWidget);
@@ -1013,7 +1014,7 @@ void main() {
     expect(find.text('BV1'), findsOneWidget);
 
     // Confirming removes them all and reports the freed space.
-    await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+    await tester.tap(find.byIcon(AppIcons.deleteSweep));
     await tester.pumpAndSettle();
     await tester.tap(find.text('清空'));
     await tester.pumpAndSettle();
@@ -1037,7 +1038,7 @@ void main() {
     await tester.pumpAndSettle();
     await _scrollToOfflineCache(tester);
 
-    await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+    await tester.tap(find.byIcon(AppIcons.deleteSweep));
     await tester.pumpAndSettle();
     await tester.tap(find.text('清空'));
     await tester.pumpAndSettle();
@@ -1212,7 +1213,7 @@ void main() {
       );
       final deleteIcon = find.descendant(
         of: rootTile,
-        matching: find.byIcon(Icons.delete_outline),
+        matching: find.byIcon(AppIcons.delete),
       );
 
       // Scroll the tile into view before tapping.
@@ -1297,7 +1298,7 @@ void main() {
     // "添加文件夹" tile further down the section.
     final headerAddButton = find.widgetWithIcon(
       IconButton,
-      Icons.create_new_folder_outlined,
+      AppIcons.createNewFolder,
     );
     expect(headerAddButton, findsOneWidget);
     await tester.ensureVisible(headerAddButton);

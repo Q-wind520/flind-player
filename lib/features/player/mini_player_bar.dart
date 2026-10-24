@@ -17,6 +17,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -36,9 +37,7 @@ Route<void> playerRoute(BuildContext context) {
   final duration = AppMotion.emphasized;
   final platform = Theme.of(context).platform;
   if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
-    return CupertinoPageRoute<void>(
-      builder: (_) => const PlayerScreen(),
-    );
+    return CupertinoPageRoute<void>(builder: (_) => const PlayerScreen());
   }
   return PageRouteBuilder<void>(
     // Non-opaque so the dismiss drawer can dim the app behind it.
@@ -64,7 +63,11 @@ Route<void> playerRoute(BuildContext context) {
 /// When nothing is playing, renders [SizedBox.shrink]. Tapping the bar opens
 /// the full-screen [PlayerScreen] on every platform.
 class MiniPlayerBar extends ConsumerWidget {
-  const MiniPlayerBar({super.key});
+  const MiniPlayerBar({super.key, this.embedded = false});
+
+  /// When true, the bar renders without its own padding and glass surface so
+  /// the shell can place it inside the shared mobile dock.
+  final bool embedded;
 
   /// A well-known key so tests can tap the bar area to open the player.
   static const Key barKey = Key('mini_player_bar');
@@ -83,6 +86,43 @@ class MiniPlayerBar extends ConsumerWidget {
         ? (positionMs / durationMs).clamp(0.0, 1.0)
         : 0.0;
 
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Expanded(child: _MiniLabelStrip(current: track)),
+              // Play/pause.
+              IconButton(
+                onPressed: () =>
+                    ref.read(playbackControllerProvider).togglePlayPause(),
+                icon: Icon(state.isPlaying ? AppIcons.pause : AppIcons.playArrow),
+              ),
+              // Next.
+              IconButton(
+                onPressed: state.hasNext
+                    ? () => ref.read(playbackControllerProvider).next()
+                    : null,
+                icon: const Icon(AppIcons.skipNext),
+              ),
+            ],
+          ),
+        ),
+        // Thin progress line at the very bottom, clipped by the capsule.
+        if (durationMs > 0)
+          LinearProgressIndicator(value: progress, minHeight: 2),
+      ],
+    );
+
+    if (embedded) {
+      return content;
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.sm,
@@ -91,42 +131,9 @@ class MiniPlayerBar extends ConsumerWidget {
         AppSpacing.sm,
       ),
       child: GlassSurface(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppGlass.shadow,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: _MiniLabelStrip(current: track)),
-                  // Play/pause.
-                  IconButton(
-                    onPressed: () =>
-                        ref.read(playbackControllerProvider).togglePlayPause(),
-                    icon: Icon(
-                      state.isPlaying ? Icons.pause : Icons.play_arrow,
-                    ),
-                  ),
-                  // Next.
-                  IconButton(
-                    onPressed: state.hasNext
-                        ? () => ref.read(playbackControllerProvider).next()
-                        : null,
-                    icon: const Icon(Icons.skip_next),
-                  ),
-                ],
-              ),
-            ),
-            // Thin progress line at the very bottom, clipped by the capsule.
-            if (durationMs > 0)
-              LinearProgressIndicator(value: progress, minHeight: 2),
-          ],
-        ),
+        child: content,
       ),
     );
   }
@@ -193,8 +200,7 @@ class _MiniLabelStripState extends ConsumerState<_MiniLabelStrip>
   Widget build(BuildContext context) {
     // Re-centre when the loaded track actually changes.
     ref.listen(playbackStateProvider, (previous, next) {
-      if (previous?.value?.currentTrack?.uri !=
-              next.value?.currentTrack?.uri &&
+      if (previous?.value?.currentTrack?.uri != next.value?.currentTrack?.uri &&
           !_c.isAnimating) {
         _c.value = 0;
       }
@@ -206,7 +212,7 @@ class _MiniLabelStripState extends ConsumerState<_MiniLabelStrip>
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         return SizedBox(
-          height: 40,
+          height: 44,
           child: GestureDetector(
             key: MiniPlayerBar.barKey,
             behavior: HitTestBehavior.opaque,
@@ -296,15 +302,15 @@ class _MiniLabel extends StatelessWidget {
                 track.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(height: 1.3),
               ),
               Text(
                 track.artist ?? l10n.unknownArtist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant, height: 1.25),
               ),
             ],
           ),
@@ -330,7 +336,7 @@ class _MiniCover extends StatelessWidget {
         (coverUrl != null && coverUrl.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         width: _size,
         height: _size,
@@ -349,5 +355,5 @@ class _MiniCover extends StatelessWidget {
   }
 
   Widget _placeholder(ColorScheme scheme) =>
-      Icon(Icons.music_note, size: _size * 0.5, color: scheme.onSurfaceVariant);
+      Icon(AppIcons.musicNote, size: _size * 0.5, color: scheme.onSurfaceVariant);
 }

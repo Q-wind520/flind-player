@@ -45,11 +45,9 @@ class JustAudioPlaybackController implements PlaybackController {
   /// Loudest volume the UI can select (140%).
   static const double maxVolume = 1.4;
 
-  /// How long the fade-in/fade-out gain ramp takes.
-  static const Duration _fadeDuration = Duration(milliseconds: 400);
-
-  /// Steps the gain ramp is split into; each step is [_fadeDuration] / this.
-  static const int _fadeSteps = 10;
+  /// Steps the gain ramp is split into; 25 ms per step keeps the cosine fade
+  /// smooth without flooding the platform channel.
+  static const int _fadeSteps = 28;
 
   final StreamResolver _resolver;
   final AudioPlayer _player;
@@ -188,8 +186,14 @@ class JustAudioPlaybackController implements PlaybackController {
       await _player.seek(Duration.zero);
     }
     if (_player.playing) {
-      // Already audible (e.g. a resumed mid-fade pause): restore the gain
-      // instead of restarting a fade-in.
+      if (!_isPlaying) {
+        // A mid-fade pause was cancelled. Flip the transport immediately and
+        // ramp back up over the same fade window the UI uses for its wave.
+        _isPlaying = true;
+        _emit();
+        unawaited(_rampVolumeTo(_volume, _fadeGeneration));
+        return;
+      }
       await _setPlayerVolume(_volume);
       return;
     }
@@ -202,7 +206,15 @@ class JustAudioPlaybackController implements PlaybackController {
       return;
     }
     _playIntent = false;
-    await _fadeOutAndPause();
+    final wasPlaying = _isPlaying;
+    // Flip the button and start the wave morph now, not when the engine has
+    // finished fading out. The engine keeps playing silently for the same
+    // [PlaybackController.fadeDuration] that the UI animates over.
+    if (_isPlaying) {
+      _isPlaying = false;
+      _emit();
+    }
+    await _fadeOutAndPause(wasPlaying: wasPlaying);
   }
 
   @override
@@ -618,15 +630,16 @@ class JustAudioPlaybackController implements PlaybackController {
     unawaited(_rampVolumeTo(_volume, generation));
   }
 
-  /// Ramps the output gain to zero over [_fadeDuration], pauses, then restores
-  /// the user's gain so the next play resumes at the chosen level.
+  /// Ramps the output gain to zero over [PlaybackController.fadeDuration],
+  /// pauses, then restores the user's gain so the next play resumes at the
+  /// chosen level.
   ///
   /// Cancellable: a resume or track switch bumps [_fadeGeneration], aborting the
   /// ramp and leaving the player to that command.
-  Future<void> _fadeOutAndPause() async {
+  Future<void> _fadeOutAndPause({required bool wasPlaying}) async {
     final generation = ++_fadeGeneration;
     final target = _volume;
-    if (_isPlaying && target > 0 && _player.playing) {
+    if (wasPlaying && target > 0 && _player.playing) {
       await _rampVolumeTo(0, generation);
       if (_disposed || _fadeGeneration != generation) {
         return;
@@ -639,16 +652,31 @@ class JustAudioPlaybackController implements PlaybackController {
   }
 
   /// Ramps the engine gain from its current value to [target] in [_fadeSteps]
-  /// steps over [_fadeDuration]. No-op once [generation] is superseded.
+  /// steps over [PlaybackController.fadeDuration]. No-op once [generation] is
+  /// superseded.
+  ///
+  /// The gain follows a cosine S-curve instead of a straight line: it leaves
+  /// and reaches the endpoints with zero slope, so a short fade does not click
+  /// or feel like it is cut off. Step deadlines are measured from the start so
+  /// platform-call latency does not stretch the fade beyond the UI's wave
+  /// morph.
   Future<void> _rampVolumeTo(double target, int generation) async {
     final start = _player.volume;
-    final stepDelay = _fadeDuration ~/ _fadeSteps;
+    final startedAt = DateTime.now();
     for (var step = 1; step <= _fadeSteps; step++) {
       if (_disposed || _fadeGeneration != generation) {
         return;
       }
-      await _setPlayerVolume(start + (target - start) * (step / _fadeSteps));
-      await Future<void>.delayed(stepDelay);
+      final progress = step / _fadeSteps;
+      final eased = 0.5 - 0.5 * cos(pi * progress);
+      await _setPlayerVolume(start + (target - start) * eased);
+      final deadline = startedAt.add(
+        PlaybackController.fadeDuration * progress,
+      );
+      final remaining = deadline.difference(DateTime.now());
+      if (remaining > Duration.zero) {
+        await Future<void>.delayed(remaining);
+      }
     }
     if (_disposed || _fadeGeneration != generation) {
       return;

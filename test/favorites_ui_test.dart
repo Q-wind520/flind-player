@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -37,6 +38,7 @@ import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 Track _track(
   String title, {
@@ -162,6 +164,7 @@ Widget _playerApp({PlaybackState playbackState = PlaybackState.idle}) {
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   group('Library favourite toggle', () {
     testWidgets('shows the actions menu on a track row', (tester) async {
       await tester.pumpWidget(_libraryApp(tracks: [_track('Alpha')]));
@@ -273,7 +276,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The playing indicator should be visible.
-      expect(find.byIcon(Icons.graphic_eq), findsOneWidget);
+      expect(find.byIcon(AppIcons.graphicEq), findsOneWidget);
     });
   });
 
@@ -292,16 +295,16 @@ void main() {
       await tester.pumpAndSettle();
 
       // The heart outline should be present (not favourited).
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsOneWidget);
+      expect(find.byIcon(AppIcons.favoriteActive), findsNothing);
 
       // Tap the heart to favourite.
-      await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byIcon(AppIcons.favoriteBorder));
       await tester.pumpAndSettle();
 
       // The heart should now be filled.
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteActive), findsOneWidget);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsNothing);
 
       // SnackBar should confirm.
       expect(find.text('已收藏'), findsOneWidget);
@@ -313,8 +316,8 @@ void main() {
 
       // The "nothing playing" state should show, no heart button.
       expect(find.text('未在播放'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteActive), findsNothing);
     });
 
     testWidgets('heart button unfavourites a favourited track', (tester) async {
@@ -344,16 +347,16 @@ void main() {
       await tester.pumpAndSettle();
 
       // The heart should be filled (favourited).
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteActive), findsOneWidget);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsNothing);
 
       // Tap to unfavourite.
-      await tester.tap(find.byIcon(Icons.favorite));
+      await tester.tap(find.byIcon(AppIcons.favoriteActive));
       await tester.pumpAndSettle();
 
       // The heart should now be outline.
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsOneWidget);
+      expect(find.byIcon(AppIcons.favoriteActive), findsNothing);
 
       // SnackBar should confirm.
       expect(find.text('已取消收藏'), findsOneWidget);
@@ -375,14 +378,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final clip = tester.widget<ClipRRect>(
-        find
-            .descendant(
-              of: find.byType(PlayerScreen),
-              matching: find.byType(ClipRRect),
-            )
-            .first,
+        find.byKey(const Key('player_cover_clip')),
       );
-      expect(clip.borderRadius, BorderRadius.circular(AppRadius.xl));
+      expect(clip.borderRadius, BorderRadius.circular(AppRadius.lg));
     });
 
     testWidgets('the player cover is a Hero tagged for the transition', (
@@ -437,11 +435,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final context = tester.element(find.byIcon(Icons.favorite));
+      final context = tester.element(find.byIcon(AppIcons.favoriteActive));
       final button = tester.widget<IconButton>(
         find
             .ancestor(
-              of: find.byIcon(Icons.favorite),
+              of: find.byIcon(AppIcons.favoriteActive),
               matching: find.byType(IconButton),
             )
             .first,

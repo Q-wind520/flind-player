@@ -17,7 +17,8 @@ import 'package:flutter/material.dart';
 
 import 'package:flind_player/app/theme/app_tokens.dart';
 
-/// A muted section heading, optionally with a trailing action.
+/// An editorial section heading: a quiet label, a hairline, and an optional
+/// trailing action.
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {super.key, this.trailing});
 
@@ -27,35 +28,37 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final label = Text(
       title,
-      style: theme.textTheme.titleSmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: scheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.2,
       ),
     );
     final trailingWidget = trailing;
-    if (trailingWidget == null) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.sm,
-        ),
-        child: label,
-      );
-    }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.sm,
+        AppSpacing.xl,
+        trailingWidget == null ? AppSpacing.lg : AppSpacing.sm,
         AppSpacing.sm,
       ),
       child: Row(
         children: [
-          Expanded(child: label),
-          trailingWidget,
+          label,
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Divider(
+              height: 1,
+              color: scheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+          ),
+          if (trailingWidget != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            trailingWidget,
+          ],
         ],
       ),
     );

@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
@@ -107,7 +108,7 @@ class TrackActionsButton extends ConsumerWidget {
           child: Row(
             children: [
               Icon(
-                isFavourite ? Icons.favorite : Icons.favorite_border,
+                isFavourite ? AppIcons.favoriteActive : AppIcons.favoriteBorder,
                 color: isFavourite ? scheme.primary : null,
                 size: 20,
               ),
@@ -123,7 +124,7 @@ class TrackActionsButton extends ConsumerWidget {
             child: Row(
               children: [
                 Icon(
-                  offlineCached ? Icons.download_done : Icons.download_outlined,
+                  offlineCached ? AppIcons.downloadDone : AppIcons.download,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -136,7 +137,7 @@ class TrackActionsButton extends ConsumerWidget {
             value: _TrackAction.saveToLibrary,
             child: Row(
               children: [
-                Icon(Icons.library_add_outlined, size: 20),
+                Icon(AppIcons.libraryAdd, size: 20),
                 SizedBox(width: 12),
                 Text(l10n.saveToLibrary),
               ],
@@ -146,7 +147,7 @@ class TrackActionsButton extends ConsumerWidget {
           value: _TrackAction.addToPlaylist,
           child: Row(
             children: [
-              const Icon(Icons.playlist_add, size: 20),
+              const Icon(AppIcons.playlistAdd, size: 20),
               const SizedBox(width: 12),
               Text(l10n.addToPlaylist),
             ],
@@ -157,7 +158,7 @@ class TrackActionsButton extends ConsumerWidget {
             value: _TrackAction.removeFromPlaylist,
             child: Row(
               children: [
-                const Icon(Icons.playlist_remove, size: 20),
+                const Icon(AppIcons.playlistRemove, size: 20),
                 const SizedBox(width: 12),
                 Text(l10n.removeFromPlaylist),
               ],
@@ -168,7 +169,7 @@ class TrackActionsButton extends ConsumerWidget {
             value: _TrackAction.deleteTrack,
             child: Row(
               children: [
-                const Icon(Icons.delete_outline, size: 20),
+                const Icon(AppIcons.delete, size: 20),
                 const SizedBox(width: 12),
                 Text(l10n.deleteTrack),
               ],

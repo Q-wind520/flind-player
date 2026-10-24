@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
@@ -129,7 +130,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final close = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.close),
+      find.widgetWithIcon(IconButton, AppIcons.close),
     );
     expect(close.color, Colors.white);
   });

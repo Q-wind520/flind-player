@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/shared/empty_state.dart';
 
 import 'support/l10n.dart';
@@ -26,7 +27,7 @@ void main() {
       localizedApp(
         Scaffold(
           body: EmptyState(
-            icon: Icons.search,
+            icon: AppIcons.search,
             title: '标题',
             message: '说明',
             action: const Text('操作'),
@@ -35,7 +36,7 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.search), findsOneWidget);
+    expect(find.byIcon(AppIcons.search), findsOneWidget);
     expect(find.text('标题'), findsOneWidget);
     expect(find.text('说明'), findsOneWidget);
     expect(find.text('操作'), findsOneWidget);
@@ -45,7 +46,7 @@ void main() {
     await tester.pumpWidget(
       localizedApp(
         const Scaffold(
-          body: EmptyState(icon: Icons.search, title: '仅标题'),
+          body: EmptyState(icon: AppIcons.search, title: '仅标题'),
         ),
       ),
     );

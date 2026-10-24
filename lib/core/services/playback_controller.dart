@@ -27,6 +27,13 @@ abstract interface class PlaybackController {
   /// Fastest playback rate the UI can select (2.0×).
   static const double maxSpeed = 2.0;
 
+  /// Duration of the engine gain fade-in/out.
+  ///
+  /// The player UI starts its progress-wave morph on the same state change and
+  /// uses this exact duration, so the wave settles as the audio becomes fully
+  /// audible or silent.
+  static const Duration fadeDuration = Duration(milliseconds: 700);
+
   /// Broadcasts state updates.
   Stream<PlaybackState> get state;
 

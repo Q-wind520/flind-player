@@ -17,6 +17,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/remote_playlist.dart';
@@ -24,9 +27,11 @@ import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
+import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/shared/app_page_header.dart';
 import 'package:flind_player/shared/app_surface.dart';
-import 'package:flind_player/shared/duration_format.dart';
+import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/responsive_center.dart';
@@ -240,58 +245,47 @@ class _BilibiliFavoritesScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final folder = _openFolder;
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final horizontal = compact ? 16.0 : 28.0;
     return Scaffold(
       backgroundColor: AppSurface.colorOf(context),
       body: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(folder),
-            if (folder == null) _buildUidBar(),
-            Expanded(child: _buildBody()),
-          ],
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 960),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppPageHeader(
+                  leading: IconButton(
+                    icon: const Icon(AppIcons.arrowBack),
+                    tooltip: '',
+                    onPressed: folder == null
+                        ? () => Navigator.of(context).maybePop()
+                        : _backToFolders,
+                  ),
+                  title: folder == null
+                      ? l10n.browseBiliFavorites
+                      : folder.title,
+                ),
+                if (folder == null) _buildUidBar(horizontal),
+                Expanded(child: _buildBody(horizontal)),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  /// In-body header for this pushed route.
-  ///
-  /// Replaces the former [AppBar]: a back affordance plus the title. While a
-  /// folder's tracks are open the back button returns to the folder list;
-  /// otherwise it pops the route, matching the old leading-arrow behaviour.
-  Widget _buildHeader(RemotePlaylist? folder) {
-    final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: folder == null
-                ? () => Navigator.of(context).maybePop()
-                : _backToFolders,
-          ),
-          Expanded(
-            child: Text(
-              folder == null ? l10n.browseBiliFavorites : folder.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// UID entry shown only before a folder is opened.
-  Widget _buildUidBar() {
+  Widget _buildUidBar(double horizontal) {
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, AppSpacing.md),
       child: Row(
         children: [
           Expanded(
@@ -305,12 +299,11 @@ class _BilibiliFavoritesScreenState
               onSubmitted: (_) => _loadFolders(),
               decoration: InputDecoration(
                 hintText: l10n.upUid,
-                prefixIcon: const Icon(Icons.person_outline),
-                isDense: true,
+                prefixIcon: const Icon(AppIcons.person),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.md),
           FilledButton(
             onPressed: _loading ? null : _loadFolders,
             child: Text(l10n.load),
@@ -320,7 +313,7 @@ class _BilibiliFavoritesScreenState
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(double horizontal) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -328,36 +321,45 @@ class _BilibiliFavoritesScreenState
       return _FavoritesError(error: _error!, onRetry: _retry);
     }
     if (_openFolder == null) {
-      return _buildFolderList();
+      return _buildFolderList(horizontal);
     }
-    return _buildTrackList();
+    return _buildTrackList(horizontal);
   }
 
-  Widget _buildFolderList() {
+  Widget _buildFolderList(double horizontal) {
     final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
     if (_uid.isEmpty) {
-      return _FavoritesHint(
-        icon: Icons.cloud_outlined,
+      return EmptyState(
+        icon: AppIcons.cloud,
         title: l10n.browsePublicFavorites,
         message: l10n.browsePublicFavoritesHint,
       );
     }
     if (_folders.isEmpty) {
-      return _FavoritesHint(
-        icon: Icons.folder_off_outlined,
+      return EmptyState(
+        icon: AppIcons.folderOff,
         title: l10n.noPublicFavorites,
         message: l10n.noPublicFavoritesHint,
       );
     }
+    final side = (horizontal - AppSpacing.md).clamp(0.0, 16.0);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return ListView.builder(
+      padding: EdgeInsets.fromLTRB(side, 0, side, AppSpacing.md + bottomInset),
       itemCount: _folders.length,
       itemBuilder: (context, index) {
         final folder = _folders[index];
         return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-            foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-            child: const Icon(Icons.folder_outlined),
+          contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Icon(AppIcons.folder, color: scheme.onSurfaceVariant),
           ),
           title: Text(
             folder.title,
@@ -369,29 +371,40 @@ class _BilibiliFavoritesScreenState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          trailing: const Icon(Icons.chevron_right),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () => _openFolderTracks(folder),
         );
       },
     );
   }
 
-  Widget _buildTrackList() {
+  Widget _buildTrackList(double horizontal) {
     final l10n = AppLocalizations.of(context);
     final playback = ref.watch(playbackStateProvider).value;
     final currentUri = playback?.currentTrack?.uri;
     final isPlaying = playback?.isPlaying ?? false;
 
     if (_tracks.isEmpty) {
-      return _FavoritesHint(
-        icon: Icons.music_off_outlined,
+      return EmptyState(
+        icon: AppIcons.musicOff,
         title: l10n.noPlayableVideos,
         message: l10n.noPlayableVideosHint,
       );
     }
-    return ListView.builder(
+    final side = (horizontal - AppSpacing.md).clamp(0.0, 16.0);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    return ListView.separated(
       // One extra row for the pagination footer.
+      padding: EdgeInsets.fromLTRB(side, 0, side, AppSpacing.md + bottomInset),
       itemCount: _tracks.length + 1,
+      separatorBuilder: (context, index) => index >= _tracks.length - 1
+          ? const SizedBox.shrink()
+          : Divider(
+              height: 1,
+              indent: 60,
+              color: Theme.of(context).colorScheme.outlineVariant
+                  .withValues(alpha: 0.55),
+            ),
       itemBuilder: (context, index) {
         if (index == _tracks.length) {
           return _TrackListFooter(
@@ -470,7 +483,7 @@ class _TrackListFooter extends StatelessWidget {
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(AppIcons.refresh),
               label: Text(l10n.retry),
             ),
           ],
@@ -524,84 +537,17 @@ class _FavoriteTrackTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
-
-    return ListTile(
+    return TrackListRow(
+      track: track,
+      isCurrent: isCurrent,
+      isPlaying: isPlaying,
       onTap: onTap,
-      selected: isCurrent,
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(Icons.music_note, color: scheme.onSurfaceVariant),
-      ),
-      title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        track.artist ?? l10n.unknownUp,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isPlaying) ...[
-            Icon(Icons.graphic_eq, size: 20, color: scheme.primary),
-            const SizedBox(width: 8),
-          ],
-          Text(
-            formatTrackDuration(track.duration),
-            style: theme.textTheme.labelMedium,
-          ),
-          TrackActionsButton(
-            track: track,
-            showSaveToLibrary: true,
-            onSaveToLibrary: onSave,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Shared empty / hint panel.
-class _FavoritesHint extends StatelessWidget {
-  const _FavoritesHint({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ResponsiveCenter(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(title, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+      subtitle: track.artist ?? l10n.unknownUp,
+      action: TrackActionsButton(
+        track: track,
+        showSaveToLibrary: true,
+        onSaveToLibrary: onSave,
       ),
     );
   }
@@ -624,7 +570,7 @@ class _FavoritesError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+            Icon(AppIcons.error, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(l10n.loadFailed, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -638,7 +584,7 @@ class _FavoritesError extends StatelessWidget {
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(AppIcons.refresh),
               label: Text(l10n.retry),
             ),
           ],

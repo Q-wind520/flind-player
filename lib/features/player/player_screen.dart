@@ -14,22 +14,27 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 // Flutter 3.47 exports its own `RepeatMode` (for `RepeatingAnimationBuilder`),
 // which collides with the playback model of the same name.
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/system_ui_overlay.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
-import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/player/cover_viewer_screen.dart';
+import 'package:flind_player/features/player/favorite_button.dart';
 import 'package:flind_player/features/player/lyrics_view.dart';
 import 'package:flind_player/features/player/mini_settings.dart';
 import 'package:flind_player/features/player/player_panels.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/features/player/player_progress_bar.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -38,22 +43,30 @@ import 'package:flind_player/shared/empty_state.dart';
 
 /// The "now playing" screen: artwork, progress and transport controls.
 ///
-/// Shown full-screen on every platform. The whole body sits on a single
-/// [AppSurface]; the collapse button and the current track title and artist
-/// live in a header row above the content so the same layout works in both
-/// orientations.
+/// Shown full-screen on every platform as a dark listening room, even when the
+/// app itself is in light mode. The backdrop is the current cover blurred to a
+/// low-frequency wash; the local dark theme keeps every control legible over
+/// it without threading white-on-dark colours through individual widgets.
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Transparent so the non-opaque route shows the app behind while the
-      // dismiss drawer takes over the background.
-      backgroundColor: Colors.transparent,
-      body: BlockSemantics(
-        child: _PlayerDismissWrapper(
-          child: AppSurface(child: SafeArea(child: const PlayerView())),
+    final current = Theme.of(context);
+    final playerTheme = current.brightness == Brightness.dark
+        ? current
+        : AppTheme.dark(current.colorScheme.primary);
+
+    return Theme(
+      data: playerTheme,
+      child: AppSystemUiOverlay(
+        child: Scaffold(
+          // Transparent so the non-opaque route shows the app behind while the
+          // dismiss drawer takes over the background.
+          backgroundColor: Colors.transparent,
+          body: BlockSemantics(
+            child: _PlayerDismissWrapper(child: const PlayerView()),
+          ),
         ),
       ),
     );
@@ -130,18 +143,47 @@ class _PlayerDismissWrapperState extends State<_PlayerDismissWrapper>
         animation: _c,
         builder: (context, child) {
           final height = MediaQuery.sizeOf(context).height;
+          final progress = _c.value;
+          // Round the player as soon as the drag starts so the reveal reads as
+          // a sheet resting over the page, not a full-screen block that has
+          // detached from it.
+          final radius = BorderRadius.vertical(
+            top: Radius.circular(
+              28 *
+                  Curves.easeOutCubic.transform((progress * 3).clamp(0.0, 1.0)),
+            ),
+          );
           return Stack(
             clipBehavior: Clip.none,
             children: [
               Positioned.fill(
                 child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.5 * _c.value),
+                  key: const Key('player_dismiss_scrim'),
+                  color: Colors.black.withValues(alpha: 0.5 * progress),
                 ),
               ),
               Positioned.fill(
                 child: Transform.translate(
-                  offset: Offset(0, _c.value * height),
-                  child: widget.child,
+                  offset: Offset(0, progress * height),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: radius,
+                      boxShadow: progress > 0.001
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 28,
+                                offset: const Offset(0, -10),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: ClipRRect(
+                      key: const Key('player_dismiss_surface'),
+                      borderRadius: radius,
+                      child: widget.child,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -184,29 +226,6 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
         final landscape = constraints.maxWidth > constraints.maxHeight;
         final hasTrack = state != null && track != null;
 
-        final Widget body;
-        if (!hasTrack) {
-          body = EmptyState(
-            icon: Icons.play_circle_outline,
-            title: AppLocalizations.of(context).notPlaying,
-            message: AppLocalizations.of(context).notPlayingHint,
-          );
-        } else if (landscape) {
-          body = _LandscapeBody(
-            state: state,
-            track: track,
-            onVolumeTap: () => setState(() => _volumeOpen = true),
-          );
-        } else {
-          body = _PortraitBody(
-            state: state,
-            track: track,
-            lyricsExpanded: _lyricsExpanded,
-            onLyricsTap: () => setState(() => _lyricsExpanded = true),
-            onLyricsCollapse: () => setState(() => _lyricsExpanded = false),
-          );
-        }
-
         // The settings slot is hidden while the portrait lyrics page is
         // expanded and whenever nothing is playing.
         final settingsVisible = hasTrack && !(!landscape && _lyricsExpanded);
@@ -222,76 +241,196 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
         }
         final volumeOpen = _volumeOpen && settingsVisible;
 
+        // The volume control is a compact floating pill, centred in the pane
+        // (the left half in landscape, the full width in portrait) rather than
+        // stretching edge to edge like a second settings bar.
+        final paneWidth = landscape
+            ? constraints.maxWidth / 2
+            : constraints.maxWidth;
+        final volumeBarWidth = math.min(520.0, paneWidth - AppSpacing.lg * 2);
+        final volumeBarLeft = (paneWidth - volumeBarWidth) / 2;
+
+        final Widget body;
+        if (!hasTrack) {
+          body = EmptyState(
+            icon: AppIcons.playCircle,
+            title: AppLocalizations.of(context).notPlaying,
+            message: AppLocalizations.of(context).notPlayingHint,
+          );
+        } else if (landscape) {
+          body = _LandscapeBody(
+            state: state,
+            track: track,
+            showSettings: !volumeOpen,
+            onVolumeTap: () => setState(() => _volumeOpen = true),
+          );
+        } else {
+          body = _PortraitBody(
+            state: state,
+            track: track,
+            lyricsExpanded: _lyricsExpanded,
+            onLyricsTap: () => setState(() => _lyricsExpanded = true),
+            onLyricsCollapse: () => setState(() => _lyricsExpanded = false),
+          );
+        }
+
         return Stack(
+          fit: StackFit.expand,
           children: [
-            Column(
-              children: [
-                // The header spans both panes in landscape and sits above the
-                // whole portrait body, so the title and artist stay visible on
-                // the lyrics page too.
-                _HeaderRow(title: title, artist: artist),
-                Expanded(child: body),
-                // Portrait docks MiniSettings at the bottom of the screen;
-                // landscape embeds it in the left pane instead.
-                if (!landscape)
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    alignment: Alignment.topCenter,
-                    child: settingsVisible
-                        ? MiniSettings(
-                            key: const ValueKey('mini_settings'),
-                            onVolumeTap: () =>
-                                setState(() => _volumeOpen = true),
-                          )
-                        : const SizedBox(width: double.infinity),
+            _NowPlayingBackdrop(track: track),
+            SafeArea(
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      // The header spans both panes in landscape and sits above the
+                      // whole portrait body, so the title and artist stay visible on
+                      // the lyrics page too.
+                      _HeaderRow(title: title, artist: artist),
+                      Expanded(child: body),
+                      // Portrait docks MiniSettings at the bottom of the screen;
+                      // landscape embeds it in the left pane instead.
+                      if (!landscape)
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.topCenter,
+                          child: settingsVisible
+                              ? Visibility(
+                                  visible: !volumeOpen,
+                                  maintainSize: true,
+                                  maintainAnimation: true,
+                                  maintainState: true,
+                                  child: MiniSettings(
+                                    key: const ValueKey('mini_settings'),
+                                    onVolumeTap: () =>
+                                        setState(() => _volumeOpen = true),
+                                  ),
+                                )
+                              : const SizedBox(width: double.infinity),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-            // Volume overlay: a full-area scrim plus the volume bar exactly
-            // over the settings slot.
-            Positioned.fill(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.1),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
+                  // Volume overlay: a full-area scrim plus the volume bar exactly
+                  // over the settings slot.
+                  Positioned.fill(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.1),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: volumeOpen
+                          ? Stack(
+                              key: const ValueKey('volume_overlay'),
+                              fit: StackFit.expand,
+                              children: [
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () =>
+                                      setState(() => _volumeOpen = false),
+                                ),
+                                Positioned(
+                                  left: volumeBarLeft,
+                                  bottom: AppSpacing.md,
+                                  width: volumeBarWidth,
+                                  height: kMiniSettingsHeight,
+                                  child: const VolumeBar(),
+                                ),
+                              ],
+                            )
+                          : const SizedBox.shrink(key: ValueKey('no_volume')),
                     ),
-                  );
-                },
-                child: volumeOpen
-                    ? Stack(
-                        key: const ValueKey('volume_overlay'),
-                        fit: StackFit.expand,
-                        children: [
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => setState(() => _volumeOpen = false),
-                          ),
-                          Positioned(
-                            left: 0,
-                            bottom: 0,
-                            right: landscape ? null : 0,
-                            width: landscape ? constraints.maxWidth / 2 : null,
-                            height: kMiniSettingsHeight,
-                            child: const VolumeBar(),
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(key: ValueKey('no_volume')),
+                  ),
+                ],
               ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+/// The blurred-cover wash behind the player.
+///
+/// The layer is isolated in a [RepaintBoundary] so the 200 ms position ticks
+/// do not re-rasterise the blur, and the scrim keeps the header and controls
+/// readable over bright artwork.
+class _NowPlayingBackdrop extends StatelessWidget {
+  const _NowPlayingBackdrop({required this.track});
+
+  final Track? track;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final coverPath = track?.coverPath;
+    final coverUrl = track?.coverUrl;
+    final hasCover =
+        (coverPath != null && coverPath.isNotEmpty) ||
+        (coverUrl != null && coverUrl.isNotEmpty);
+
+    return RepaintBoundary(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(color: scheme.surface),
+          if (hasCover)
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: 48,
+                sigmaY: 48,
+                tileMode: TileMode.clamp,
+              ),
+              child: SizedBox.expand(
+                child: CoverImage(
+                  path: coverPath,
+                  url: coverUrl,
+                  size: double.infinity,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: hasCover ? 0.22 : 0),
+                  Colors.black.withValues(alpha: 0.52),
+                  scheme.surface.withValues(alpha: 0.94),
+                ],
+                stops: const [0, 0.55, 1],
+              ),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: const Alignment(-0.45, -0.95),
+                radius: 1.3,
+                colors: [
+                  scheme.primary.withValues(alpha: 0.20),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -311,42 +450,51 @@ class _HeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final dismiss = _PlayerDismissScope.maybeOf(context);
-    final handle = Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+    final handle = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(AppIcons.keyboardArrowDown),
+            color: scheme.onSurface,
+            tooltip: '',
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        // Balances the leading IconButton so the centred title/artist block
-        // is truly screen-centred.
-        const SizedBox(width: 48),
-      ],
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                Text(
+                  artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Balances the leading button so the title/artist block is centred.
+          const SizedBox(width: 48),
+        ],
+      ),
     );
     if (dismiss == null) return handle;
     // A Cupertino route is opaque, so the drawer reveal would show a void;
@@ -519,10 +667,7 @@ class _PortraitPagerState extends State<_PortraitPager>
 /// The collapsed portrait content: adaptive cover and the 5-line lyrics
 /// teaser strip. The title and artist live in the shared header row.
 class _PortraitNormal extends StatelessWidget {
-  const _PortraitNormal({
-    required this.track,
-    required this.onLyricsTap,
-  });
+  const _PortraitNormal({required this.track, required this.onLyricsTap});
 
   final Track track;
   final VoidCallback onLyricsTap;
@@ -530,12 +675,12 @@ class _PortraitNormal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Five lines of the lyrics text style, so the strip reads as a teaser of
-    // the lyrics page rather than an arbitrary fraction of the viewport.
+    // Roughly three lyric lines including a translation, so the teaser reads
+    // as a door into the lyrics page without stealing the cover's space.
     final lyricsStyle = theme.textTheme.titleMedium;
     final lineHeight =
         (lyricsStyle?.fontSize ?? 16) * (lyricsStyle?.height ?? 1.4);
-    final lyricsStripHeight = lineHeight * 5 * 2;
+    final lyricsStripHeight = lineHeight * 3.6;
     return Column(
       children: [
         Expanded(child: _CoverArt(track: track)),
@@ -550,17 +695,19 @@ class _PortraitNormal extends StatelessWidget {
 
 /// Landscape body: two equal panes — the left [MiniMain] and the full-height
 /// [LyricsView] on the right. The shared header row above both panes is
-/// rendered by the parent. No divider: both panes share the same
-/// [AppSurface] background.
+/// rendered by the parent; no divider, so both panes sit on the same ambient
+/// backdrop.
 class _LandscapeBody extends StatelessWidget {
   const _LandscapeBody({
     required this.state,
     required this.track,
+    required this.showSettings,
     required this.onVolumeTap,
   });
 
   final PlaybackState state;
   final Track track;
+  final bool showSettings;
   final VoidCallback onVolumeTap;
 
   @override
@@ -568,7 +715,12 @@ class _LandscapeBody extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: MiniMain(state: state, track: track, onVolumeTap: onVolumeTap),
+          child: MiniMain(
+            state: state,
+            track: track,
+            showSettings: showSettings,
+            onVolumeTap: onVolumeTap,
+          ),
         ),
         Expanded(child: LyricsView()),
       ],
@@ -599,11 +751,13 @@ class MiniMain extends StatelessWidget {
     super.key,
     required this.state,
     required this.track,
+    required this.showSettings,
     required this.onVolumeTap,
   });
 
   final PlaybackState state;
   final Track track;
+  final bool showSettings;
   final VoidCallback onVolumeTap;
 
   @override
@@ -626,7 +780,13 @@ class MiniMain extends StatelessWidget {
         _TransportControls(state: state),
         // Same gap as portrait: keep the controls and the settings bar apart.
         const SizedBox(height: 16),
-        MiniSettings(onVolumeTap: onVolumeTap),
+        Visibility(
+          visible: showSettings,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: MiniSettings(onVolumeTap: onVolumeTap),
+        ),
       ],
     );
   }
@@ -646,9 +806,13 @@ class _CoverArt extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Center(
+        // Anchor the artwork to the lyrics teaser below it; the extra breathing
+        // room collects under the header instead of splitting the cover and
+        // the lyrics apart.
+        return Align(
+          alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
             child: _PlayerCover(track: track, size: _coverSizeFor(constraints)),
           ),
         );
@@ -678,39 +842,57 @@ class _PlayerCover extends StatelessWidget {
       // Desktop: right-click. Touch: long-press.
       onSecondaryTap: () => Navigator.of(context).push(coverViewerRoute(track)),
       onLongPress: () => Navigator.of(context).push(coverViewerRoute(track)),
-      child: CoverHero(
-        uri: track.uri,
-        coverPath: coverPath,
-        coverUrl: coverUrl,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          child: Container(
-            width: size,
-            height: size,
-            color: scheme.surfaceContainerHighest,
-            child: hasCover
-                ? CoverImage(
-                    path: coverPath,
-                    url: coverUrl,
-                    size: size,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _placeholder(scheme),
-                  )
-                : _placeholder(scheme),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.38),
+              blurRadius: 48,
+              spreadRadius: -10,
+              offset: const Offset(0, 26),
+            ),
+          ],
+        ),
+        child: CoverHero(
+          uri: track.uri,
+          coverPath: coverPath,
+          coverUrl: coverUrl,
+          child: ClipRRect(
+            key: const Key('player_cover_clip'),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: Container(
+              width: size,
+              height: size,
+              color: scheme.surfaceContainerHighest,
+              child: hasCover
+                  ? CoverImage(
+                      path: coverPath,
+                      url: coverUrl,
+                      size: size,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _placeholder(scheme),
+                    )
+                  : _placeholder(scheme),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _placeholder(ColorScheme scheme) =>
-      Icon(Icons.music_note, size: size * 0.4, color: scheme.onSurfaceVariant);
+  Widget _placeholder(ColorScheme scheme) => Icon(
+    AppIcons.musicNote,
+    size: size * 0.4,
+    color: scheme.onSurfaceVariant,
+  );
 }
 
-/// Seekable progress bar with `m:ss` labels on both sides of the slider.
+/// Seekable progress bar with `m:ss` labels on both sides.
 ///
-/// The slider tracks the drag locally so the thumb follows the finger while
-/// dragging; the seek is issued once on release.
+/// The [PlayerProgressBar] owns the playing/paused wave morph and the
+/// buffering dot animation; this widget keeps the drag position local so the
+/// thumb follows the finger and issues the seek once on release.
 class _ProgressBar extends ConsumerStatefulWidget {
   const _ProgressBar({required this.state});
 
@@ -740,40 +922,44 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
         : Duration(milliseconds: dragMs.round());
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           Text(
             formatTrackDuration(shownPosition),
-            style: theme.textTheme.labelMedium,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           Expanded(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 2,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              ),
-              child: Slider(
-                value: dragMs ?? positionValue,
-                max: maxValue,
-                onChanged: enabled
-                    ? (value) => setState(() => _dragMs = value)
-                    : null,
-                onChangeEnd: enabled
-                    ? (value) {
-                        setState(() => _dragMs = null);
-                        ref
-                            .read(playbackControllerProvider)
-                            .seek(Duration(milliseconds: value.round()));
-                      }
-                    : null,
-              ),
+            child: PlayerProgressBar(
+              value: enabled
+                  ? ((dragMs ?? positionValue) / maxValue).clamp(0.0, 1.0)
+                  : 0,
+              isPlaying: state.isPlaying,
+              isBuffering: state.isBuffering,
+              enabled: enabled,
+              morphDuration: PlaybackController.fadeDuration,
+              onChanged: enabled
+                  ? (value) => setState(() => _dragMs = value * maxValue)
+                  : null,
+              onChangeEnd: enabled
+                  ? (value) {
+                      setState(() => _dragMs = null);
+                      ref
+                          .read(playbackControllerProvider)
+                          .seek(
+                            Duration(milliseconds: (value * maxValue).round()),
+                          );
+                    }
+                  : null,
             ),
           ),
           Text(
             formatTrackDuration(state.duration),
-            style: theme.textTheme.labelMedium,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -804,6 +990,11 @@ class _TransportControls extends ConsumerWidget {
     final tapTargetStyle = IconButton.styleFrom(
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
+    final primaryTransportStyle = IconButton.styleFrom(
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
 
     // A three-step size hierarchy highlights play/pause and keeps the row
     // grouped in the centre (never spaceBetween). Comfortable widths get the
@@ -818,7 +1009,7 @@ class _TransportControls extends ConsumerWidget {
         const assistSize = 44.0;
         final outerGap = comfortable ? 20.0 : 4.0;
         final innerGap = comfortable ? 10.0 : 4.0;
-        final playIcon = comfortable ? 36.0 : 32.0;
+        final playIcon = comfortable ? 38.0 : 34.0;
         final skipIcon = comfortable ? 32.0 : 28.0;
         final assistIcon = comfortable ? 26.0 : 22.0;
 
@@ -829,7 +1020,7 @@ class _TransportControls extends ConsumerWidget {
             if (track == null)
               const SizedBox.shrink()
             else
-              _FavoriteButton(
+              FavoriteButton(
                 track: track,
                 size: assistSize,
                 iconSize: assistIcon,
@@ -837,7 +1028,7 @@ class _TransportControls extends ConsumerWidget {
             SizedBox(width: outerGap),
             IconButton(
               onPressed: state.hasPrevious ? controller.previous : null,
-              icon: const Icon(Icons.skip_previous),
+              icon: const Icon(AppIcons.skipPrevious),
               iconSize: skipIcon,
               style: tapTargetStyle,
               padding: EdgeInsets.zero,
@@ -849,9 +1040,9 @@ class _TransportControls extends ConsumerWidget {
             SizedBox(width: innerGap),
             IconButton.filled(
               onPressed: controller.togglePlayPause,
-              icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+              icon: Icon(state.isPlaying ? AppIcons.pause : AppIcons.playArrow),
               iconSize: playIcon,
-              style: tapTargetStyle,
+              style: primaryTransportStyle,
               padding: EdgeInsets.zero,
               constraints: BoxConstraints.tightFor(
                 width: playSize,
@@ -861,7 +1052,7 @@ class _TransportControls extends ConsumerWidget {
             SizedBox(width: innerGap),
             IconButton(
               onPressed: state.hasNext ? controller.next : null,
-              icon: const Icon(Icons.skip_next),
+              icon: const Icon(AppIcons.skipNext),
               iconSize: skipIcon,
               style: tapTargetStyle,
               padding: EdgeInsets.zero,
@@ -876,7 +1067,7 @@ class _TransportControls extends ConsumerWidget {
                 context,
                 builder: (_) => const PlaylistPanel(),
               ),
-              icon: const Icon(Icons.queue_music),
+              icon: const Icon(AppIcons.queueMusic),
               iconSize: assistIcon,
               color: scheme.onSurfaceVariant,
               style: tapTargetStyle,
@@ -889,63 +1080,6 @@ class _TransportControls extends ConsumerWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// Heart toggle for the current track in the player transport area.
-///
-/// Hidden when nothing is playing (no track). The filled heart is always red,
-/// regardless of the theme, so a favourited track reads the same in light and
-/// dark mode; the un-favourited outline is muted like the other assists.
-class _FavoriteButton extends ConsumerWidget {
-  const _FavoriteButton({
-    required this.track,
-    required this.size,
-    required this.iconSize,
-  });
-
-  final Track track;
-
-  /// The diameter of the round tap target.
-  final double size;
-
-  /// The icon glyph size inside the tap target.
-  final double iconSize;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isFavourite = ref.watch(isFavoriteProvider(track.uri)).value ?? false;
-    final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-
-    return IconButton(
-      onPressed: () async {
-        final repo = ref.read(favoritesRepositoryProvider);
-        final isNowFavourite = await repo.toggleFavorite(track);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(
-                  isNowFavourite ? l10n.favorited : l10n.unfavorited,
-                ),
-                duration: const Duration(seconds: 1),
-              ),
-            );
-        }
-      },
-      icon: Icon(isFavourite ? Icons.favorite : Icons.favorite_border),
-      iconSize: iconSize,
-      // Active favourites use the theme's error role; the inactive heart is a
-      // muted assist control, matching the playlist button.
-      color: isFavourite ? scheme.error : scheme.onSurfaceVariant,
-      style: IconButton.styleFrom(
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      padding: EdgeInsets.zero,
-      constraints: BoxConstraints.tightFor(width: size, height: size),
     );
   }
 }

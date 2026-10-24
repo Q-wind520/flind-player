@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -17,7 +18,7 @@ class LibraryViewMenuButton extends ConsumerStatefulWidget {
   const LibraryViewMenuButton({
     super.key,
     required this.scope,
-    this.icon = Icons.grid_view_rounded,
+    this.icon = AppIcons.gridView,
   });
 
   final LibraryViewScope scope;
@@ -43,7 +44,7 @@ class _LibraryViewMenuButtonState extends ConsumerState<LibraryViewMenuButton> {
       menuChildren: <Widget>[
         for (final view in widget.scope.allowedViews)
           MenuItemButton(
-            leadingIcon: view == current ? const Icon(Icons.check) : null,
+            leadingIcon: view == current ? const Icon(AppIcons.check) : null,
             onPressed: () {
               _controller.close();
               ref

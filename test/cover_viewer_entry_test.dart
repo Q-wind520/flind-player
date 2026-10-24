@@ -22,6 +22,7 @@ import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 class _FakeFavoritesRepository implements FavoritesRepository {
   @override
@@ -60,6 +61,7 @@ Widget _app(PlaybackState state) => ProviderScope(
 );
 
 void main() {
+  setUpAll(disableTestMotion);
   testWidgets('long-pressing the cover opens the viewer', (tester) async {
     final state = PlaybackState(
       isPlaying: true,

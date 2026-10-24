@@ -17,6 +17,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -197,7 +199,7 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
         Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
               child: Container(
                 width: 56,
                 height: 56,
@@ -208,15 +210,15 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
                         url: _coverUrl,
                         size: 56,
                         errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.music_note),
+                            const Icon(AppIcons.musicNote),
                       )
-                    : const Icon(Icons.music_note),
+                    : const Icon(AppIcons.musicNote),
               ),
             ),
             const SizedBox(width: 12),
             TextButton.icon(
               onPressed: _pickCover,
-              icon: const Icon(Icons.image_outlined),
+              icon: const Icon(AppIcons.image),
               label: Text(l10n.chooseCover),
             ),
             if (hasCover)
@@ -226,7 +228,7 @@ class _PlaylistEditorDialogState extends ConsumerState<PlaylistEditorDialog> {
                   _coverUrl = null;
                   _clearCover = true;
                 }),
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(AppIcons.delete),
                 label: Text(l10n.removeCover),
               ),
           ],

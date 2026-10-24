@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/shared/cover_hero.dart';
 
 void main() {
@@ -52,6 +53,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.music_note), findsOneWidget);
+    expect(find.byIcon(AppIcons.musicNote), findsOneWidget);
   });
 }

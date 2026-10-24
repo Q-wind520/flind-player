@@ -16,6 +16,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -29,6 +32,7 @@ import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/cover_image.dart';
+import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 
 /// Detail view of one playlist: header (cover, name, description, count,
@@ -46,68 +50,108 @@ class PlaylistDetailScreen extends ConsumerWidget {
     final coverAsync = ref.watch(playlistCoverProvider(playlistId));
 
     final playlist = _findPlaylist(playlistsAsync.value, playlistId);
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     if (playlist == null) {
       return Scaffold(
         backgroundColor: AppSurface.colorOf(context),
-        appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: Column(
+                children: [
+                  _PlaylistTopBar(compact: compact, actions: const []),
+                  const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
 
     final canManage = playlist.kind != PlaylistKind.favorites;
+    final horizontal = compact ? 16.0 : 28.0;
 
     return Scaffold(
       backgroundColor: AppSurface.colorOf(context),
-      appBar: AppBar(
-        title: Text(
-          playlist.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          if (canManage) ...[
-            IconButton(
-              tooltip: l10n.editPlaylist,
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _edit(context, ref, playlist),
+      body: SafeArea(
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: Column(
+              children: [
+                // The back button and playlist actions live inside the content
+                // column so they line up with the header on wide windows
+                // instead of hugging the window edge under a bare AppBar.
+                _PlaylistTopBar(
+                  compact: compact,
+                  actions: [
+                    if (canManage) ...[
+                      IconButton(
+                        tooltip: l10n.editPlaylist,
+                        icon: const Icon(AppIcons.editOutlined),
+                        onPressed: () => _edit(context, ref, playlist),
+                      ),
+                      IconButton(
+                        tooltip: l10n.deletePlaylistTitle,
+                        icon: const Icon(AppIcons.delete),
+                        onPressed: () => _confirmDelete(context, ref, playlist),
+                      ),
+                    ],
+                    const LibraryViewMenuButton(
+                      scope: LibraryViewScope.playlistDetail,
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: tracksAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, stackTrace) => Center(
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(playlistTracksProvider(playlistId)),
+                        icon: const Icon(AppIcons.refresh),
+                        label: Text(l10n.retry),
+                      ),
+                    ),
+                    data: (tracks) => Column(
+                      children: [
+                        _PlaylistHeader(
+                          playlist: playlist,
+                          cover: coverAsync.value,
+                          count: tracks.length,
+                          compact: compact,
+                          onEditCover: canManage
+                              ? () => _edit(context, ref, playlist)
+                              : null,
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: horizontal),
+                          child: Divider(
+                            height: 1,
+                            color: Theme.of(context).colorScheme.outlineVariant
+                                .withValues(alpha: 0.55),
+                          ),
+                        ),
+                        Expanded(
+                          child: tracks.isEmpty
+                              ? const _EmptyPlaylist()
+                              : _memberList(ref, tracks),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              tooltip: l10n.deletePlaylistTitle,
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _confirmDelete(context, ref, playlist),
-            ),
-          ],
-          const LibraryViewMenuButton(
-            scope: LibraryViewScope.playlistDetail,
           ),
-        ],
-      ),
-      body: tracksAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(
-          child: TextButton.icon(
-            onPressed: () => ref.invalidate(playlistTracksProvider(playlistId)),
-            icon: const Icon(Icons.refresh),
-            label: Text(l10n.retry),
-          ),
-        ),
-        data: (tracks) => Column(
-          children: [
-            _PlaylistHeader(
-              playlist: playlist,
-              cover: coverAsync.value,
-              count: tracks.length,
-              onEditCover: canManage
-                  ? () => _edit(context, ref, playlist)
-                  : null,
-            ),
-            Expanded(
-              child: tracks.isEmpty
-                  ? const _EmptyPlaylist()
-                  : _memberList(ref, tracks),
-            ),
-          ],
         ),
       ),
     );
@@ -180,8 +224,9 @@ class PlaylistDetailScreen extends ConsumerWidget {
 
   Widget _memberList(WidgetRef ref, List<Track> tracks) {
     final view =
-        (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults)
-            .viewOf(LibraryViewScope.playlistDetail);
+        (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults).viewOf(
+          LibraryViewScope.playlistDetail,
+        );
     return TrackView(
       tracks: tracks,
       view: view,
@@ -194,54 +239,122 @@ class PlaylistDetailScreen extends ConsumerWidget {
   }
 }
 
+/// The route chrome above the playlist header: back on the left, playlist
+/// actions on the right, both aligned with the same content width.
+class _PlaylistTopBar extends StatelessWidget {
+  const _PlaylistTopBar({required this.compact, required this.actions});
+
+  final bool compact;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final horizontal = compact ? 8.0 : 20.0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontal, AppSpacing.xs, horizontal, 0),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            icon: const Icon(AppIcons.arrowBack),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          const Spacer(),
+          for (final action in actions) action,
+        ],
+      ),
+    );
+  }
+}
+
 /// The playlist header: tappable cover, name, description and member count.
 class _PlaylistHeader extends StatelessWidget {
   const _PlaylistHeader({
     required this.playlist,
     required this.cover,
     required this.count,
+    required this.compact,
     required this.onEditCover,
   });
 
   final Playlist playlist;
   final PlaylistCover? cover;
   final int count;
+  final bool compact;
   final VoidCallback? onEditCover;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
     final path = cover?.coverPath;
     final url = cover?.coverUrl;
     final hasCover =
         (path != null && path.isNotEmpty) || (url != null && url.isNotEmpty);
+    final coverSize = compact ? 104.0 : 128.0;
+    final horizontal = compact ? 16.0 : 28.0;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: EdgeInsets.fromLTRB(
+        horizontal,
+        AppSpacing.md,
+        horizontal,
+        AppSpacing.lg,
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
             onTap: onEditCover,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 96,
-                height: 96,
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: hasCover
-                    ? CoverImage(
-                        path: path,
-                        url: url,
-                        size: 96,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.queue_music, size: 40),
-                      )
-                    : const Icon(Icons.queue_music, size: 40),
-              ),
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: Container(
+                    width: coverSize,
+                    height: coverSize,
+                    color: scheme.surfaceContainerHighest,
+                    child: hasCover
+                        ? CoverImage(
+                            path: path,
+                            url: url,
+                            size: coverSize,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              AppIcons.queueMusic,
+                              size: coverSize * 0.35,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          )
+                        : Icon(
+                            AppIcons.queueMusic,
+                            size: coverSize * 0.35,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                  ),
+                ),
+                if (onEditCover != null)
+                  Positioned(
+                    right: AppSpacing.sm,
+                    bottom: AppSpacing.sm,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: scheme.surface.withValues(alpha: 0.86),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        AppIcons.edit,
+                        size: 14,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,27 +363,25 @@ class _PlaylistHeader extends StatelessWidget {
                   playlist.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: theme.textTheme.headlineSmall,
                 ),
                 if (playlist.description != null &&
                     playlist.description!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     playlist.description!,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ],
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
                   l10n.playlistTrackCount(count),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -288,32 +399,11 @@ class _EmptyPlaylist extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.queue_music,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(l10n.emptyPlaylist, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              l10n.emptyPlaylistHint,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return EmptyState(
+      icon: AppIcons.queueMusic,
+      title: l10n.emptyPlaylist,
+      message: l10n.emptyPlaylistHint,
     );
   }
 }

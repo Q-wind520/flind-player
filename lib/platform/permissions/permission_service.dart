@@ -121,8 +121,9 @@ class PermissionCoordinator {
   bool _audioLibraryGranted = false;
   bool _notificationsRequested = false;
 
-  /// Asks for the audio-library permission the first time the user scans or
-  /// imports local files. Once granted it is never requested again.
+  /// Asks for the audio-library permission at launch, and again if the user
+  /// later scans or imports local files. Once granted it is never requested
+  /// again.
   Future<PermissionResult> ensureAudioLibrary() async {
     if (_audioLibraryGranted) return PermissionResult.granted;
     final result = await _request(AppPermission.audioLibrary);

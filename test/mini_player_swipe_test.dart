@@ -22,6 +22,7 @@ import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/fake_playback_controller.dart';
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 Track _track(int i) => Track(
   source: 'local',
@@ -80,6 +81,7 @@ Widget _app(
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   testWidgets('left-swipe past the threshold skips to the next track', (
     tester,
   ) async {

@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
@@ -41,6 +42,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/player/desktop_player_bar.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
@@ -49,6 +51,7 @@ import 'package:flind_player/shared/glass_surface.dart';
 import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 /// [AudioCacheStore] stand-in that never touches a database or filesystem.
 class _FakeCacheStore implements AudioCacheStore {
@@ -294,14 +297,15 @@ class _FakeLibrarySyncService implements LibrarySyncService {
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   testWidgets('renders three destinations with correct labels', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    // Labels match the screen each destination shows: search / library / settings.
-    // The search screen no longer has an AppBar, and the bottom bar only shows
-    // the selected destination's label, so 搜索 appears exactly once.
-    expect(find.text('搜索'), findsOneWidget);
+    // The search page now carries a large page title as well as the navigation
+    // label, so 搜索 appears twice; the other destinations only have their nav
+    // labels (their pages are offstage).
+    expect(find.text('搜索'), findsNWidgets(2));
     // Unselected labels stay mounted (faded) for the transition, so the finder
     // still sees them even though they are not visible.
     expect(find.text('曲库'), findsOneWidget); // nav label, faded (unselected)
@@ -311,8 +315,8 @@ void main() {
     expect(find.text('首页'), findsNothing);
     expect(find.text('账户'), findsNothing);
     expect(find.text('正在播放'), findsNothing);
-    expect(find.byIcon(Icons.home_outlined), findsNothing);
-    expect(find.byIcon(Icons.account_circle_outlined), findsNothing);
+    expect(find.byIcon(AppIcons.home), findsNothing);
+    expect(find.byIcon(AppIcons.accountCircle), findsNothing);
   });
 
   testWidgets('bottom NavigationBar shows only the selected label', (
@@ -334,9 +338,7 @@ void main() {
     );
   });
 
-  testWidgets('wide layout NavigationRail shows only the selected label', (
-    tester,
-  ) async {
+  testWidgets('wide layout uses the narrow navigation rail', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -344,8 +346,23 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
-    expect(rail.labelType, NavigationRailLabelType.selected);
+    expect(find.byKey(const Key('app_narrow_rail')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('rail_destination_0')),
+      findsOneWidget,
+    );
+    final selectedBackground = tester.widget<AnimatedContainer>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey<String>('rail_destination_0')),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    final decoration = selectedBackground.decoration! as BoxDecoration;
+    expect(decoration.shape, BoxShape.circle);
+    expect(decoration.color, isNot(Colors.transparent));
+    expect(find.byType(NavigationBar), findsNothing);
   });
 
   testWidgets('tapping 曲库 shows the library screen', (tester) async {
@@ -356,7 +373,7 @@ void main() {
     expect(find.text('搜索在线音乐'), findsOneWidget);
 
     // The unselected label is hidden, so tap the destination's icon instead.
-    await tester.tap(find.byIcon(Icons.library_music_outlined));
+    await tester.tap(find.byIcon(AppIcons.libraryMusicOutlined));
     await tester.pumpAndSettle();
 
     // LibraryScreen shows the empty library message.
@@ -368,7 +385,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The unselected label is hidden, so tap the destination's icon instead.
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.tap(find.byIcon(AppIcons.settingsOutlined));
     await tester.pumpAndSettle();
 
     // SettingsScreen shows the cache settings.
@@ -381,7 +398,7 @@ void main() {
 
     // Verify no NavigationDestination with 正在播放 label exists.
     expect(find.text('正在播放'), findsNothing);
-    expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+    expect(find.byIcon(AppIcons.playCircle), findsNothing);
   });
 
   testWidgets('portrait desktop (700×1000) uses mobile shell', (tester) async {
@@ -393,9 +410,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // A portrait-taller-than-wide desktop window must use the mobile
-    // layout: bottom NavigationBar present, NavigationRail absent.
+    // layout: bottom NavigationBar present, narrow rail absent.
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.byType(NavigationRail), findsNothing);
+    expect(find.byKey(const Key('app_narrow_rail')), findsNothing);
   });
 
   testWidgets('landscape desktop (1200×800) uses expanded shell', (
@@ -408,16 +425,18 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    // A wide landscape window must use the expanded layout with
-    // NavigationRail and no bottom NavigationBar.
-    expect(find.byType(NavigationRail), findsOneWidget);
+    // A wide landscape window must use the expanded layout with the narrow
+    // rail and no bottom NavigationBar.
+    expect(find.byKey(const Key('app_narrow_rail')), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
   });
 
   // The mini bar opens the same full-screen player regardless of window
   // width: no bottom sheet on compact, no docked panel on expanded.
   group('the glass chrome overlays the content', () {
-    testWidgets('compact: extendBody and a glass bottom chrome', (tester) async {
+    testWidgets('compact: extendBody and a glass bottom chrome', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -450,9 +469,8 @@ void main() {
             )
             .first,
       );
-      final scheme = Theme.of(
-        tester.element(find.byType(HomeShell)),
-      ).colorScheme;
+      final scheme = Theme.of(tester.element(find.byType(HomeShell)))
+          .colorScheme;
       expect(navGlass.tint, AppGlass.navBarTintOn(scheme));
       expect(
         find.ancestor(
@@ -468,7 +486,7 @@ void main() {
       expect(content.bottom, greaterThanOrEqualTo(bar.bottom - 0.5));
     });
 
-    testWidgets('wide: the mini bar overlays the content and reserves height', (
+    testWidgets('wide: the desktop player bar sits below the content', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(1200, 800);
@@ -478,24 +496,23 @@ void main() {
       await tester.pumpWidget(_app(playback: _playingState()));
       await tester.pumpAndSettle();
 
+      expect(find.byType(DesktopPlayerBar), findsOneWidget);
+      // The bar itself opens the player; a second expand affordance would
+      // duplicate that action. The right cluster offers favourite + queue.
+      expect(find.byIcon(AppIcons.openInFull), findsNothing);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsOneWidget);
+      expect(find.byIcon(AppIcons.queueMusic), findsOneWidget);
       final content = tester.getRect(find.byType(IndexedStack));
       final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
-      expect(bar.overlaps(content), isTrue);
-      expect(
-        find.ancestor(
-          of: find.byKey(MiniPlayerBar.barKey),
-          matching: find.byType(GlassSurface),
-        ),
-        findsOneWidget,
-      );
-      // The content reserves the bar's height, so its last row stays reachable.
-      final inset = MediaQuery.of(
-        tester.element(find.byType(IndexedStack)),
-      ).padding.bottom;
-      expect(inset, greaterThan(0));
+      expect(bar.top, greaterThanOrEqualTo(content.bottom - 0.5));
+      // The bar is part of the layout, not an overlay, so no inset is needed.
+      final inset = MediaQuery.of(tester.element(find.byType(IndexedStack)))
+          .padding
+          .bottom;
+      expect(inset, 0);
     });
 
-    testWidgets('wide: idle reserves no space for the mini bar', (tester) async {
+    testWidgets('wide: idle hides the desktop player bar', (tester) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -504,32 +521,31 @@ void main() {
       await tester.pumpWidget(_app());
       await tester.pumpAndSettle();
 
-      final inset = MediaQuery.of(
-        tester.element(find.byType(IndexedStack)),
-      ).padding.bottom;
+      expect(find.byKey(MiniPlayerBar.barKey), findsNothing);
+      final inset = MediaQuery.of(tester.element(find.byType(IndexedStack)))
+          .padding
+          .bottom;
       expect(inset, 0);
     });
 
-    testWidgets('wide: reserves the inset after resizing while playing', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(400, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+    testWidgets(
+      'wide: keeps the bar below content after resizing while playing',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(_app(playback: _playingState()));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(_app(playback: _playingState()));
+        await tester.pumpAndSettle();
 
-      // Switch to the wide layout while a track is already playing, so the
-      // mini bar is full size on its very first layout there.
-      tester.view.physicalSize = const Size(1200, 800);
-      await tester.pumpAndSettle();
+        tester.view.physicalSize = const Size(1200, 800);
+        await tester.pumpAndSettle();
 
-      final inset = MediaQuery.of(
-        tester.element(find.byType(IndexedStack)),
-      ).padding.bottom;
-      expect(inset, greaterThan(0));
-    });
+        final content = tester.getRect(find.byType(IndexedStack));
+        final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
+        expect(bar.top, greaterThanOrEqualTo(content.bottom - 0.5));
+      },
+    );
   });
 
   group('mini player opens the full-screen player', () {
@@ -551,7 +567,7 @@ void main() {
         expect(find.byType(PlayerScreen), findsOneWidget);
 
         // The collapse affordance returns to the shell.
-        await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+        await tester.tap(find.byIcon(AppIcons.keyboardArrowDown));
         await tester.pumpAndSettle();
         expect(find.byType(PlayerScreen), findsNothing);
       });

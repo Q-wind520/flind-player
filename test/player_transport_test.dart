@@ -19,6 +19,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
@@ -32,6 +33,7 @@ import 'package:flind_player/features/player/mini_settings.dart';
 import 'package:flind_player/features/player/player_screen.dart';
 
 import 'support/l10n.dart';
+import 'support/motion.dart';
 
 /// A fake [PlaybackController] that records mode changes and emits the
 /// resulting [PlaybackState], driving the transport row through a full cycle.
@@ -170,6 +172,7 @@ Widget _app(_FakePlaybackController controller) {
 }
 
 void main() {
+  setUpAll(disableTestMotion);
   group('Player transport controls', () {
     testWidgets('mode button cycles 顺序 → 列表循环 → 单曲循环 → 随机 → 顺序', (
       tester,
@@ -189,43 +192,43 @@ void main() {
         matching: find.byIcon(icon),
       );
 
-      expect(modeButton(Icons.playlist_play), findsOneWidget);
+      expect(modeButton(AppIcons.playlistPlay), findsOneWidget);
 
       // 顺序播放 → 列表循环.
-      await tester.tap(modeButton(Icons.playlist_play));
+      await tester.tap(modeButton(AppIcons.playlistPlay));
       await tester.pumpAndSettle();
       expect(controller.calls, [
         ('shuffle', false),
         ('repeat', RepeatMode.all),
       ]);
-      expect(modeButton(Icons.repeat), findsOneWidget);
+      expect(modeButton(AppIcons.repeat), findsOneWidget);
 
       // 列表循环 → 单曲循环.
-      await tester.tap(modeButton(Icons.repeat));
+      await tester.tap(modeButton(AppIcons.repeat));
       await tester.pumpAndSettle();
       expect(controller.calls.sublist(2), [
         ('shuffle', false),
         ('repeat', RepeatMode.one),
       ]);
-      expect(modeButton(Icons.repeat_one), findsOneWidget);
+      expect(modeButton(AppIcons.repeatOne), findsOneWidget);
 
       // 单曲循环 → 随机播放 (shuffle is applied before the repeat mode).
-      await tester.tap(modeButton(Icons.repeat_one));
+      await tester.tap(modeButton(AppIcons.repeatOne));
       await tester.pumpAndSettle();
       expect(controller.calls.sublist(4), [
         ('shuffle', true),
         ('repeat', RepeatMode.off),
       ]);
-      expect(modeButton(Icons.shuffle), findsOneWidget);
+      expect(modeButton(AppIcons.shuffle), findsOneWidget);
 
       // 随机播放 → 顺序播放.
-      await tester.tap(modeButton(Icons.shuffle));
+      await tester.tap(modeButton(AppIcons.shuffle));
       await tester.pumpAndSettle();
       expect(controller.calls.sublist(6), [
         ('shuffle', false),
         ('repeat', RepeatMode.off),
       ]);
-      expect(modeButton(Icons.playlist_play), findsOneWidget);
+      expect(modeButton(AppIcons.playlistPlay), findsOneWidget);
       expect(controller.calls, hasLength(8));
     });
 
@@ -241,12 +244,12 @@ void main() {
       await tester.pumpAndSettle();
 
       final favourite = tester
-          .getTopLeft(find.byIcon(Icons.favorite_border))
+          .getTopLeft(find.byIcon(AppIcons.favoriteBorder))
           .dx;
-      final previous = tester.getTopLeft(find.byIcon(Icons.skip_previous)).dx;
-      final playPause = tester.getTopLeft(find.byIcon(Icons.play_arrow)).dx;
-      final next = tester.getTopLeft(find.byIcon(Icons.skip_next)).dx;
-      final playlist = tester.getTopLeft(find.byIcon(Icons.queue_music)).dx;
+      final previous = tester.getTopLeft(find.byIcon(AppIcons.skipPrevious)).dx;
+      final playPause = tester.getTopLeft(find.byIcon(AppIcons.playArrow)).dx;
+      final next = tester.getTopLeft(find.byIcon(AppIcons.skipNext)).dx;
+      final playlist = tester.getTopLeft(find.byIcon(AppIcons.queueMusic)).dx;
 
       expect(favourite, lessThan(previous));
       expect(previous, lessThan(playPause));
@@ -265,13 +268,13 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.skip_previous), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next), findsOneWidget);
-      expect(find.byIcon(Icons.queue_music), findsOneWidget);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsOneWidget);
+      expect(find.byIcon(AppIcons.skipPrevious), findsOneWidget);
+      expect(find.byIcon(AppIcons.playArrow), findsOneWidget);
+      expect(find.byIcon(AppIcons.skipNext), findsOneWidget);
+      expect(find.byIcon(AppIcons.queueMusic), findsOneWidget);
       // The mode cycler still fits, now in MiniSettings.
-      expect(find.byIcon(Icons.playlist_play), findsOneWidget);
+      expect(find.byIcon(AppIcons.playlistPlay), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -297,11 +300,11 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      final play = buttonSize(tester, Icons.play_arrow);
-      final previous = buttonSize(tester, Icons.skip_previous);
-      final next = buttonSize(tester, Icons.skip_next);
-      final favourite = buttonSize(tester, Icons.favorite_border);
-      final playlist = buttonSize(tester, Icons.queue_music);
+      final play = buttonSize(tester, AppIcons.playArrow);
+      final previous = buttonSize(tester, AppIcons.skipPrevious);
+      final next = buttonSize(tester, AppIcons.skipNext);
+      final favourite = buttonSize(tester, AppIcons.favoriteBorder);
+      final playlist = buttonSize(tester, AppIcons.queueMusic);
 
       expect(play, 64);
       expect(previous, 52);
@@ -325,11 +328,11 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.skip_previous), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next), findsOneWidget);
-      expect(find.byIcon(Icons.queue_music), findsOneWidget);
+      expect(find.byIcon(AppIcons.favoriteBorder), findsOneWidget);
+      expect(find.byIcon(AppIcons.skipPrevious), findsOneWidget);
+      expect(find.byIcon(AppIcons.playArrow), findsOneWidget);
+      expect(find.byIcon(AppIcons.skipNext), findsOneWidget);
+      expect(find.byIcon(AppIcons.queueMusic), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -342,14 +345,14 @@ void main() {
       await tester.pumpWidget(_app(controller));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(find.byIcon(AppIcons.playArrow), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('cover art grows with the window', (tester) async {
       double coverSize() {
         final container = find.ancestor(
-          of: find.byIcon(Icons.music_note),
+          of: find.byIcon(AppIcons.musicNote),
           matching: find.byType(Container),
         );
         return tester.getSize(container).width;
@@ -371,7 +374,7 @@ void main() {
       final coverArea = tester.getSize(
         find
             .ancestor(
-              of: find.byIcon(Icons.music_note),
+              of: find.byIcon(AppIcons.musicNote),
               matching: find.byType(LayoutBuilder),
             )
             .first,

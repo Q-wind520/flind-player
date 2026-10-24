@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
@@ -98,7 +99,7 @@ class CacheActionButton extends ConsumerWidget {
 
     if (entry == null) {
       return _iconButton(
-        icon: Icons.download_outlined,
+        icon: AppIcons.download,
         onPressed: () =>
             ref.read(downloadManagerProvider).cacheTrack(track, pinned: true),
       );
@@ -106,13 +107,13 @@ class CacheActionButton extends ConsumerWidget {
 
     if (entry.pinned) {
       return _iconButton(
-        icon: Icons.download_done,
+        icon: AppIcons.downloadDone,
         onPressed: () => _confirmRemove(context, ref, entry),
       );
     }
 
     return _iconButton(
-      icon: Icons.offline_pin_outlined,
+      icon: AppIcons.offlinePin,
       onPressed: () {
         // Already downloaded, so only the pin flag is missing. `cacheTrack`
         // skips the network download for an indexed file. Note: the current

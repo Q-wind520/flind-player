@@ -16,6 +16,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
@@ -62,8 +64,13 @@ class _PlaylistPickerSheetState extends ConsumerState<PlaylistPickerSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(l10n.selectPlaylist, style: theme.textTheme.titleMedium),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.md,
+            ),
+            child: Text(l10n.selectPlaylist, style: theme.textTheme.titleLarge),
           ),
           Flexible(
             child: ListView(
@@ -76,7 +83,7 @@ class _PlaylistPickerSheetState extends ConsumerState<PlaylistPickerSheet> {
                     onTap: () => _addTo(playlist),
                   ),
                 ListTile(
-                  leading: const Icon(Icons.add),
+                  leading: const Icon(AppIcons.add),
                   title: Text(l10n.newPlaylist),
                   onTap: _createAndAdd,
                 ),
@@ -90,8 +97,8 @@ class _PlaylistPickerSheetState extends ConsumerState<PlaylistPickerSheet> {
 
   String _displayName(AppLocalizations l10n, Playlist playlist) =>
       playlist.kind == PlaylistKind.favorites
-          ? l10n.tabFavorites
-          : playlist.name;
+      ? l10n.tabFavorites
+      : playlist.name;
 
   Future<void> _addTo(Playlist playlist) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -175,7 +182,7 @@ class _PlaylistPickerRowState extends ConsumerState<_PlaylistPickerRow> {
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: contains ? Text(l10n.playlistAlreadyContains) : null,
-          trailing: contains ? Icon(Icons.check, color: scheme.primary) : null,
+          trailing: contains ? Icon(AppIcons.check, color: scheme.primary) : null,
           enabled: !contains,
           onTap: contains ? null : widget.onTap,
         );
@@ -200,7 +207,7 @@ class _PickerCover extends StatelessWidget {
         (path != null && path.isNotEmpty) || (url != null && url.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.16),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         width: size,
         height: size,
@@ -220,7 +227,7 @@ class _PickerCover extends StatelessWidget {
 
   Widget _placeholder(ColorScheme scheme) => Center(
     child: Icon(
-      Icons.queue_music,
+      AppIcons.queueMusic,
       size: size * 0.5,
       color: scheme.onSurfaceVariant,
     ),

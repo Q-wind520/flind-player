@@ -34,10 +34,13 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
+        // Uses the version code from pubspec.yaml. Flutter would normally add
+        // 1000 * ABI_VERSION to split APKs (see
+        // https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions),
+        // but android/gradle.properties sets force-version-code-ignoring-abi=true
+        // so every APK keeps this exact value. That keeps a debug `flutter run`
+        // build (versionCode 15) installable over a released split APK instead of
+        // failing as a downgrade. Remove that flag to restore per-ABI version codes.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

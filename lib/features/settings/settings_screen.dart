@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme_color.dart';
 import 'package:flind_player/app/theme_mode.dart';
@@ -43,6 +44,7 @@ import 'package:flind_player/features/settings/theme_color_picker.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
+import 'package:flind_player/shared/app_page_header.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -64,43 +66,49 @@ class SettingsScreen extends ConsumerWidget {
       // renders underneath the system status bar.
       body: SafeArea(
         bottom: false,
-        // The settings page is a short, fixed list with no virtualization
-        // benefit; building every section eagerly keeps the whole page
-        // reachable regardless of the viewport size.
-        child: SingleChildScrollView(
-          // The shell extends this screen behind the bottom chrome, so the
-          // scroll content must also reserve the chrome's bottom inset.
-          padding: EdgeInsets.fromLTRB(
-            0,
-            8,
-            0,
-            8 + MediaQuery.paddingOf(context).bottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SectionHeader(l10n.general),
-              const _GeneralSection(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            // The settings page is a short, fixed list with no virtualization
+            // benefit; building every section eagerly keeps the whole page
+            // reachable regardless of the viewport size.
+            child: SingleChildScrollView(
+              // The shell extends this screen behind the bottom chrome, so the
+              // scroll content must also reserve the chrome's bottom inset.
+              padding: EdgeInsets.fromLTRB(
+                0,
+                0,
+                0,
+                8 + MediaQuery.paddingOf(context).bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppPageHeader(title: l10n.navSettings),
+                  SectionHeader(l10n.general),
+                  const _GeneralSection(),
 
-              // ── 播放 ──
-              SectionHeader(l10n.sectionPlayback),
-              const _PlaybackSection(),
+                  // ── 播放 ──
+                  SectionHeader(l10n.sectionPlayback),
+                  const _PlaybackSection(),
 
-              // ── 离线缓存 ──
-              SectionHeader(l10n.offlineCache),
-              const _OfflineCacheSection(),
+                  // ── 离线缓存 ──
+                  SectionHeader(l10n.offlineCache),
+                  const _OfflineCacheSection(),
 
-              // ── 曲库 ──
-              SectionHeader(l10n.sectionLibrary),
-              if (supportsLocalLibrary)
-                const _LibrarySection()
-              else
-                const _UnsupportedLibraryNotice(),
+                  // ── 曲库 ──
+                  SectionHeader(l10n.sectionLibrary),
+                  if (supportsLocalLibrary)
+                    const _LibrarySection()
+                  else
+                    const _UnsupportedLibraryNotice(),
 
-              // ── 关于 ──
-              SectionHeader(l10n.about),
-              const _AboutSection(),
-            ],
+                  // ── 关于 ──
+                  SectionHeader(l10n.about),
+                  const _AboutSection(),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -129,21 +137,24 @@ class _GeneralSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListTile(
-          leading: const Icon(Icons.language_outlined),
+          leading: const Icon(AppIcons.language),
           title: Text(l10n.language),
           subtitle: Text(_languageLabel(l10n, language)),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () => _pickLanguage(context, ref, language),
         ),
         ListTile(
-          leading: const Icon(Icons.brightness_6_outlined),
+          leading: const Icon(AppIcons.brightness6),
           title: Text(l10n.themeMode),
           subtitle: Text(_themeModeLabel(l10n, themeMode)),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () => _pickThemeMode(context, ref, themeMode),
         ),
         ListTile(
           leading: _ThemeColorSwatch(color: themeColor.toColor()),
           title: Text(l10n.themeColor),
           subtitle: Text(themeColor.toHex()),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () => _pickThemeColor(context, ref, themeColor),
         ),
       ],
@@ -182,8 +193,8 @@ class _GeneralSection extends ConsumerWidget {
                 children: [
                   Icon(
                     language == current
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                        ? AppIcons.radioButtonChecked
+                        : AppIcons.radioButtonUnchecked,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -216,8 +227,8 @@ class _GeneralSection extends ConsumerWidget {
                 children: [
                   Icon(
                     mode == current
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                        ? AppIcons.radioButtonChecked
+                        : AppIcons.radioButtonUnchecked,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -280,7 +291,7 @@ class _PlaybackSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListTile(
-          leading: const Icon(Icons.folder_outlined),
+          leading: const Icon(AppIcons.folder),
           title: Text(l10n.cacheLocation),
           subtitle: FutureBuilder<String>(
             future: ref.read(audioCacheStoreProvider).cacheDirectoryPath(),
@@ -290,10 +301,11 @@ class _PlaybackSection extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () => _showCacheLocationDialog(context, ref),
         ),
         ListTile(
-          leading: const Icon(Icons.sd_storage_outlined),
+          leading: const Icon(AppIcons.sdStorage),
           title: Text(l10n.cacheLimit),
           subtitle: Text(
             l10n.cacheUsage(
@@ -301,6 +313,7 @@ class _PlaybackSection extends ConsumerWidget {
               formatMegabytes(settings.limitBytes),
             ),
           ),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () => _showCustomLimitDialog(context, ref, settings),
         ),
       ],
@@ -417,15 +430,15 @@ class _OfflineCacheSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListTile(
-          leading: const Icon(Icons.download_done_outlined),
-          title: Text(l10n.offlineCache),
+          leading: const Icon(AppIcons.downloadDoneOutlined),
+          title: Text(l10n.downloads),
           subtitle: Text(
             '${l10n.offlineCacheCount(entries.length)} · ${l10n.offlineCacheUsage(formatMegabytes(usage))}',
           ),
           trailing: entries.isEmpty
               ? null
               : IconButton(
-                  icon: const Icon(Icons.delete_sweep_outlined),
+                  icon: const Icon(AppIcons.deleteSweep),
                   tooltip: l10n.clearOfflineCache,
                   onPressed: () => _confirmClearOffline(context, ref),
                 ),
@@ -445,7 +458,7 @@ class _OfflineCacheSection extends ConsumerWidget {
               title: Text(labelFor(entry)),
               subtitle: Text(formatMegabytes(entry.bytes)),
               trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(AppIcons.delete),
                 onPressed: () => _confirmRemoveDownload(
                   context,
                   ref,
@@ -561,14 +574,14 @@ class _CacheLocationDialog extends ConsumerWidget {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(l10n.pathCopied)));
           },
-          icon: const Icon(Icons.copy_outlined),
+          icon: const Icon(AppIcons.copy),
           label: Text(l10n.copy),
         ),
         TextButton.icon(
           onPressed: () async {
             await _confirmClear(context, ref);
           },
-          icon: const Icon(Icons.delete_outline),
+          icon: const Icon(AppIcons.delete),
           label: Text(l10n.clearCache),
           style: TextButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.error,
@@ -757,7 +770,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
       children: [
         // ── Statistics ──
         ListTile(
-          leading: const Icon(Icons.analytics_outlined),
+          leading: const Icon(AppIcons.analytics),
           title: Text(l10n.libraryStats),
           subtitle: Text(_trackCountLabel(trackCount, cacheCount)),
         ),
@@ -770,10 +783,10 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (e, _) => ListTile(
-            leading: const Icon(Icons.error_outline),
+            leading: const Icon(AppIcons.error),
             title: Text(l10n.loadFailedWith(describeError(l10n, e))),
             trailing: IconButton(
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(AppIcons.refresh),
               onPressed: () => ref.invalidate(scanRootsProvider),
             ),
           ),
@@ -801,7 +814,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
+                      icon: const Icon(AppIcons.delete),
                       onPressed: () => _confirmRemoveRoot(context, ref, root),
                     ),
                   ),
@@ -812,7 +825,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
 
         // ── Add folder ──
         ListTile(
-          leading: const Icon(Icons.create_new_folder_outlined),
+          leading: const Icon(AppIcons.createNewFolder),
           title: Text(l10n.addFolder),
           onTap: isSyncing ? null : () => _addFolder(ref),
         ),
@@ -821,7 +834,7 @@ class _LibrarySectionState extends ConsumerState<_LibrarySection> {
         ListTile(
           key: const Key('rescan'),
           leading: Icon(
-            Icons.refresh,
+            AppIcons.refresh,
             color: isSyncing
                 ? Theme.of(context).colorScheme.onSurfaceVariant
                 : null,
@@ -949,7 +962,7 @@ class _ScanRootHeader extends StatelessWidget {
     return SectionHeader(
       l10n.scanRoots,
       trailing: IconButton(
-        icon: const Icon(Icons.create_new_folder_outlined),
+        icon: const Icon(AppIcons.createNewFolder),
         onPressed: isSyncing ? null : onAdd,
       ),
     );
@@ -976,28 +989,29 @@ class _AboutSection extends ConsumerWidget {
       children: [
         infoAsync.when(
           loading: () => ListTile(
-            leading: const Icon(Icons.info_outline),
+            leading: const Icon(AppIcons.info),
             title: Text(l10n.loading),
           ),
           error: (_, _) => ListTile(
-            leading: const Icon(Icons.info_outline),
+            leading: const Icon(AppIcons.info),
             title: Text(l10n.appName),
           ),
           data: (info) => ListTile(
-            leading: const Icon(Icons.info_outline),
+            leading: const Icon(AppIcons.info),
             title: Text(l10n.appName),
             subtitle: Text('v${info.version} (${info.buildNumber})'),
           ),
         ),
         ListTile(
-          leading: const Icon(Icons.description_outlined),
+          leading: const Icon(AppIcons.description),
           title: Text(l10n.openSourceLicenses),
           subtitle: const Text('GNU General Public License v3.0'),
+          trailing: const Icon(AppIcons.chevronRight),
           onTap: () =>
               showLicensePage(context: context, applicationName: l10n.appName),
         ),
         ListTile(
-          leading: const Icon(Icons.code_outlined),
+          leading: const Icon(AppIcons.code),
           title: Text(l10n.projectHomepage),
           subtitle: Text(
             _projectUrl,

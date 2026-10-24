@@ -31,7 +31,7 @@ void main() {
       expect(shape, isA<RoundedRectangleBorder>());
       expect(
         (shape as RoundedRectangleBorder).borderRadius,
-        BorderRadius.circular(12),
+        BorderRadius.circular(AppRadius.md),
       );
     }
   });
@@ -109,7 +109,7 @@ void main() {
       expect(shape, isA<RoundedRectangleBorder>());
       expect(
         (shape! as RoundedRectangleBorder).borderRadius,
-        BorderRadius.circular(AppRadius.md),
+        BorderRadius.circular(AppRadius.sm),
       );
     }
   });
@@ -118,5 +118,36 @@ void main() {
     for (final theme in [AppTheme.light(seed), AppTheme.dark(seed)]) {
       expect(theme.navigationBarTheme.backgroundColor, Colors.transparent);
     }
+  });
+
+  test('surfaces stay neutral when only the accent seed changes', () {
+    const purple = Color(0xFF8B5CF6);
+    final lightTeal = AppTheme.light(seed);
+    final lightPurple = AppTheme.light(purple);
+    final darkTeal = AppTheme.dark(seed);
+    final darkPurple = AppTheme.dark(purple);
+
+    expect(lightTeal.colorScheme.surface, lightPurple.colorScheme.surface);
+    expect(
+      lightTeal.colorScheme.surfaceContainerLow,
+      lightPurple.colorScheme.surfaceContainerLow,
+    );
+    expect(darkTeal.colorScheme.surface, darkPurple.colorScheme.surface);
+    expect(
+      darkTeal.colorScheme.surfaceContainerLow,
+      darkPurple.colorScheme.surfaceContainerLow,
+    );
+    expect(
+      lightTeal.colorScheme.primary,
+      isNot(equals(lightPurple.colorScheme.primary)),
+    );
+  });
+
+  test('the shared type scale carries line height and tabular numerals', () {
+    final theme = AppTheme.light(seed);
+    expect(theme.textTheme.headlineLarge?.fontSize, 30);
+    expect(theme.textTheme.bodyMedium?.height, 1.65);
+    expect(theme.textTheme.labelMedium?.fontFeatures, isNotEmpty);
+    expect(theme.textTheme.labelSmall?.fontFeatures, isNotEmpty);
   });
 }

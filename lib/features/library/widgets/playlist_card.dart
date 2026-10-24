@@ -8,6 +8,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -19,7 +21,7 @@ class PlaylistCard extends ConsumerWidget {
     required this.playlistId,
     required this.name,
     required this.onTap,
-    this.fallbackIcon = Icons.queue_music,
+    this.fallbackIcon = AppIcons.queueMusic,
   });
 
   final int playlistId;
@@ -39,29 +41,35 @@ class PlaylistCard extends ConsumerWidget {
     final hasCover =
         (path != null && path.isNotEmpty) || (url != null && url.isNotEmpty);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    final radius = BorderRadius.circular(AppRadius.md);
+    return Material(
+      type: MaterialType.transparency,
+      borderRadius: radius,
       child: InkWell(
         onTap: onTap,
+        borderRadius: radius,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: Container(
-                color: scheme.surfaceContainerHighest,
-                child: hasCover
-                    ? CoverImage(
-                        path: path,
-                        url: url,
-                        size: double.infinity,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Icon(fallbackIcon, size: 40),
-                      )
-                    : Icon(fallbackIcon, size: 40),
+              child: ClipRRect(
+                borderRadius: radius,
+                child: ColoredBox(
+                  color: scheme.surfaceContainerHighest,
+                  child: hasCover
+                      ? CoverImage(
+                          path: path,
+                          url: url,
+                          size: double.infinity,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Icon(fallbackIcon, size: 40),
+                        )
+                      : Icon(fallbackIcon, size: 40),
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              padding: const EdgeInsets.fromLTRB(2, AppSpacing.sm, 2, 2),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -70,7 +78,7 @@ class PlaylistCard extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 2),

@@ -16,6 +16,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
@@ -116,7 +117,7 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.image_not_supported_outlined,
+              AppIcons.imageNotSupported,
               size: 56,
               color: Colors.white70,
             ),
@@ -157,7 +158,7 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(AppIcons.close),
             // Fixed light-on-dark chrome: the viewer sits on a dark scrim in
             // both themes, so theme-semantic colours can vanish.
             color: Colors.white,
@@ -170,7 +171,7 @@ class _CoverViewerScreenState extends ConsumerState<CoverViewerScreen> {
                 ? null
                 : () => _save(original),
             style: TextButton.styleFrom(foregroundColor: Colors.white),
-            icon: const Icon(Icons.download_outlined),
+            icon: const Icon(AppIcons.download),
             label: Text(l10n.downloadCover),
           ),
           const SizedBox(width: AppSpacing.sm),
