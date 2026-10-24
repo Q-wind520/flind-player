@@ -16,6 +16,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
@@ -24,6 +26,7 @@ import 'package:flind_player/features/library/playlist_detail_screen.dart';
 import 'package:flind_player/features/library/widgets/playlist_card.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
+import 'package:flind_player/shared/section_header.dart';
 
 /// The 歌单 section of the library: a pinned favourites row followed by every
 /// user-created playlist.
@@ -43,10 +46,11 @@ class PlaylistsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     // The shell floats the bottom chrome over the content, so a view with an
     // explicit padding must reserve its height itself.
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final horizontal = compact ? 16.0 : 28.0;
     final custom = ref.watch(customPlaylistsProvider);
     final favoritesCount = ref
         .watch(playlistTracksProvider(favoritesPlaylistId))
@@ -56,50 +60,57 @@ class PlaylistsSection extends ConsumerWidget {
     // The showcase grid needs a cover-sized card; with no custom playlists
     // fall back to the list branch so the empty-state notice stays visible.
     if (view == LibraryView.showcase && custom.isNotEmpty) {
-      return GridView.count(
-        padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
-        crossAxisCount: 2,
-        childAspectRatio: 0.82,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        children: [
-          PlaylistCard(
-            playlistId: favoritesPlaylistId,
-            name: l10n.tabFavorites,
-            fallbackIcon: Icons.favorite,
-            onTap: onOpenFavorites,
-          ),
-          for (final playlist in custom)
-            PlaylistCard(
-              playlistId: playlist.id,
-              name: playlist.name,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (context) =>
-                      PlaylistDetailScreen(playlistId: playlist.id),
-                ),
+      return GridView.builder(
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          AppSpacing.sm,
+          horizontal,
+          AppSpacing.md + bottomInset,
+        ),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 260,
+          childAspectRatio: 0.82,
+          crossAxisSpacing: 24,
+          mainAxisSpacing: 28,
+        ),
+        itemCount: custom.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return PlaylistCard(
+              playlistId: favoritesPlaylistId,
+              name: l10n.tabFavorites,
+              fallbackIcon: AppIcons.favorite,
+              onTap: onOpenFavorites,
+            );
+          }
+          final playlist = custom[index - 1];
+          return PlaylistCard(
+            playlistId: playlist.id,
+            name: playlist.name,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (context) =>
+                    PlaylistDetailScreen(playlistId: playlist.id),
               ),
             ),
-        ],
+          );
+        },
       );
     }
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(0, 4, 0, 4 + bottomInset),
+      padding: EdgeInsets.fromLTRB(
+        (horizontal - AppSpacing.lg).clamp(0.0, 16.0),
+        4,
+        (horizontal - AppSpacing.lg).clamp(0.0, 16.0),
+        4 + bottomInset,
+      ),
       children: [
         _FavoritesRow(trackCount: favoritesCount, onTap: onOpenFavorites),
         if (custom.isEmpty)
           const _EmptyPlaylists()
         else ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              l10n.myPlaylists,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          SectionHeader(l10n.myPlaylists),
           for (final playlist in custom) _PlaylistRow(playlist: playlist),
         ],
       ],
@@ -118,7 +129,6 @@ class _FavoritesRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final cover = ref.watch(playlistCoverProvider(favoritesPlaylistId)).value;
     final count = trackCount;
 
@@ -127,18 +137,16 @@ class _FavoritesRow extends ConsumerWidget {
       leading: _PlaylistCover(
         cover: cover,
         size: 48,
-        fallbackIcon: Icons.favorite,
+        fallbackIcon: AppIcons.favorite,
       ),
       title: Text(
         l10n.tabFavorites,
         style: theme.textTheme.titleMedium?.copyWith(
-          color: scheme.primary,
           fontWeight: FontWeight.w600,
         ),
       ),
-      subtitle: count == null
-          ? null
-          : Text(l10n.playlistTrackCount(count)),
+      subtitle: count == null ? null : Text(l10n.playlistTrackCount(count)),
+      trailing: const Icon(AppIcons.chevronRight),
     );
   }
 }
@@ -159,11 +167,11 @@ class _PlaylistRow extends ConsumerWidget {
       leading: _PlaylistCover(cover: cover, size: 48),
       title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: count == null ? null : Text(l10n.playlistTrackCount(count)),
+      trailing: const Icon(AppIcons.chevronRight),
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (context) =>
-                PlaylistDetailScreen(playlistId: playlist.id),
+            builder: (context) => PlaylistDetailScreen(playlistId: playlist.id),
           ),
         );
       },
@@ -176,7 +184,7 @@ class _PlaylistCover extends StatelessWidget {
   const _PlaylistCover({
     required this.cover,
     required this.size,
-    this.fallbackIcon = Icons.queue_music,
+    this.fallbackIcon = AppIcons.queueMusic,
   });
 
   final PlaylistCover? cover;
@@ -192,7 +200,7 @@ class _PlaylistCover extends StatelessWidget {
         (path != null && path.isNotEmpty) || (url != null && url.isNotEmpty);
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.16),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
         width: size,
         height: size,
@@ -228,7 +236,7 @@ class _EmptyPlaylists extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            Icons.queue_music,
+            AppIcons.queueMusic,
             size: 64,
             color: theme.colorScheme.onSurfaceVariant,
           ),

@@ -15,6 +15,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -56,60 +57,146 @@ class TrackTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return TrackListRow(
+      track: track,
+      isCurrent: isCurrent,
+      isPlaying: isPlaying,
+      unavailable: unavailable,
+      onTap: unavailable ? null : onTap,
+      showSourceBadge: true,
+      subtitle: unavailable
+          ? l10n.trackUnavailable
+          : track.artist ?? l10n.unknownArtist,
+      action: TrackActionsButton(
+        track: track,
+        playlistId: playlistId,
+        showDeleteTrack: showDeleteTrack,
+      ),
+    );
+  }
+}
+
+/// The shared track row used by the library and online search.
+///
+/// Cover, text stack, playing indicator and duration are always laid out the
+/// same way; each surface supplies its own [action] menu. The current row
+/// grows a soft accent wash that animates in and out.
+class TrackListRow extends StatelessWidget {
+  const TrackListRow({
+    super.key,
+    required this.track,
+    required this.isCurrent,
+    required this.isPlaying,
+    required this.onTap,
+    required this.subtitle,
+    this.showSourceBadge = false,
+    this.unavailable = false,
+    this.action,
+  });
+
+  final Track track;
+  final bool isCurrent;
+  final bool isPlaying;
+  final VoidCallback? onTap;
+  final String subtitle;
+  final bool showSourceBadge;
+  final bool unavailable;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final l10n = AppLocalizations.of(context);
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: isCurrent ? 1 : 0),
       duration: AppMotion.standard,
       curve: AppMotion.standardCurve,
-      builder: (context, tint, child) => ListTile(
-        onTap: unavailable ? null : onTap,
-        enabled: !unavailable,
-        // Keep the row selected while the tint drains so the background fades
-        // out over the same 250 ms instead of snapping off.
-        selected: isCurrent || tint > 0.001,
-        selectedTileColor: AppTheme.playingRowTint(
-          scheme,
-          AppTheme.playingRowTintAlpha * tint,
-        ),
-        leading: TrackCover(track: track, size: 48),
-        title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Row(
-          children: [
-            Expanded(
-              child: Text(
-                unavailable
-                    ? l10n.trackUnavailable
-                    : track.artist ?? l10n.unknownArtist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      builder: (context, tint, child) {
+        final background = tint > 0.001
+            ? AppTheme.playingRowTint(
+                scheme,
+                AppTheme.playingRowTintAlpha * tint,
+              )
+            : Colors.transparent;
+        return Material(
+          color: background,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Opacity(
+                    opacity: unavailable ? 0.55 : 1,
+                    child: TrackCover(track: track, size: 48),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: unavailable
+                                ? scheme.onSurfaceVariant
+                                : scheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            if (showSourceBadge) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              SourceBadge(source: track.source),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isPlaying) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Icon(AppIcons.graphicEq, size: 18, color: scheme.primary),
+                  ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    formatTrackDuration(track.duration),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (action != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    action!,
+                  ],
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            SourceBadge(source: track.source),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPlaying) ...[
-              Icon(Icons.graphic_eq, size: 20, color: scheme.primary),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              formatTrackDuration(track.duration),
-              style: theme.textTheme.labelMedium,
-            ),
-            TrackActionsButton(
-              track: track,
-              playlistId: playlistId,
-              showDeleteTrack: showDeleteTrack,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -151,10 +238,13 @@ class TrackCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    final radius = BorderRadius.circular(AppRadius.md);
+    return Material(
+      type: MaterialType.transparency,
+      borderRadius: radius,
       child: InkWell(
         onTap: unavailable ? null : onTap,
+        borderRadius: radius,
         child: Opacity(
           opacity: unavailable ? 0.55 : 1,
           child: Column(
@@ -164,41 +254,50 @@ class TrackCard extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    TrackCover(track: track, size: double.infinity),
+                    TrackCover(
+                      track: track,
+                      size: double.infinity,
+                      borderRadius: radius,
+                    ),
                     if (isPlaying)
                       Positioned(
-                        bottom: 6,
-                        left: 6,
+                        bottom: AppSpacing.sm,
+                        left: AppSpacing.sm,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                            horizontal: 7,
+                            vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: scheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(4),
+                            color: scheme.primary,
+                            borderRadius: BorderRadius.circular(AppRadius.pill),
                           ),
                           child: Icon(
-                            Icons.graphic_eq,
-                            size: 14,
-                            color: scheme.onPrimaryContainer,
+                            AppIcons.graphicEq,
+                            size: 12,
+                            color: scheme.onPrimary,
                           ),
                         ),
                       ),
                     Positioned(
-                      top: 2,
-                      right: 2,
-                      child: TrackActionsButton(
-                        track: track,
-                        playlistId: playlistId,
-                        showDeleteTrack: showDeleteTrack,
+                      top: AppSpacing.sm,
+                      right: AppSpacing.sm,
+                      child: ClipOval(
+                        child: ColoredBox(
+                          color: scheme.surface.withValues(alpha: 0.82),
+                          child: TrackActionsButton(
+                            track: track,
+                            playlistId: playlistId,
+                            showDeleteTrack: showDeleteTrack,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+                padding: const EdgeInsets.fromLTRB(2, AppSpacing.sm, 2, 2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -207,7 +306,7 @@ class TrackCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -221,7 +320,7 @@ class TrackCard extends StatelessWidget {
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.xs),
                     SourceBadge(source: track.source),
                   ],
                 ),
@@ -252,31 +351,49 @@ class SourceBadge extends StatelessWidget {
       _ => source,
     };
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: scheme.onSecondaryContainer,
+    final marker = switch (source) {
+      'bilibili' => const Color(0xFFFB7299),
+      'netease' => const Color(0xFFE0463D),
+      _ => scheme.onSurfaceVariant.withValues(alpha: 0.55),
+    };
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 4,
+          height: 4,
+          decoration: BoxDecoration(color: marker, shape: BoxShape.circle),
         ),
-      ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
 
 /// Rounded cover art, falling back to a tonal music-note placeholder.
 class TrackCover extends StatelessWidget {
-  const TrackCover({required this.track, required this.size, super.key});
+  const TrackCover({
+    required this.track,
+    required this.size,
+    this.borderRadius,
+    super.key,
+  });
 
   final Track track;
 
   /// Fixed size in pixels, or `double.infinity` when the cover should fill its
   /// parent (used inside the grid card's [Expanded] wrapper).
   final double size;
+
+  /// Overrides the compact 8 px row radius; grid cards use 16.
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -287,7 +404,7 @@ class TrackCover extends StatelessWidget {
         (coverPath != null && coverPath.isNotEmpty) ||
         (coverUrl != null && coverUrl.isNotEmpty);
     final useFixedSize = !size.isInfinite;
-    final borderRadius = BorderRadius.circular(AppRadius.md);
+    final radius = borderRadius ?? BorderRadius.circular(AppRadius.sm);
 
     Widget child = Container(
       width: useFixedSize ? size : null,
@@ -304,12 +421,12 @@ class TrackCover extends StatelessWidget {
           : _placeholder(scheme),
     );
 
-    return ClipRRect(borderRadius: borderRadius, child: child);
+    return ClipRRect(borderRadius: radius, child: child);
   }
 
   Widget _placeholder(ColorScheme scheme) => Center(
     child: Icon(
-      Icons.music_note,
+      AppIcons.musicNote,
       size: size.isInfinite ? 40 : size * 0.5,
       color: scheme.onSurfaceVariant,
     ),

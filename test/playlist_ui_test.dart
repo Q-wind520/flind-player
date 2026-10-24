@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -167,17 +168,11 @@ class _FakePlaylistRepository implements PlaylistRepository {
   /// The derived cover for [id], for direct assertions.
   PlaylistCover? coverFor(int id) => _deriveCover(id);
 
-  StreamController<List<Track>> _trackController(int id) =>
-      _trackControllers.putIfAbsent(
-        id,
-        () => StreamController<List<Track>>.broadcast(),
-      );
+  StreamController<List<Track>> _trackController(int id) => _trackControllers
+      .putIfAbsent(id, () => StreamController<List<Track>>.broadcast());
 
-  StreamController<PlaylistCover?> _coverController(int id) =>
-      _coverControllers.putIfAbsent(
-        id,
-        () => StreamController<PlaylistCover?>.broadcast(),
-      );
+  StreamController<PlaylistCover?> _coverController(int id) => _coverControllers
+      .putIfAbsent(id, () => StreamController<PlaylistCover?>.broadcast());
 
   PlaylistCover? _deriveCover(int id) {
     for (final playlist in _playlists) {
@@ -194,8 +189,7 @@ class _FakePlaylistRepository implements PlaylistRepository {
     final newest = members.first;
     final path = newest.coverPath;
     final url = newest.coverUrl;
-    if ((path != null && path.isNotEmpty) ||
-        (url != null && url.isNotEmpty)) {
+    if ((path != null && path.isNotEmpty) || (url != null && url.isNotEmpty)) {
       return PlaylistCover(coverPath: path, coverUrl: url);
     }
     return null;
@@ -440,9 +434,7 @@ void main() {
         playlists: [_playlist(2, 'Road Trip', PlaylistKind.custom)],
       );
 
-      await tester.pumpWidget(
-        _app(playlistRepo: repo, bottomPadding: 72),
-      );
+      await tester.pumpWidget(_app(playlistRepo: repo, bottomPadding: 72));
       await tester.pumpAndSettle();
       await _openPlaylists(tester);
 
@@ -467,8 +459,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('lists the pinned favourites row and every custom playlist',
-        (tester) async {
+    testWidgets('lists the pinned favourites row and every custom playlist', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [
@@ -496,7 +489,11 @@ void main() {
     testWidgets('renders without overflow at 400 and 1280 px', (tester) async {
       final repo = _FakePlaylistRepository(
         playlists: [
-          _playlist(2, 'A Playlist Name That Keeps Going And Going', PlaylistKind.custom),
+          _playlist(
+            2,
+            'A Playlist Name That Keeps Going And Going',
+            PlaylistKind.custom,
+          ),
           _playlist(3, 'Another', PlaylistKind.custom),
         ],
         tracks: {
@@ -517,8 +514,9 @@ void main() {
   });
 
   group('create and edit', () {
-    testWidgets('creating a playlist with a name adds it to the list',
-        (tester) async {
+    testWidgets('creating a playlist with a name adds it to the list', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository();
 
@@ -561,12 +559,18 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('editing a playlist updates its name and description',
-        (tester) async {
+    testWidgets('editing a playlist updates its name and description', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [
-          _playlist(2, 'Old Name', PlaylistKind.custom, description: 'Old desc'),
+          _playlist(
+            2,
+            'Old Name',
+            PlaylistKind.custom,
+            description: 'Old desc',
+          ),
         ],
       );
 
@@ -577,8 +581,8 @@ void main() {
       await tester.tap(find.text('Old Name'));
       await tester.pumpAndSettle();
 
-      // Detail screen: app bar + header both show the name.
-      expect(find.text('Old Name'), findsNWidgets(2));
+      // The detail header is the single title.
+      expect(find.text('Old Name'), findsOneWidget);
       await tester.tap(find.byTooltip(testL10n().editPlaylist));
       await tester.pumpAndSettle();
 
@@ -587,13 +591,39 @@ void main() {
       await tester.tap(find.text(testL10n().confirm));
       await tester.pumpAndSettle();
 
-      expect(find.text('New Name'), findsNWidgets(2));
+      expect(find.text('New Name'), findsOneWidget);
       expect(find.text('New desc'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('deleting a playlist removes it and returns to the list',
-        (tester) async {
+    testWidgets(
+      'detail chrome lines up with the content column on wide windows',
+      (tester) async {
+        _setSize(tester, 1280, 800);
+        final repo = _FakePlaylistRepository(
+          playlists: [_playlist(2, 'Wide', PlaylistKind.custom)],
+        );
+
+        await tester.pumpWidget(_app(playlistRepo: repo));
+        await tester.pumpAndSettle();
+
+        await _openPlaylists(tester);
+        await tester.tap(find.text('Wide'));
+        await tester.pumpAndSettle();
+
+        // There is no bare AppBar pinning the back button to the window edge.
+        expect(find.byType(AppBar), findsNothing);
+        // 1280 wide -> the 1120 content column starts at x=80; the top bar's
+        // 20 px padding and 48 px button put the back button centre at x=124.
+        final back = tester.getCenter(find.byIcon(AppIcons.arrowBack));
+        expect(back.dx, closeTo(124, 1));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('deleting a playlist removes it and returns to the list', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [_playlist(2, 'Doomed', PlaylistKind.custom)],
@@ -621,8 +651,9 @@ void main() {
   });
 
   group('add to playlist', () {
-    testWidgets('adding a track to a playlist shows a confirmation',
-        (tester) async {
+    testWidgets('adding a track to a playlist shows a confirmation', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final alpha = _track('Alpha');
       final repo = _FakePlaylistRepository(
@@ -641,7 +672,10 @@ void main() {
       await tester.tap(find.text('Road Trip'));
       await tester.pumpAndSettle();
 
-      expect(find.text(testL10n().addedToPlaylist('Road Trip')), findsOneWidget);
+      expect(
+        find.text(testL10n().addedToPlaylist('Road Trip')),
+        findsOneWidget,
+      );
       expect(await repo.containsTrack(2, alpha.uri), isTrue);
       expect(tester.takeException(), isNull);
     });
@@ -675,8 +709,9 @@ void main() {
   });
 
   group('member availability', () {
-    testWidgets('playlist detail renders members as playable when id is set',
-        (tester) async {
+    testWidgets('playlist detail renders members as playable when id is set', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final playable = Track(
         id: 42,
@@ -697,20 +732,21 @@ void main() {
       await tester.tap(find.text('Mix'));
       await tester.pumpAndSettle();
 
-      final tile = tester.widget<ListTile>(
+      final row = tester.widget<TrackListRow>(
         find.ancestor(
           of: find.text('Playable'),
-          matching: find.byType(ListTile),
+          matching: find.byType(TrackListRow),
         ),
       );
-      expect(tile.enabled, isTrue);
+      expect(row.onTap, isNotNull);
       expect(find.text(testL10n().trackUnavailable), findsNothing);
     });
   });
 
   group('covers', () {
-    testWidgets('a playlist cover falls back to the newest member cover',
-        (tester) async {
+    testWidgets('a playlist cover falls back to the newest member cover', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [_playlist(2, 'Covered List', PlaylistKind.custom)],
@@ -729,8 +765,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a playlist without any cover shows the placeholder icon',
-        (tester) async {
+    testWidgets('a playlist without any cover shows the placeholder icon', (
+      tester,
+    ) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [_playlist(2, 'Plain', PlaylistKind.custom)],
@@ -742,7 +779,7 @@ void main() {
       await _openPlaylists(tester);
 
       expect(repo.coverFor(2), isNull);
-      expect(find.byIcon(Icons.queue_music), findsWidgets);
+      expect(find.byIcon(AppIcons.queueMusic), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   });
@@ -788,25 +825,26 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('tapping a candidate selects that section and renders its body', (
-      tester,
-    ) async {
-      _setSize(tester, 400, 800);
-      await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'tapping a candidate selects that section and renders its body',
+      (tester) async {
+        _setSize(tester, 400, 800);
+        await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+        await tester.pumpAndSettle();
 
-      // From 全部 the right candidate 歌单 retreats (wrap backwards).
-      await tester.tap(_ringLabel(testL10n().tabPlaylists));
-      await tester.pumpAndSettle();
-      expect(find.text(testL10n().noPlaylists), findsOneWidget);
-      expect(find.text('Alpha'), findsNothing);
+        // From 全部 the right candidate 歌单 retreats (wrap backwards).
+        await tester.tap(_ringLabel(testL10n().tabPlaylists));
+        await tester.pumpAndSettle();
+        expect(find.text(testL10n().noPlaylists), findsOneWidget);
+        expect(find.text('Alpha'), findsNothing);
 
-      // From 歌单 the left candidate 全部 advances back.
-      await tester.tap(_ringLabel(testL10n().tabAll));
-      await tester.pumpAndSettle();
-      expect(find.text('Alpha'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+        // From 歌单 the left candidate 全部 advances back.
+        await tester.tap(_ringLabel(testL10n().tabAll));
+        await tester.pumpAndSettle();
+        expect(find.text('Alpha'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('cyclic section swipe', () {
@@ -875,9 +913,7 @@ void main() {
   });
 
   group('header layout', () {
-    testWidgets('more is leftmost, add on 歌单, selector centred', (
-      tester,
-    ) async {
+    testWidgets('selector sits left, utilities sit right', (tester) async {
       _setSize(tester, 400, 800);
       await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
       await tester.pumpAndSettle();
@@ -888,9 +924,9 @@ void main() {
       final moreX = tester.getCenter(more).dx;
       final selectorX = tester.getCenter(selector).dx;
 
-      // 更多 is the leftmost element; the selector is centred on screen.
-      expect(moreX, lessThan(selectorX));
-      expect(selectorX, closeTo(200, 1));
+      // The section ring anchors the content edge; utilities stay far right.
+      expect(selectorX, lessThan(200));
+      expect(moreX, greaterThan(selectorX));
 
       // The search toggle is gone, and ＋ is hidden outside 歌单.
       expect(find.byKey(const Key('library_search_button')), findsNothing);
@@ -1010,7 +1046,11 @@ void _expectRing(
   final mx = tester.getCenter(_ringLabel(middle)).dx;
   final rx = tester.getCenter(_ringLabel(right)).dx;
   expect(lx < mx, isTrue, reason: 'left candidate must sit left of the middle');
-  expect(mx < rx, isTrue, reason: 'right candidate must sit right of the middle');
+  expect(
+    mx < rx,
+    isTrue,
+    reason: 'right candidate must sit right of the middle',
+  );
 
   double fontSize(String label) {
     final rich = find.descendant(

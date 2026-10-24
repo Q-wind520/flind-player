@@ -10,7 +10,6 @@ import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
-import 'package:flind_player/shared/list_panel.dart';
 
 import 'support/l10n.dart';
 
@@ -122,11 +121,11 @@ void main() {
     expect(played, [1]);
   });
 
-  testWidgets('list view sits on a ListPanel', (tester) async {
+  testWidgets('list view is a flat separated list', (tester) async {
     await tester.pumpWidget(
       _wrap(
         TrackView(
-          tracks: [_track(1)],
+          tracks: [_track(1), _track(2)],
           view: LibraryView.list,
           currentUri: null,
           isPlaying: false,
@@ -136,10 +135,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(ListPanel), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+    expect(find.byType(Divider), findsOneWidget);
   });
 
-  testWidgets('grid and waterfall views do not use a ListPanel', (
+  testWidgets('grid and waterfall views render their own layouts', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -155,7 +155,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(ListPanel), findsNothing);
+    expect(find.byType(GridView), findsOneWidget);
   });
 
   testWidgets('showcase grid reserves the injected bottom inset', (

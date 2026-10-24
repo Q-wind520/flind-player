@@ -8,11 +8,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/library/widgets/waterfall_track_card.dart';
-import 'package:flind_player/shared/list_panel.dart';
 
 /// Renders [tracks] in the layout chosen by [view].
 class TrackView extends StatelessWidget {
@@ -41,42 +41,60 @@ class TrackView extends StatelessWidget {
     // reserve its height themselves; a view with an explicit `padding` does
     // not pick up the injected `MediaQuery` inset automatically.
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final horizontal = compact ? 16.0 : 28.0;
     return switch (view) {
-      LibraryView.list => _list(),
-      LibraryView.showcase => _grid(bottomInset),
-      LibraryView.waterfall => _waterfall(bottomInset),
+      LibraryView.list => _list(bottomInset, horizontal),
+      LibraryView.showcase => _grid(bottomInset, horizontal),
+      LibraryView.waterfall => _waterfall(bottomInset, horizontal),
     };
   }
 
-  Widget _list() {
-    return ListPanel(
-      child: ListView.builder(
-        itemCount: tracks.length,
-        itemBuilder: (context, index) {
-          final track = tracks[index];
-          final isCurrent = currentUri != null && track.uri == currentUri;
-          return TrackTile(
-            track: track,
-            isCurrent: isCurrent,
-            isPlaying: isCurrent && isPlaying,
-            unavailable: track.id == null,
-            playlistId: playlistId,
-            showDeleteTrack: showDeleteTrack,
-            onTap: () => onPlay(index),
-          );
-        },
+  Widget _list(double bottomInset, double horizontal) {
+    final side = (horizontal - AppSpacing.md).clamp(0.0, 16.0);
+    return ListView.separated(
+      padding: EdgeInsets.fromLTRB(
+        side,
+        AppSpacing.xs,
+        side,
+        AppSpacing.md + bottomInset,
       ),
+      itemCount: tracks.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        indent: 60,
+        color: Theme.of(context).colorScheme.outlineVariant
+            .withValues(alpha: 0.55),
+      ),
+      itemBuilder: (context, index) {
+        final track = tracks[index];
+        final isCurrent = currentUri != null && track.uri == currentUri;
+        return TrackTile(
+          track: track,
+          isCurrent: isCurrent,
+          isPlaying: isCurrent && isPlaying,
+          unavailable: track.id == null,
+          playlistId: playlistId,
+          showDeleteTrack: showDeleteTrack,
+          onTap: () => onPlay(index),
+        );
+      },
     );
   }
 
-  Widget _grid(double bottomInset) {
+  Widget _grid(double bottomInset, double horizontal) {
     return GridView.builder(
-      padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
+      padding: EdgeInsets.fromLTRB(
+        horizontal,
+        AppSpacing.sm,
+        horizontal,
+        AppSpacing.md + bottomInset,
+      ),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 220,
+        maxCrossAxisExtent: 260,
         childAspectRatio: 0.82,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+        crossAxisSpacing: 24,
+        mainAxisSpacing: 28,
       ),
       itemCount: tracks.length,
       itemBuilder: (context, index) {
@@ -94,15 +112,20 @@ class TrackView extends StatelessWidget {
     );
   }
 
-  Widget _waterfall(double bottomInset) {
+  Widget _waterfall(double bottomInset, double horizontal) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = (constraints.maxWidth / 180).round().clamp(2, 6);
+        final columns = (constraints.maxWidth / 240).round().clamp(2, 5);
         return MasonryGridView.count(
-          padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            AppSpacing.sm,
+            horizontal,
+            AppSpacing.md + bottomInset,
+          ),
           crossAxisCount: columns,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
+          mainAxisSpacing: 24,
+          crossAxisSpacing: 20,
           itemCount: tracks.length,
           itemBuilder: (context, index) {
             final track = tracks[index];

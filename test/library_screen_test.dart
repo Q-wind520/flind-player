@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -285,7 +286,7 @@ void main() {
       // No library-management entry points: add folder, import, rescan, sort.
       expect(find.text('添加文件夹'), findsNothing);
       expect(find.text('导入文件'), findsNothing);
-      expect(find.byIcon(Icons.sort), findsNothing);
+      expect(find.byIcon(AppIcons.sort), findsNothing);
       expect(find.byType(TextField), findsNothing);
 
       // The Bilibili favourites browser stays available via the more menu.
@@ -654,10 +655,10 @@ void main() {
     expect(find.byKey(const Key('library_filter_selector')), findsOneWidget);
     expect(find.text('全部'), findsOneWidget);
     expect(find.text('收藏'), findsOneWidget);
-    expect(find.byIcon(Icons.search), findsOneWidget);
+    expect(find.byIcon(AppIcons.search), findsOneWidget);
     expect(find.byKey(const Key('library_more_menu')), findsOneWidget);
     // The old sort icon is gone: sort lives in the overflow menu now.
-    expect(find.byIcon(Icons.sort), findsNothing);
+    expect(find.byIcon(AppIcons.sort), findsNothing);
   });
 
   testWidgets('swiping the selector changes the filter', (tester) async {

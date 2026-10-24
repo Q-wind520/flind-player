@@ -8,6 +8,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/features/library/cover_aspect_ratio_provider.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
@@ -46,10 +48,13 @@ class WaterfallTrackCard extends ConsumerWidget {
         ? 1.0
         : (ref.watch(coverAspectRatioProvider(coverKey)).value ?? 1.0);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    final radius = BorderRadius.circular(AppRadius.md);
+    return Material(
+      type: MaterialType.transparency,
+      borderRadius: radius,
       child: InkWell(
         onTap: unavailable ? null : onTap,
+        borderRadius: radius,
         child: Opacity(
           opacity: unavailable ? 0.55 : 1,
           child: Column(
@@ -60,41 +65,50 @@ class WaterfallTrackCard extends ConsumerWidget {
                 children: [
                   AspectRatio(
                     aspectRatio: ratio,
-                    child: TrackCover(track: track, size: double.infinity),
+                    child: TrackCover(
+                      track: track,
+                      size: double.infinity,
+                      borderRadius: radius,
+                    ),
                   ),
                   if (isPlaying)
                     Positioned(
-                      bottom: 6,
-                      left: 6,
+                      bottom: AppSpacing.sm,
+                      left: AppSpacing.sm,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                          horizontal: 7,
+                          vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: scheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
+                          color: scheme.primary,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
                         child: Icon(
-                          Icons.graphic_eq,
-                          size: 14,
-                          color: scheme.onPrimaryContainer,
+                          AppIcons.graphicEq,
+                          size: 12,
+                          color: scheme.onPrimary,
                         ),
                       ),
                     ),
                   Positioned(
-                    top: 2,
-                    right: 2,
-                    child: TrackActionsButton(
-                      track: track,
-                      playlistId: playlistId,
-                      showDeleteTrack: showDeleteTrack,
+                    top: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    child: ClipOval(
+                      child: ColoredBox(
+                        color: scheme.surface.withValues(alpha: 0.82),
+                        child: TrackActionsButton(
+                          track: track,
+                          playlistId: playlistId,
+                          showDeleteTrack: showDeleteTrack,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                padding: const EdgeInsets.fromLTRB(2, AppSpacing.sm, 2, 2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -103,7 +117,7 @@ class WaterfallTrackCard extends ConsumerWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -117,7 +131,7 @@ class WaterfallTrackCard extends ConsumerWidget {
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.xs),
                     SourceBadge(source: track.source),
                   ],
                 ),

@@ -19,6 +19,7 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/repeat_mode.dart';
@@ -337,7 +338,7 @@ void main() {
     expect(find.text('音乐收藏'), findsOneWidget);
 
     // The header back affordance returns to the folder list.
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.tap(find.byIcon(AppIcons.arrowBack));
     await tester.pumpAndSettle();
 
     expect(find.text('浏览 B 站收藏夹'), findsOneWidget);

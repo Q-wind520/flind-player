@@ -19,6 +19,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -38,6 +41,7 @@ import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
+import 'package:flind_player/shared/app_page_header.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_messages.dart';
@@ -296,30 +300,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       backgroundColor: AppSurface.colorOf(context),
       body: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeaderRow(hasLocalLibrary: hasLocalLibrary),
-            Expanded(
-              child: hasLocalLibrary
-                  ? _buildBody()
-                  : const _UnsupportedLibraryNotice(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeaderRow(hasLocalLibrary: hasLocalLibrary),
+                Expanded(
+                  child: hasLocalLibrary
+                      ? _buildBody()
+                      : const _UnsupportedLibraryNotice(),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /// The single top row: the overflow menu on the far left, the section
-  /// selector centred *on screen*, and the new-playlist ＋ on the right, shown
-  /// only on the 歌单 section. Search is *not* part of this row: it is an
-  /// always-visible field below the header, on the 全部 section only.
+  /// The page header: title and utility actions, then the section ring.
   ///
-  /// A [Stack] (rather than a [Row]) is used so the selector's centring is
-  /// independent of the unequal edge-button widths; a width reservation keeps
-  /// the ring from ever colliding with the buttons at 400 px.
+  /// Search stays inside the 全部 page so the field travels with the pager
+  /// during a swipe instead of appearing and disappearing above it.
   Widget _buildHeaderRow({required bool hasLocalLibrary}) {
+    final l10n = AppLocalizations.of(context);
     final currentSort =
         ref.watch(librarySortProvider).value ?? TrackSort.recentlyAdded;
     final syncState =
@@ -330,67 +336,47 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       LibrarySyncPhase.artwork => true,
       _ => false,
     };
+    final compact =
+        MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final horizontal = compact ? 16.0 : 28.0;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      child: SizedBox(
-        height: 48,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Reserve the outer gutters (more-menu on the left, the ＋ button
-            // on the 歌单 page's right) so the centred ring is capped to the
-            // space that actually remains, even on the narrowest viewport.
-            final rightReserved = _section == LibrarySection.playlists
-                ? 48.0
-                : 0.0;
-            final reserved = 48.0 + rightReserved + 8.0;
-            final maxSelectorWidth = (constraints.maxWidth - reserved).clamp(
-              0.0,
-              double.infinity,
-            );
-            return Stack(
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _buildMoreMenu(
-                    hasLocalLibrary: hasLocalLibrary,
-                    isSyncing: isSyncing,
-                    currentSort: currentSort,
-                  ),
-                ),
-                Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: maxSelectorWidth.toDouble(),
-                    ),
-                    // Scales the ring down uniformly if a longer (e.g. English)
-                    // label set ever exceeds the reserved middle gap: the three
-                    // labels stay legible and never collide or overflow.
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: _LibraryFilterSelector(
-                        section: _section,
-                        onSectionChanged: _selectSection,
-                      ),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _section == LibrarySection.playlists
-                      ? IconButton(
-                          key: const Key('library_add_playlist'),
-                          tooltip: '',
-                          icon: const Icon(Icons.add),
-                          onPressed: _createPlaylist,
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            );
-          },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppPageHeader(
+          title: l10n.navLibrary,
+          compact: compact,
+          actions: <Widget>[
+            _buildMoreMenu(
+              hasLocalLibrary: hasLocalLibrary,
+              isSyncing: isSyncing,
+              currentSort: currentSort,
+            ),
+            if (_section == LibrarySection.playlists)
+              IconButton(
+                key: const Key('library_add_playlist'),
+                tooltip: '',
+                icon: const Icon(AppIcons.add),
+                onPressed: _createPlaylist,
+              ),
+          ],
         ),
-      ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            0,
+            horizontal,
+            AppSpacing.sm,
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _LibraryFilterSelector(
+              section: _section,
+              onSectionChanged: _selectSection,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -421,7 +407,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           SubmenuButton(
             menuChildren: <Widget>[
               MenuItemButton(
-                leadingIcon: const Icon(Icons.create_new_folder_outlined),
+                leadingIcon: const Icon(AppIcons.createNewFolder),
                 onPressed: isSyncing
                     ? null
                     : () {
@@ -431,7 +417,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: Text(l10n.addFolder),
               ),
               MenuItemButton(
-                leadingIcon: const Icon(Icons.refresh),
+                leadingIcon: const Icon(AppIcons.refresh),
                 onPressed: isSyncing
                     ? null
                     : () {
@@ -441,7 +427,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: Text(l10n.rescan),
               ),
               MenuItemButton(
-                leadingIcon: const Icon(Icons.add),
+                leadingIcon: const Icon(AppIcons.add),
                 onPressed: () {
                   _menuController.close();
                   unawaited(_importFiles());
@@ -456,7 +442,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             for (final sort in TrackSort.values)
               MenuItemButton(
                 leadingIcon: sort == currentSort
-                    ? const Icon(Icons.check)
+                    ? const Icon(AppIcons.check)
                     : null,
                 onPressed: () {
                   _menuController.close();
@@ -474,7 +460,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             for (final view in scope.allowedViews)
               MenuItemButton(
                 leadingIcon: view == currentView
-                    ? const Icon(Icons.check)
+                    ? const Icon(AppIcons.check)
                     : null,
                 onPressed: () {
                   _menuController.close();
@@ -490,7 +476,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           child: Text(l10n.menuView),
         ),
         MenuItemButton(
-          leadingIcon: const Icon(Icons.cloud_outlined),
+          leadingIcon: const Icon(AppIcons.cloud),
           onPressed: () {
             _menuController.close();
             unawaited(_openBilibiliFavorites());
@@ -501,7 +487,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       builder: (context, controller, child) => IconButton(
         key: const Key('library_more_menu'),
         tooltip: '',
-        icon: const Icon(Icons.more_vert),
+        icon: const Icon(AppIcons.moreVert),
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
       ),
@@ -511,8 +497,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// The inline search field, shown under the header on the 全部 section.
   Widget _buildSearchField() {
     final l10n = AppLocalizations.of(context);
+    final compact =
+        MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final horizontal = compact ? 16.0 : 28.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: EdgeInsets.fromLTRB(
+        horizontal,
+        0,
+        horizontal,
+        AppSpacing.md,
+      ),
       child: ValueListenableBuilder<TextEditingValue>(
         valueListenable: _searchController,
         builder: (context, value, child) {
@@ -520,16 +514,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             controller: _searchController,
             textInputAction: TextInputAction.search,
             onChanged: _onSearchChanged,
+            style: Theme.of(context).textTheme.bodyMedium,
             decoration: InputDecoration(
               hintText: l10n.searchLibrary,
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: const Icon(AppIcons.search),
               suffixIcon: value.text.isEmpty
                   ? null
                   : IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: const Icon(AppIcons.clear),
                       onPressed: _clearSearch,
                     ),
-              isDense: true,
             ),
           );
         },
@@ -819,8 +813,9 @@ class _LibraryFilterSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final selectedStyle = theme.textTheme.headlineSmall?.copyWith(
+    final selectedStyle = theme.textTheme.titleLarge?.copyWith(
       fontWeight: FontWeight.w700,
+      color: theme.colorScheme.onSurface,
     );
     final unselectedStyle = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -862,7 +857,7 @@ class _LibraryFilterSelector extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var i = 0; i < labels.length; i++) ...[
-              if (i > 0) const SizedBox(width: 12),
+              if (i > 0) const SizedBox(width: 20),
               DefaultTextStyle(
                 // i == 1 is the selected label in the middle of the ring.
                 style:
@@ -933,7 +928,7 @@ class _UnsupportedLibraryNotice extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.library_music_outlined,
+              AppIcons.libraryMusicOutlined,
               size: 64,
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -968,7 +963,7 @@ class _EmptyLibrary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return EmptyState(
-      icon: Icons.library_music_outlined,
+      icon: AppIcons.libraryMusicOutlined,
       title: l10n.emptyLibraryTitle,
       message: l10n.emptyLibraryHint,
       action: Column(
@@ -976,13 +971,13 @@ class _EmptyLibrary extends StatelessWidget {
         children: [
           FilledButton.tonalIcon(
             onPressed: onAddFolder,
-            icon: const Icon(Icons.create_new_folder_outlined),
+            icon: const Icon(AppIcons.createNewFolder),
             label: Text(l10n.addFolder),
           ),
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: onImport,
-            icon: const Icon(Icons.add),
+            icon: const Icon(AppIcons.add),
             label: Text(l10n.importLocalMusic),
           ),
         ],
@@ -999,7 +994,7 @@ class _NoSearchResults extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return EmptyState(
-      icon: Icons.search_off,
+      icon: AppIcons.searchOff,
       title: l10n.noMatchingTracks,
       message: l10n.tryAnotherKeyword,
     );
@@ -1014,7 +1009,7 @@ class _EmptyFavourites extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return EmptyState(
-      icon: Icons.favorite_border,
+      icon: AppIcons.favoriteBorder,
       title: l10n.noFavorites,
       message: l10n.noFavoritesHint,
     );
@@ -1035,7 +1030,7 @@ class _LibraryError extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final retry = onRetry;
     return EmptyState(
-      icon: Icons.error_outline,
+      icon: AppIcons.error,
       iconSize: 48,
       iconColor: scheme.error,
       title: title ?? l10n.loadLibraryFailed,
@@ -1044,7 +1039,7 @@ class _LibraryError extends StatelessWidget {
           ? null
           : OutlinedButton.icon(
               onPressed: retry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(AppIcons.refresh),
               label: Text(l10n.retry),
             ),
     );

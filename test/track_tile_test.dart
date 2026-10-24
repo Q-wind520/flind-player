@@ -43,6 +43,15 @@ Widget _app({required bool isCurrent}) => ProviderScope(
   ),
 );
 
+Color? _rowColor(WidgetTester tester) {
+  final material = tester.widget<Material>(
+    find
+        .descendant(of: find.byType(TrackTile), matching: find.byType(Material))
+        .first,
+  );
+  return material.color;
+}
+
 void main() {
   testWidgets('the current row is tinted with the playing-row colour', (
     tester,
@@ -51,18 +60,14 @@ void main() {
     await tester.pumpAndSettle();
 
     final scheme = Theme.of(tester.element(find.byType(TrackTile))).colorScheme;
-    final tile = tester.widget<ListTile>(find.byType(ListTile));
-    expect(tile.selected, isTrue);
-    expect(tile.selectedTileColor, AppTheme.playingRowTint(scheme));
+    expect(_rowColor(tester), AppTheme.playingRowTint(scheme));
   });
 
   testWidgets('a non-current row paints no tint', (tester) async {
     await tester.pumpWidget(_app(isCurrent: false));
     await tester.pumpAndSettle();
 
-    final scheme = Theme.of(tester.element(find.byType(TrackTile))).colorScheme;
-    final tile = tester.widget<ListTile>(find.byType(ListTile));
-    expect(tile.selectedTileColor, AppTheme.playingRowTint(scheme, 0));
+    expect(_rowColor(tester), Colors.transparent);
   });
 
   testWidgets('the tint fades out when the row stops being current', (
@@ -74,18 +79,11 @@ void main() {
     await tester.pumpWidget(_app(isCurrent: false));
     await tester.pump(const Duration(milliseconds: 125));
 
-    final scheme = Theme.of(tester.element(find.byType(TrackTile))).colorScheme;
-    final mid = tester.widget<ListTile>(find.byType(ListTile));
-    // Still selected while the tint drains, or ListTile would ignore the
-    // animated `selectedTileColor` and snap the background off.
-    expect(mid.selected, isTrue);
-    final alpha = mid.selectedTileColor!.a;
+    final alpha = _rowColor(tester)!.a;
     expect(alpha, greaterThan(0));
     expect(alpha, lessThan(AppTheme.playingRowTintAlpha));
 
     await tester.pumpAndSettle();
-    final settled = tester.widget<ListTile>(find.byType(ListTile));
-    expect(settled.selected, isFalse);
-    expect(settled.selectedTileColor, AppTheme.playingRowTint(scheme, 0));
+    expect(_rowColor(tester), Colors.transparent);
   });
 }
