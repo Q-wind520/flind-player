@@ -30,6 +30,7 @@ import 'package:flind_player/core/models/app_theme_mode.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
+import 'package:flind_player/platform/permissions/permission_providers.dart';
 
 /// Root application widget.
 class FlindApp extends ConsumerWidget {
@@ -63,7 +64,9 @@ class FlindApp extends ConsumerWidget {
       // SafeArea inset stays flush with the app surface on Android.
       builder: (context, child) =>
           AppSystemUiOverlay(child: child ?? const SizedBox.shrink()),
-      home: const HomeShell(),
+      // Requests the audio-library permission on the first frame so the dialog
+      // appears right after install/open (see [StartupPermissionScope]).
+      home: const StartupPermissionScope(child: HomeShell()),
     );
   }
 }

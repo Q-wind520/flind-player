@@ -61,3 +61,46 @@ class PlaybackPermissionScope extends ConsumerWidget {
     return child;
   }
 }
+
+/// Invisible hook that asks for the audio-library permission once at launch.
+///
+/// A local track is resolved to its raw on-disk path and handed to `just_audio`,
+/// which cannot open a file the app has no permission to read (Android 13+
+/// `READ_MEDIA_AUDIO`; below that `READ_EXTERNAL_STORAGE`). Requesting the
+/// permission only when the user added a folder or imported files left tracks
+/// that arrived by other means (a restore, an older build) silently unplayable:
+/// the load failure is swallowed by the playback controller, so neither a prompt
+/// nor an error ever appeared, and playback never reached `isPlaying` — which in
+/// turn kept the notification request from ever firing. Asking on the first
+/// frame makes the system dialog show right after install/open, before any
+/// playback.
+///
+/// On desktop and web [PermissionService] is a no-op, so this is harmless there.
+class StartupPermissionScope extends ConsumerStatefulWidget {
+  const StartupPermissionScope({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  ConsumerState<StartupPermissionScope> createState() =>
+      _StartupPermissionScopeState();
+}
+
+class _StartupPermissionScopeState
+    extends ConsumerState<StartupPermissionScope> {
+  @override
+  void initState() {
+    super.initState();
+    // Wait for the first frame: the platform permission dialog needs the
+    // Activity attached, and requesting before that is a no-op.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref.read(permissionCoordinatorProvider).ensureAudioLibrary(),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
