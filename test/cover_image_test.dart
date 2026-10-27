@@ -53,7 +53,7 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('48 logical px at DPR 1.0 produces cacheWidth 48', (
+  testWidgets('48 logical px at DPR 1.0 decodes at twice the edge', (
     WidgetTester tester,
   ) async {
     tester.view.devicePixelRatio = 1.0;
@@ -70,10 +70,13 @@ void main() {
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image;
     expect(provider, isA<ResizeImage>());
-    expect((provider as ResizeImage).width, 48);
+    // A square box crops a wide source, so the short side has to fill it: a
+    // 16:9 cover decoded at 48 px would only be 27 px tall and Flutter would
+    // scale it back up (the Bilibili blur).
+    expect((provider as ResizeImage).width, 96);
   });
 
-  testWidgets('48 logical px at DPR 3.0 produces cacheWidth 144', (
+  testWidgets('48 logical px at DPR 3.0 decodes at twice the edge', (
     WidgetTester tester,
   ) async {
     tester.view.devicePixelRatio = 3.0;
@@ -90,7 +93,7 @@ void main() {
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image;
     expect(provider, isA<ResizeImage>());
-    expect((provider as ResizeImage).width, 144);
+    expect((provider as ResizeImage).width, 288);
   });
 
   testWidgets('infinite size uses LayoutBuilder to derive cacheWidth', (
@@ -125,7 +128,7 @@ void main() {
     expect((provider as ResizeImage).width, 400);
   });
 
-  testWidgets('network url at DPR 1.0 produces cacheWidth 48', (
+  testWidgets('network url at DPR 1.0 decodes at twice the fixed edge', (
     WidgetTester tester,
   ) async {
     tester.view.devicePixelRatio = 1.0;
@@ -143,7 +146,7 @@ void main() {
     final provider = image.image;
     expect(provider, isA<ResizeImage>());
     final resize = provider as ResizeImage;
-    expect(resize.width, 48);
+    expect(resize.width, 96);
     expect(resize.imageProvider, isA<NetworkImage>());
     expect(
       (resize.imageProvider as NetworkImage).url,
@@ -173,7 +176,7 @@ void main() {
     expect(network.headers?['Referer'], 'https://music.163.com/');
   });
 
-  testWidgets('network url at DPR 3.0 produces cacheWidth 144', (
+  testWidgets('network url at DPR 3.0 decodes at twice the edge', (
     WidgetTester tester,
   ) async {
     tester.view.devicePixelRatio = 3.0;
@@ -190,7 +193,25 @@ void main() {
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image;
     expect(provider, isA<ResizeImage>());
-    expect((provider as ResizeImage).width, 144);
+    expect((provider as ResizeImage).width, 288);
+  });
+
+  testWidgets('a huge fixed cover caps the decode edge', (
+    WidgetTester tester,
+  ) async {
+    tester.view.devicePixelRatio = 4.0;
+    addTearDown(tester.view.reset);
+
+    await _pump(
+      tester,
+      MediaQuery(
+        data: const MediaQueryData(devicePixelRatio: 4.0),
+        child: CoverImage(path: '/test/cover.jpg', size: 1000),
+      ),
+    );
+
+    final provider = tester.widget<Image>(find.byType(Image)).image;
+    expect((provider as ResizeImage).width, 2048);
   });
 
   testWidgets('path takes priority over url when both are provided', (

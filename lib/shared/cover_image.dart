@@ -14,6 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +34,8 @@ import 'package:flind_player/data/providers/cover_providers.dart';
 /// keeps a hotlink-protected CDN (e.g. NetEase's `*.music.126.net`) working.
 ///
 /// When [size] is finite the widget is exactly [size] logical pixels square and
-/// the image is decoded at `size * devicePixelRatio` physical pixels. When
+/// the image is decoded at twice the display edge in physical pixels — a square
+/// box crops a wide source, so its short side is what has to fill the box. When
 /// [size] is `double.infinity` the widget fills its parent (preserving the
 /// existing grid-card semantics) and a [LayoutBuilder] derives the decode edge
 /// from the actual constraints.
@@ -75,6 +77,22 @@ class _CoverImageState extends ConsumerState<CoverImage> {
 
   /// Set once the download fallback also failed, so the placeholder sticks.
   bool _failed = false;
+
+  /// Decode multiplier for a finite (square) cover box.
+  ///
+  /// [CoverImage] paints with [BoxFit.cover] in a square, so a wide source —
+  /// Bilibili's 16:9 thumbnails for instance — is cropped to its centre and it
+  /// is the source's *short* side that has to fill the box. Decoding at the
+  /// box's own edge leaves that side well under the box, and Flutter scales it
+  /// back up: the cover then looks soft although the original is sharp (the
+  /// cover viewer, which shows the undecoded bytes, stays crisp). Twice the
+  /// display edge keeps any source up to 2:1 at or above the box while the
+  /// bitmap stays bounded.
+  static const int _squareOversample = 2;
+
+  /// Ceiling for the oversampled decode edge, so a large desktop artwork does
+  /// not allocate an outsized bitmap.
+  static const int _maxDecodeEdge = 2048;
 
   @override
   void didUpdateWidget(CoverImage oldWidget) {
@@ -213,7 +231,7 @@ class _CoverImageState extends ConsumerState<CoverImage> {
     required Widget Function(int cacheWidth) buildImage,
   }) {
     if (widget.size.isFinite) {
-      return buildImage((widget.size * dpr).round());
+      return buildImage(_squareDecodeEdge(widget.size, dpr));
     }
 
     return LayoutBuilder(
@@ -224,4 +242,11 @@ class _CoverImageState extends ConsumerState<CoverImage> {
       },
     );
   }
+
+  /// The decode width for a square cover of [size] logical pixels.
+  ///
+  /// The box crops rather than letterboxes, so the decoded bitmap must cover
+  /// the box in its smaller dimension too; see [_squareOversample].
+  static int _squareDecodeEdge(double size, double dpr) =>
+      math.min((size * dpr).round() * _squareOversample, _maxDecodeEdge);
 }
