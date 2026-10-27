@@ -347,18 +347,21 @@ PlayerScreen (播放页 StatelessWidget)
 _HeaderRow (共享头部行 — 取代原 AppBar)
 └─ Row
    ├─ IconButton (keyboard_arrow_down 向下箭头 → maybePop 收起)
-   ├─ Expanded → Column (曲名 titleMedium w700 + 艺术家 bodySmall)
+   ├─ Expanded → Column (曲名 titleMedium w700 + 艺术家 bodyMedium w500
+   │                        @ onSurface 0.78; 两行都带黑色柔光阴影以便压在
+   │                        模糊封面上仍可读)
    └─ SizedBox(width: 48) (右侧配重, 保持标题居中)
 
 _PortraitBody (竖屏正文)
 └─ Column
    ├─ Expanded → _PortraitPager (横滑: 封面 ⇄ 歌词, 250ms, 跟随手指)
-   │  ├─ _PortraitNormal
+   │  ├─ _PortraitNormal (封面靠上 + 滚动歌词)
    │  │  └─ Column
-   │  │     ├─ Expanded → _CoverArt (自适应封面, 底部对齐)
-   │  │     │  └─ LayoutBuilder (edge = min(w, h); size = (edge×0.82).clamp(min(80,edge), 480))
-   │  │     │     └─ Center → Padding(24,8,24,12) → _PlayerCover
-   │  │     └─ SizedBox (约 3.6 行歌词高度) → LyricsPreview (点击展开)
+   │  │     ├─ SizedBox(4) → LayoutBuilder → _PlayerCover
+   │  │     │  (size = _portraitCoverEdge: 宽度 72%, 短窗先让位给歌词;
+   │  │     │   size = min(w×0.72, h − 112 − 48).clamp(96, 420))
+   │  │     ├─ SizedBox(16)
+   │  │     └─ Expanded → LyricsPreview (滚动歌词窗 ≥ 112 高, 点击展开)
    │  └─ LyricsView (全屏歌词 — provider 驱动, 点击收起, 见下)
    ├─ _ProgressBar (进度条, 见下)
    ├─ _TransportControls (传输控制区, 见下)
@@ -368,8 +371,8 @@ _LandscapeBody (横屏正文 — 左右等宽双栏, 无分隔线)
 └─ Row
    ├─ Expanded → MiniMain (左栏: 迷你主视图)
    │  └─ Column
-   │     ├─ Expanded → LayoutBuilder (与竖屏同一公式: edge = min(w, h);
-   │     │   size = (edge×0.82).clamp(min(80,edge), 480))
+   │     ├─ Expanded → LayoutBuilder (edge = min(w, h);
+   │     │   size = _coverSizeFor = (edge×0.65).clamp(min(80,edge), 480))
    │     │  └─ Center → _PlayerCover (封面随窗口缩放)
    │     ├─ _ProgressBar
    │     ├─ _TransportControls
@@ -477,29 +480,32 @@ PlaylistPanel (播放队列面板 ConsumerWidget)
 
 provider 驱动:watch `playbackStateProvider`(当前曲目 + 播放位置)与
 `trackLyricsProvider(当前曲目)`;有歌词时按 `Lyric.indexAt(position)` 高亮当前行
-并自动滚动居中,翻译以次级样式渲染在原文下方;无歌词或源未适配时回落占位
-(「词莫见,敬聆听」)。
+并由 `_LyricsScroll` 按真实几何自动居中,翻译以次级样式渲染在原文下方;无歌词或
+源未适配时回落占位(「词莫见,敬聆听」)。`LyricsView` 与 `LyricsPreview` 共用
+`_LyricsScroll`/`_LyricLineTile`,只有 `compact` 排版不同。
 
 ```
-LyricsView (全屏歌词 ConsumerStatefulWidget, 点击回调 onTap 收起竖屏歌词页)
+LyricsView (全屏歌词 ConsumerWidget, 点击回调 onTap 收起竖屏歌词页)
 └─ GestureDetector (opaque)
    ├─ {无曲目/无歌词/空歌词} _LyricsPlaceholder (占位)
    │  └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight) → Center
    │     └─ Column [ Icon(lyrics_outlined) + Text(占位标题)
    │                 + Text(提示: sourceSupportsLyricsProvider 为真 → 「暂无歌词」,
    │                        否则 → 「该音源暂未适配歌词」) ]
-   └─ {有歌词} ListView.builder (Lyric.lines, controller 自滚动)
-      └─ Container {当前行} key: lyric-current (主色加粗)
-         └─ Column [ Text(原文) + {有翻译} Text(次级样式翻译) ]
-         → index 变化时 animateTo 居中(250ms easeOut, 估算行高 56)
+   └─ {有歌词} _LyricsScroll
+      └─ SingleChildScrollView → Column (全量布局, key: ValueKey(曲目 uri))
+         └─ _LyricLineTile × Lyric.lines
+            └─ Container {当前行} key: lyric-current (主色加粗)
+               └─ Column [ Text(原文) + {有翻译} Text(次级样式翻译) ]
+            → index 变化时 Scrollable.ensureVisible(alignment: 0.5, 250ms easeOut)
+              (非 lazy, 未构建的行也能精确居中)
 
-LyricsPreview (歌词 teaser 条 — 竖屏封面下约 3.6 行高 ConsumerWidget)
-└─ GestureDetector (透明, 直接叠在播放页环境背景上; 点击展开歌词页)
-   └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight) → Center
-      └─ Padding → Column
-         ├─ {无歌词} Icon(20) + Text(占位文案, 单行省略)
-         └─ {有歌词} Container(key: lyric-current)
-            → 当前行(主色) [ + {有翻译} 单行翻译 ]
+LyricsPreview (竖屏滚动歌词窗 — 竖屏封面临下填满剩余高度 ConsumerWidget)
+└─ {无歌词} _LyricsPreviewPlaceholder (单行 Icon + 文案)
+└─ {有歌词} LayoutBuilder (半视口 padding 让首尾行也能居中)
+   └─ ShaderMask (上下 16% 淡出边缘)
+      └─ _LyricsScroll(compact: true)
+         → 当前行居中高亮, 相邻行 bodyMedium 变淡; 仅当前行显示翻译
 ```
 
 ## B 站收藏夹浏览页 BilibiliFavoritesScreen
@@ -557,7 +563,8 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
   RenderFlex overflow。
 - `CoverImage` (封面图):`path`(本地缓存)优先,`url`(网络)兜底;按显示尺寸解码
   (`cacheWidth = size × DPR`),`double.infinity` 时用 `LayoutBuilder` 推导
-  边缘。文件失效时自动回退到网络 URL。
+  边缘。方形解码器按 **2× 显示边长**取样(上限 2048),避免 16:9 等非方形原图
+  被 `BoxFit.cover` 放大后发虚。文件失效时自动回退到网络 URL。
 - `PlayModeButton` (播放模式按钮):顺序/列表循环/单曲循环/随机四态循环,
   由 `playbackStateProvider` 推导当前态(随机优先),切换时先设 shuffle
   再设 repeat。

@@ -374,6 +374,33 @@ void main() {
       },
     );
 
+    testWidgets(
+      'anchors the cover under the header and gives the rest to the lyrics',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final controller = _FakePlaybackController(_playingState());
+        await tester.pumpWidget(_app(controller));
+        await tester.pumpAndSettle();
+
+        final cover = tester.getRect(
+          find.byKey(const Key('player_cover_clip')),
+        );
+        final artist = tester.getRect(find.text('未知艺术家'));
+        final preview = tester.getRect(find.byType(LyricsPreview));
+
+        // No pool of empty space above the artwork any more: it starts just
+        // under the header.
+        expect(cover.top - artist.bottom, lessThan(32));
+        // The artwork stays clear of the edges...
+        expect(cover.width, lessThan(800 * 0.8));
+        // ...and the rolling lyrics take whatever height is left.
+        expect(preview.height, greaterThan(kLyricsPreviewMinHeight));
+      },
+    );
+
     testWidgets('dragging the progress bar seeks the track', (tester) async {
       tester.view.physicalSize = const Size(800, 900);
       tester.view.devicePixelRatio = 1.0;

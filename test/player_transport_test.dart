@@ -368,9 +368,9 @@ void main() {
       await tester.pumpAndSettle();
       final small = coverSize();
 
-      // The cover is 65 % of the cover area's smaller edge. Measure that area
-      // so the assertion follows layout changes (e.g. the taller lyrics teaser)
-      // instead of hard-coding one viewport's geometry.
+      // The portrait cover is 72 % of the pane's width and the pane is
+      // width-bound at 400×800, so it shrinks only when the rolling lyrics
+      // need their minimum height (short viewports).
       final coverArea = tester.getSize(
         find
             .ancestor(
@@ -379,10 +379,7 @@ void main() {
             )
             .first,
       );
-      final edge = coverArea.width < coverArea.height
-          ? coverArea.width
-          : coverArea.height;
-      expect(small, closeTo(edge * 0.65, 2));
+      expect(small, closeTo(coverArea.width * 0.72, 2));
 
       // A large landscape window: the old landscape formula capped the cover
       // at 280 here, so this also guards against landscape shrinking it.

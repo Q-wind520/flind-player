@@ -223,6 +223,63 @@ void main() {
     );
   });
 
+  testWidgets('the preview rolls through the neighbouring lines', (
+    tester,
+  ) async {
+    final lyric = Lyric(<LyricLine>[
+      for (var i = 0; i < 20; i++)
+        LyricLine(
+          timestamp: Duration(seconds: i),
+          text: 'Line $i',
+          translation: '翻译 $i',
+        ),
+    ]);
+
+    await tester.pumpWidget(
+      _app(
+        lyric: lyric,
+        position: const Duration(seconds: 10),
+        body: const SizedBox(height: 180, child: LyricsPreview()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final current = find.byKey(const ValueKey<String>('lyric-current'));
+    expect(
+      find.descendant(of: current, matching: find.text('Line 10')),
+      findsOneWidget,
+    );
+    // The lines around the current one stay visible, so the preview reads as
+    // a rolling window instead of a single-line teaser.
+    expect(find.text('Line 9'), findsOneWidget);
+    expect(find.text('Line 11'), findsOneWidget);
+
+    // The current line is centred in the window.
+    expect(
+      tester.getCenter(current).dy,
+      closeTo(tester.getCenter(find.byType(LyricsPreview)).dy, 2),
+    );
+
+    // Compact neighbours drop their translation; the current line keeps it.
+    expect(find.text('翻译 10'), findsOneWidget);
+    expect(find.text('翻译 9'), findsNothing);
+  });
+
+  testWidgets('the preview keeps a compact placeholder without lyrics', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        lyric: null,
+        body: const SizedBox(height: 120, child: LyricsPreview()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('词莫见，敬聆听'), findsOneWidget);
+    expect(find.text('该音源暂未适配歌词'), findsNothing);
+  });
+
   testWidgets('centres the bilingual line pair in the full lyrics view', (
     tester,
   ) async {

@@ -409,7 +409,7 @@ class _NowPlayingBackdrop extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: hasCover ? 0.22 : 0),
+                  Colors.black.withValues(alpha: hasCover ? 0.32 : 0),
                   Colors.black.withValues(alpha: 0.52),
                   scheme.surface.withValues(alpha: 0.94),
                 ],
@@ -434,6 +434,12 @@ class _NowPlayingBackdrop extends StatelessWidget {
     );
   }
 }
+
+/// A soft shadow under the header text so the title and artist stay legible
+/// where the blurred cover wash is bright.
+const List<Shadow> _headerTextShadow = [
+  Shadow(color: Colors.black54, blurRadius: 8),
+];
 
 /// The top row of the player content: the collapse (hide) button and the
 /// current track title and artist. Replaces the former [AppBar] so the same
@@ -477,6 +483,7 @@ class _HeaderRow extends StatelessWidget {
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: scheme.onSurface,
+                    shadows: _headerTextShadow,
                   ),
                 ),
                 Text(
@@ -484,8 +491,12 @@ class _HeaderRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    // The blurred cover wash leaves bright patches behind the
+                    // header; a muted bodySmall artist disappeared into them.
+                    color: scheme.onSurface.withValues(alpha: 0.78),
+                    fontWeight: FontWeight.w500,
+                    shadows: _headerTextShadow,
                   ),
                 ),
               ],
@@ -551,12 +562,14 @@ class _PortraitBody extends StatelessWidget {
             lyrics: LyricsView(onTap: onLyricsCollapse),
           ),
         ),
+        const SizedBox(height: AppSpacing.sm),
         _ProgressBar(state: state),
+        const SizedBox(height: AppSpacing.xs),
         _TransportControls(state: state),
         // A larger gap before the docked MiniSettings so the controls and the
         // settings bar read as two separated rows; the expanded lyrics page
         // keeps the transport clear of the very bottom instead.
-        SizedBox(height: lyricsExpanded ? 24 : 16),
+        SizedBox(height: lyricsExpanded ? AppSpacing.xl : 20),
       ],
     );
   }
@@ -664,8 +677,13 @@ class _PortraitPagerState extends State<_PortraitPager>
   }
 }
 
-/// The collapsed portrait content: adaptive cover and the 5-line lyrics
-/// teaser strip. The title and artist live in the shared header row.
+/// The collapsed portrait content: the artwork anchored under the header and
+/// the rolling lyric window filling everything below it.
+///
+/// The cover keeps a fixed share of the pane width and the lyrics take the
+/// rest, so a tall phone shows more lyric lines instead of a pool of empty
+/// space above (and below) a centred cover. The title and artist live in the
+/// shared header row.
 class _PortraitNormal extends StatelessWidget {
   const _PortraitNormal({required this.track, required this.onLyricsTap});
 
@@ -674,23 +692,38 @@ class _PortraitNormal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Roughly three lyric lines including a translation, so the teaser reads
-    // as a door into the lyrics page without stealing the cover's space.
-    final lyricsStyle = theme.textTheme.titleMedium;
-    final lineHeight =
-        (lyricsStyle?.fontSize ?? 16) * (lyricsStyle?.height ?? 1.4);
-    final lyricsStripHeight = lineHeight * 3.6;
-    return Column(
-      children: [
-        Expanded(child: _CoverArt(track: track)),
-        SizedBox(
-          height: lyricsStripHeight,
-          child: LyricsPreview(onTap: onLyricsTap),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          children: [
+            const SizedBox(height: AppSpacing.xs),
+            _PlayerCover(track: track, size: _portraitCoverEdge(constraints)),
+            const SizedBox(height: AppSpacing.md),
+            Expanded(child: LyricsPreview(onTap: onLyricsTap)),
+          ],
+        );
+      },
     );
   }
+}
+
+/// The minimum height the rolling lyric window keeps in the portrait layout.
+///
+/// The cover gives way to it on short viewports, so at least two lines and a
+/// neighbour stay visible instead of the lyrics collapsing to a single row.
+const double kLyricsPreviewMinHeight = 112;
+
+/// The square cover edge for the portrait layout.
+///
+/// The artwork is ~72 % of the pane width (a little narrower than the width
+/// itself, so it never crowds the edges), and it yields to
+/// [kLyricsPreviewMinHeight] when the pane is short. The ceiling keeps a very
+/// tall window from producing an oversized cover.
+double _portraitCoverEdge(BoxConstraints constraints) {
+  final widthEdge = constraints.maxWidth * 0.72;
+  final heightEdge =
+      constraints.maxHeight - kLyricsPreviewMinHeight - AppSpacing.lg * 2;
+  return math.min(widthEdge, heightEdge).clamp(96.0, 420.0);
 }
 
 /// Landscape body: two equal panes — the left [MiniMain] and the full-height
@@ -730,12 +763,12 @@ class _LandscapeBody extends StatelessWidget {
 
 /// The edge length of the square cover art that fits [constraints].
 ///
-/// Both the landscape left pane and the portrait cover use this single
-/// formula: the artwork is 65 % of the smaller available edge, leaving a
-/// ~17.5 % breathing margin on each side. A higher fraction made the cover
-/// crowd the pane at 4:3 / 9:16 windows. The 80 px floor is itself bounded by
-/// [edge] so a tiny pane still lays out. The 480 px ceiling keeps the artwork
-/// from dominating a very large window.
+/// The landscape left pane uses this formula: the artwork is 65 % of the
+/// smaller available edge, leaving a ~17.5 % breathing margin on each side. A
+/// higher fraction made the cover crowd the pane at 4:3 / 9:16 windows. The
+/// portrait layout sizes its cover with [_portraitCoverEdge] instead. The 80 px
+/// floor is itself bounded by [edge] so a tiny pane still lays out. The 480 px
+/// ceiling keeps the artwork from dominating a very large window.
 double _coverSizeFor(BoxConstraints constraints) {
   final edge = math.min(constraints.maxWidth, constraints.maxHeight);
   return (edge * 0.65).clamp(math.min(80.0, edge), 480.0);
@@ -776,10 +809,12 @@ class MiniMain extends StatelessWidget {
             },
           ),
         ),
+        const SizedBox(height: AppSpacing.sm),
         _ProgressBar(state: state),
+        const SizedBox(height: AppSpacing.xs),
         _TransportControls(state: state),
         // Same gap as portrait: keep the controls and the settings bar apart.
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Visibility(
           visible: showSettings,
           maintainSize: true,
@@ -788,35 +823,6 @@ class MiniMain extends StatelessWidget {
           child: MiniSettings(onVolumeTap: onVolumeTap),
         ),
       ],
-    );
-  }
-}
-
-/// Centred cover art that scales with the available space.
-///
-/// The cover uses the same [_coverSizeFor] formula as the landscape pane, so
-/// it grows with the smaller window edge; the fixed 24 px horizontal padding
-/// keeps it clear of the screen edges.
-class _CoverArt extends StatelessWidget {
-  const _CoverArt({required this.track});
-
-  final Track track;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Anchor the artwork to the lyrics teaser below it; the extra breathing
-        // room collects under the header instead of splitting the cover and
-        // the lyrics apart.
-        return Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-            child: _PlayerCover(track: track, size: _coverSizeFor(constraints)),
-          ),
-        );
-      },
     );
   }
 }
