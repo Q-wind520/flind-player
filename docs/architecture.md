@@ -340,6 +340,7 @@ Track → PlaybackController.playQueue(queue)
 | iOS | MPNowPlayingInfoCenter | `audio_service` 内置 |
 | Web | Media Session API | 推迟（D11） |
 | 桌面托盘 | tray | `tray_manager` ^0.5.2 |
+| 桌面单实例 | 文件锁 + 激活请求文件 | `lib/platform/single_instance/`（`SingleInstanceGuard`） |
 
 桌面附加：`window_manager`（关闭到托盘）、Linux 需 `libmpv-dev` + `libayatana-appindicator3-dev`。
 

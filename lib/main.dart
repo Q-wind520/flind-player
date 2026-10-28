@@ -36,10 +36,21 @@ import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
+import 'package:flind_player/platform/single_instance/single_instance_guard.dart';
 import 'package:flind_player/platform/tray/tray_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+
+  // Desktop sessions own per-user singletons — the database, the cache
+  // directories, the audio session and the tray icon — so a second process
+  // must not open them. This runs before anything below touches them and
+  // before runApp, which also means a blocked launch never reaches the first
+  // frame and therefore never shows a window.
+  final instanceGuard = await _acquireSingleInstance(isDesktop);
+
   // Draw edge-to-edge on every Android version so the transparent system bars
   // configured in AppSystemUiOverlay sit over the app surface instead of
   // inheriting the Activity theme's black status bar. A no-op elsewhere.
@@ -59,7 +70,6 @@ Future<void> main() async {
   // window_manager must be initialised BEFORE runApp: its Linux plugin takes
   // over window creation, and initialising it later leaves the GTK window
   // half-configured — which in turn makes AudioService.init never complete.
-  final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
   if (isDesktop) {
     try {
       await windowManager.ensureInitialized();
@@ -178,5 +188,62 @@ Future<void> main() async {
     } catch (error, stackTrace) {
       debugPrint('Flind Player: tray init failed: $error\n$stackTrace');
     }
+  }
+
+  // From here on a launch that could not take the lock can reach this
+  // instance; the request is polled for the rest of the session.
+  instanceGuard?.watch(_presentWindow);
+}
+
+/// The environment variable that opts a run out of the single-instance guard.
+///
+/// Development and support need it: a debug build and an installed release
+/// share the same application support directory, so without this an installed
+/// copy would silently stop the app started by `flutter run`.
+const String allowMultiInstanceEnvironmentVariable =
+    'FLIND_ALLOW_MULTI_INSTANCE';
+
+/// Takes the desktop single-instance lock.
+///
+/// Returns `null` when the guard does not apply — a mobile platform, an
+/// explicit opt-out, or a guard that could not be set up, since system
+/// integration must never keep the app from starting.
+///
+/// When another instance holds the lock this asks it to surface its window and
+/// exits the process before any shared state is opened.
+Future<SingleInstanceGuard?> _acquireSingleInstance(bool isDesktop) async {
+  if (!isDesktop ||
+      Platform.environment[allowMultiInstanceEnvironmentVariable] == '1') {
+    return null;
+  }
+  try {
+    final guard = SingleInstanceGuard(
+      directory: await getApplicationSupportDirectory(),
+    );
+    if (await guard.tryAcquire()) {
+      return guard;
+    }
+    await guard.requestActivation();
+    exit(0);
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: single-instance guard failed: $error\n$stackTrace',
+    );
+    return null;
+  }
+}
+
+/// Brings the already-running window back to the user.
+///
+/// Focus restores a minimized window on Windows and presents it on
+/// Linux/macOS, so this also works when the app is parked in the tray.
+Future<void> _presentWindow() async {
+  try {
+    await windowManager.show();
+    await windowManager.focus();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: presenting the window failed: $error\n$stackTrace',
+    );
   }
 }
