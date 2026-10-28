@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/auth/auth_cookie_jar.dart';
 import 'package:flind_player/data/sources/netease/netease_api.dart';
 import 'package:flind_player/data/sources/netease/netease_models.dart';
 import 'package:flind_player/data/sources/netease/netease_source.dart';
@@ -28,26 +29,47 @@ class _FakeApi implements NeteaseApi {
   final List<NeteaseSongDto> songs;
   final NeteaseUrlDto? url;
   final NeteaseLyricDto? lyric;
+  String? requestedLevel;
+  String? failingLevel;
 
   @override
-  Future<List<NeteaseSongDto>> searchSongs(String query, {int page = 1}) async => songs;
+  Future<List<NeteaseSongDto>> searchSongs(
+    String query, {
+    int page = 1,
+  }) async => songs;
 
   @override
-  Future<NeteaseSongDto?> songDetail(int songId) async => songs.isEmpty ? null : songs.first;
+  Future<NeteaseSongDto?> songDetail(int songId) async =>
+      songs.isEmpty ? null : songs.first;
 
   @override
-  Future<NeteaseUrlDto?> songUrl(int songId) async => url;
+  Future<NeteaseUrlDto?> songUrl(
+    int songId, {
+    String level = 'standard',
+  }) async {
+    requestedLevel = level;
+    if (level == failingLevel) throw StateError('tier unavailable');
+    return url;
+  }
 
   @override
   Future<NeteaseLyricDto> songLyric(int songId) async =>
       lyric ?? const NeteaseLyricDto();
 }
 
-const _song = NeteaseSongDto(id: 42, name: 'T', artists: <String>['A'], album: 'Al', durationMs: 1000);
+const _song = NeteaseSongDto(
+  id: 42,
+  name: 'T',
+  artists: <String>['A'],
+  album: 'Al',
+  durationMs: 1000,
+);
 
 void main() {
   test('search maps songs to tracks', () async {
-    final source = NeteaseSource(api: _FakeApi(songs: const <NeteaseSongDto>[_song]));
+    final source = NeteaseSource(
+      api: _FakeApi(songs: const <NeteaseSongDto>[_song]),
+    );
     final tracks = await source.search('q');
     expect(tracks, hasLength(1));
     expect(tracks.single.uri, 'netease:42');
@@ -56,7 +78,10 @@ void main() {
   test('resolveStream returns the URL and quality', () async {
     final source = NeteaseSource(
       api: _FakeApi(
-        url: const NeteaseUrlDto(url: 'https://m8.music.126.net/x.mp3', level: 'standard'),
+        url: const NeteaseUrlDto(
+          url: 'https://m8.music.126.net/x.mp3',
+          level: 'standard',
+        ),
       ),
     );
     final info = await source.resolveStream(
@@ -95,20 +120,71 @@ void main() {
     expect(info.url.query, 'auth=1');
   });
 
-  test('resolveStream throws when the song has no stream (VIP/region)', () async {
-    final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto()));
-    expect(
-      () => source.resolveStream(
-        const Track(
-          source: 'netease',
-          sourceTrackId: NeteaseTrackId(songId: 42),
-          uri: 'netease:42',
-          title: 'T',
-        ),
+  test('a signed-in source asks for the exhigh tier', () async {
+    final jar = AuthCookieJar()
+      ..replace('netease', const <String, String>{'MUSIC_U': 'token'});
+    final api = _FakeApi(
+      url: const NeteaseUrlDto(
+        url: 'https://m8.music.126.net/x.mp3',
+        level: 'exhigh',
       ),
-      throwsA(isA<StateError>()),
     );
+    final source = NeteaseSource(api: api, cookieJar: jar);
+
+    final info = await source.resolveStream(
+      const Track(
+        source: 'netease',
+        sourceTrackId: NeteaseTrackId(songId: 42),
+        uri: 'netease:42',
+        title: 'T',
+      ),
+    );
+
+    expect(api.requestedLevel, 'exhigh');
+    expect(info.qualityId, 'exhigh');
   });
+
+  test('a signed-in source falls back to standard when exhigh fails', () async {
+    final jar = AuthCookieJar()
+      ..replace('netease', const <String, String>{'MUSIC_U': 'token'});
+    final api = _FakeApi(
+      url: const NeteaseUrlDto(
+        url: 'https://m8.music.126.net/x.mp3',
+        level: 'standard',
+      ),
+    )..failingLevel = 'exhigh';
+    final source = NeteaseSource(api: api, cookieJar: jar);
+
+    final info = await source.resolveStream(
+      const Track(
+        source: 'netease',
+        sourceTrackId: NeteaseTrackId(songId: 42),
+        uri: 'netease:42',
+        title: 'T',
+      ),
+    );
+
+    expect(api.requestedLevel, 'standard');
+    expect(info.qualityId, 'standard');
+  });
+
+  test(
+    'resolveStream throws when the song has no stream (VIP/region)',
+    () async {
+      final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto()));
+      expect(
+        () => source.resolveStream(
+          const Track(
+            source: 'netease',
+            sourceTrackId: NeteaseTrackId(songId: 42),
+            uri: 'netease:42',
+            title: 'T',
+          ),
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
 
   test('lyricsFor parses original and translation', () async {
     final source = NeteaseSource(
@@ -148,20 +224,25 @@ void main() {
     );
   });
 
-  test('capabilities advertise search and streamDirect only', () {
+  test('capabilities advertise search, streamDirect and login', () {
     final source = NeteaseSource(api: _FakeApi());
     expect(source.capabilities.supports(SourceCapability.search), isTrue);
     expect(source.capabilities.supports(SourceCapability.streamDirect), isTrue);
-    expect(source.capabilities.supports(SourceCapability.login), isFalse);
+    expect(source.capabilities.supports(SourceCapability.login), isTrue);
   });
 
-  test('fetchTrack rejects a foreign SourceTrackId with ArgumentError', () async {
-    final source = NeteaseSource(api: _FakeApi(songs: const <NeteaseSongDto>[_song]));
-    await expectLater(
-      source.fetchTrack(const BiliTrackId(bvid: 'BV1', cid: 1)),
-      throwsA(isA<ArgumentError>()),
-    );
-  });
+  test(
+    'fetchTrack rejects a foreign SourceTrackId with ArgumentError',
+    () async {
+      final source = NeteaseSource(
+        api: _FakeApi(songs: const <NeteaseSongDto>[_song]),
+      );
+      await expectLater(
+        source.fetchTrack(const BiliTrackId(bvid: 'BV1', cid: 1)),
+        throwsA(isA<ArgumentError>()),
+      );
+    },
+  );
 
   test('fetchTrack throws StateError when the API returns no song', () async {
     final source = NeteaseSource(api: _FakeApi());
@@ -172,7 +253,9 @@ void main() {
   });
 
   test('resolveStream rejects a foreign id with UnsupportedError', () async {
-    final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto(url: 'https://x')));
+    final source = NeteaseSource(
+      api: _FakeApi(url: const NeteaseUrlDto(url: 'https://x')),
+    );
     await expectLater(
       source.resolveStream(
         const Track(
@@ -187,7 +270,9 @@ void main() {
   });
 
   test('resolveStream throws StateError when the DTO url is empty', () async {
-    final source = NeteaseSource(api: _FakeApi(url: const NeteaseUrlDto(url: '')));
+    final source = NeteaseSource(
+      api: _FakeApi(url: const NeteaseUrlDto(url: '')),
+    );
     await expectLater(
       source.resolveStream(
         const Track(

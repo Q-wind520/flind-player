@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,6 +29,7 @@ import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
+import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/features/home/home_shell.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -40,6 +43,13 @@ class FlindApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Keep the queue cover-prefetch coordinator alive for the whole session.
     ref.watch(coverPrefetchCoordinatorProvider);
+    // Hydrate the account cookie jar before the first playback request so a
+    // stored login is used without opening Settings first.
+    ref.watch(authControllerProvider);
+    ref.listen(authControllerProvider, (previous, next) {
+      if (previous?.hasValue == true || !next.hasValue) return;
+      unawaited(ref.read(authControllerProvider.notifier).validateStale());
+    });
 
     final language = ref.watch(appLanguageProvider).value ?? AppLanguage.system;
     final themeMode =

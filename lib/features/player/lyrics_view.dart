@@ -24,6 +24,7 @@ import 'package:flind_player/core/models/lyric.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/lyrics_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/features/settings/account_section.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
 /// Full-area lyrics pane: a scrollable, time-synced lyric list for the
@@ -190,8 +191,7 @@ class _LyricLineTile extends StatelessWidget {
     final scheme = theme.colorScheme;
     // A rolling preview shows several lines at once; their translations would
     // double its density, so only the current line keeps its translation.
-    final showTranslation =
-        line.translation != null && (isCurrent || !compact);
+    final showTranslation = line.translation != null && (isCurrent || !compact);
 
     return Container(
       key: isCurrent ? const ValueKey<String>('lyric-current') : null,
@@ -218,9 +218,7 @@ class _LyricLineTile extends StatelessWidget {
                           : compact
                           ? scheme.onSurfaceVariant.withValues(alpha: 0.66)
                           : scheme.onSurfaceVariant,
-                      fontWeight: isCurrent
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
                     ),
           ),
           if (showTranslation)
@@ -270,6 +268,11 @@ class _LyricsPlaceholder extends ConsumerWidget {
     final supportsLyrics =
         currentTrack != null &&
         ref.watch(sourceSupportsLyricsProvider(currentTrack.source));
+    final loginSource =
+        currentTrack != null &&
+            ref.watch(lyricsLoginRequiredProvider(currentTrack.source))
+        ? currentTrack
+        : null;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -300,7 +303,9 @@ class _LyricsPlaceholder extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          supportsLyrics
+                          loginSource != null
+                              ? l10n.lyricsLoginRequiredHint
+                              : supportsLyrics
                               ? l10n.lyricsNotFound
                               : l10n.lyricsPlaceholderHint,
                           style: theme.textTheme.bodyMedium?.copyWith(
@@ -308,6 +313,19 @@ class _LyricsPlaceholder extends ConsumerWidget {
                           ),
                           textAlign: TextAlign.center,
                         ),
+                        if (loginSource != null) ...[
+                          const SizedBox(height: 12),
+                          FilledButton.tonalIcon(
+                            onPressed: () => showAccountLoginSheet(
+                              context,
+                              sourceId: loginSource.source,
+                            ),
+                            icon: const Icon(AppIcons.accountCircle, size: 18),
+                            label: Text(
+                              l10n.accountLoginForLyrics(l10n.sourceBilibili),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

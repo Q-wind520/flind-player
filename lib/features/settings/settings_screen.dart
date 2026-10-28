@@ -16,6 +16,7 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +40,7 @@ import 'package:flind_player/data/providers/library_providers.dart';
 import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/settings_repository_provider.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
+import 'package:flind_player/features/settings/account_section.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/theme_color_picker.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
@@ -87,6 +89,12 @@ class SettingsScreen extends ConsumerWidget {
                   AppPageHeader(title: l10n.navSettings),
                   SectionHeader(l10n.general),
                   const _GeneralSection(),
+
+                  // ── 账号 ──
+                  if (!kIsWeb) ...[
+                    SectionHeader(l10n.sectionAccounts),
+                    const AccountSection(),
+                  ],
 
                   // ── 播放 ──
                   SectionHeader(l10n.sectionPlayback),

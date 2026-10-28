@@ -99,11 +99,14 @@ class NeteaseApi {
     return songs.isEmpty ? null : songs.first;
   }
 
-  Future<NeteaseUrlDto?> songUrl(int songId) async {
+  Future<NeteaseUrlDto?> songUrl(
+    int songId, {
+    String level = 'standard',
+  }) async {
     final json = await _rateLimiter.run(
       () => _client.postEapi(_urlPath, <String, dynamic>{
         'ids': '[$songId]',
-        'level': 'standard',
+        'level': level,
         'encodeType': 'flac',
       }),
     );

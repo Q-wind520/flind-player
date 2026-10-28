@@ -219,5 +219,56 @@
   "downloadCover": "下载封面图",
   "coverSaved": "已保存封面图",
   "coverSaveFailed": "保存封面图失败",
-  "coverOriginalUnavailable": "无法获取原图"
+  "coverOriginalUnavailable": "无法获取原图",
+  "sectionAccounts": "账号与来源",
+  "accountNotSignedIn": "未登录",
+  "accountExpired": "登录已过期",
+  "accountSignIn": "登录",
+  "accountLogout": "退出登录",
+  "accountLogoutConfirmTitle": "退出登录？",
+  "accountLogoutConfirmBody": "将从本机移除 {source} 的登录凭证。",
+  "@accountLogoutConfirmBody": {
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "accountLoginTitle": "登录 {source}",
+  "@accountLoginTitle": {
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "accountScanHint": "请使用对应平台的 App 扫码",
+  "accountQrExpiresIn": "二维码 {time} 后失效",
+  "@accountQrExpiresIn": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "accountQrExpired": "二维码已失效，请刷新",
+  "accountScanned": "已扫码，请在手机上确认",
+  "accountWaitingScan": "等待扫码",
+  "accountRefreshQr": "刷新二维码",
+  "accountLoginFailed": "登录失败：{detail}",
+  "@accountLoginFailed": {
+    "placeholders": {
+      "detail": { "type": "String" }
+    }
+  },
+  "accountSecureStorageUnavailable": "系统安全存储不可用，无法保存登录状态",
+  "accountVip": "VIP",
+  "accountUid": "UID {id}",
+  "@accountUid": {
+    "placeholders": {
+      "id": { "type": "String" }
+    }
+  },
+  "accountLoginForLyrics": "登录 {source} 后获取字幕",
+  "@accountLoginForLyrics": {
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "accountLoginForQuality": "登录后使用更高音质",
+  "lyricsLoginRequiredHint": "登录后可获取该视频的字幕"
 }

@@ -13,8 +13,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/data/sources/bilibili/bili_models.dart';
+import 'package:flind_player/data/sources/bilibili/bili_quality.dart';
+import 'package:flind_player/data/sources/bilibili/bili_subtitles.dart';
 import 'package:flind_player/data/sources/bilibili/rate_limiter.dart';
 import 'package:flind_player/data/sources/bilibili/risk_control.dart';
 import 'package:flind_player/data/sources/bilibili/wbi_signer.dart';
@@ -28,6 +32,8 @@ class BiliApi {
   static const String _searchPath = '/x/web-interface/wbi/search/type';
   static const String _viewPath = '/x/web-interface/view';
   static const String _playUrlPath = '/x/player/wbi/playurl';
+  static const String _playerV2Path = '/x/player/wbi/v2';
+  static const String _playerV2LegacyPath = '/x/player/v2';
   static const String _favFoldersPath = '/x/v3/fav/folder/created/list-all';
   static const String _favResourcesPath = '/x/v3/fav/resource/list';
 
@@ -95,11 +101,15 @@ class BiliApi {
     return VideoInfoDto.fromJson(Map<String, dynamic>.from(data));
   }
 
-  /// Resolves the best DASH audio representation for `bvid`/`cid`.
+  /// Resolves the best compatible DASH audio representation for `bvid`/`cid`.
   ///
-  /// Returns the highest-`bandwidth` entry, or `null` when the video exposes no
-  /// audio stream.
-  Future<DashAudioDto?> playUrlAudio(String bvid, int cid) async {
+  /// Prefers the highest-bandwidth AAC entry; signed-in callers may also use
+  /// FLAC Hi-Res. Returns `null` when the video exposes no audio.
+  Future<DashAudioDto?> playUrlAudio(
+    String bvid,
+    int cid, {
+    bool includeFlac = false,
+  }) async {
     await _ensureCookie();
     final params = await _signer.sign(<String, dynamic>{
       'bvid': bvid,
@@ -120,12 +130,68 @@ class BiliApi {
     final entries = audio
         .whereType<Map>()
         .map((e) => DashAudioDto.fromJson(Map<String, dynamic>.from(e)))
-        .where((entry) => entry.baseUrl.isNotEmpty)
         .toList(growable: false);
-    if (entries.isEmpty) return null;
+    return selectBiliAudio(entries, includeFlac: includeFlac);
+  }
 
-    entries.sort((a, b) => b.bandwidth.compareTo(a.bandwidth));
-    return entries.first;
+  /// Lists the subtitle tracks the player exposes for `bvid`/`cid`.
+  ///
+  /// Bilibili returns no subtitle tracks for anonymous requests even when the
+  /// video has CC/AI subtitles. Signed-in callers therefore get the useful
+  /// result; anonymous callers get an empty list and the lyrics UI offers the
+  /// login action instead of a misleading "no lyrics".
+  Future<List<BiliSubtitleTrackDto>> playerSubtitles({
+    required String bvid,
+    required int cid,
+  }) async {
+    await _ensureCookie();
+
+    Future<List<BiliSubtitleTrackDto>> fetch(
+      String path, {
+      required bool signed,
+    }) async {
+      final query = signed
+          ? await _signer.sign(<String, dynamic>{'bvid': bvid, 'cid': cid})
+          : <String, dynamic>{'bvid': bvid, 'cid': cid};
+      final json = await _rateLimiter.run(
+        () => _client.getJson(path, query: query),
+      );
+      return _subtitleTracksFrom(json);
+    }
+
+    try {
+      final signed = await fetch(_playerV2Path, signed: true);
+      if (signed.isNotEmpty) return signed;
+    } catch (error) {
+      debugPrint('BiliApi: signed subtitle request failed: $error');
+    }
+
+    try {
+      return await fetch(_playerV2LegacyPath, signed: false);
+    } catch (error) {
+      debugPrint('BiliApi: legacy subtitle request failed: $error');
+      return const <BiliSubtitleTrackDto>[];
+    }
+  }
+
+  /// Downloads and decodes the JSON behind a `subtitle_url`.
+  Future<Map<String, dynamic>> subtitleBody(String rawUrl) async {
+    final normalized = rawUrl.startsWith('//') ? 'https:$rawUrl' : rawUrl;
+    return _rateLimiter.run(() => _client.getJson(normalized));
+  }
+
+  List<BiliSubtitleTrackDto> _subtitleTracksFrom(Map<String, dynamic> json) {
+    final data = json['data'];
+    if (data is! Map) return const <BiliSubtitleTrackDto>[];
+    final subtitle = data['subtitle'];
+    final nested = subtitle is Map ? subtitle['subtitles'] : null;
+    final direct = data['subtitles'];
+    final raw = nested is List ? nested : direct;
+    if (raw is! List) return const <BiliSubtitleTrackDto>[];
+    return raw
+        .whereType<Map>()
+        .map((e) => BiliSubtitleTrackDto.fromJson(Map<String, dynamic>.from(e)))
+        .toList(growable: false);
   }
 
   /// Lists [userId]'s **public** favourite folders.

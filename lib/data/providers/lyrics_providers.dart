@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/core/models/lyric.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/lyrics_provider.dart';
+import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/online_source_providers.dart';
 
 /// Whether the source registered for [sourceId] can supply lyrics.
@@ -34,6 +35,19 @@ final sourceSupportsLyricsProvider = Provider.family<bool, String>((
   return false;
 });
 
+/// Whether this source's lyrics are gated behind a missing login.
+///
+/// Used by the lyrics placeholder to offer the account sheet instead of a
+/// misleading "no lyrics" message.
+final lyricsLoginRequiredProvider = Provider.family<bool, String>((
+  ref,
+  sourceId,
+) {
+  final policy = ref.watch(authSourcePoliciesProvider)[sourceId];
+  if (policy == null || !policy.lyricsRequireLogin) return false;
+  return ref.watch(authSessionProvider(sourceId)) == null;
+});
+
 /// Lyrics for one track, routed to the registered source matching
 /// `track.source`. Missing lyrics (unsupported source, no lyric, or a network
 /// failure) resolve to `null` so the UI shows its placeholder.
@@ -41,6 +55,14 @@ final trackLyricsProvider = FutureProvider.family<Lyric?, Track>((
   ref,
   track,
 ) async {
+  // Signing in/out changes whether a gate-protected source can answer; make
+  // the family re-run instead of serving a cached anonymous miss. Sources whose
+  // lyrics work anonymously do not touch the account state at all.
+  final policy = ref.watch(authSourcePoliciesProvider)[track.source];
+  if (policy?.lyricsRequireLogin ?? false) {
+    ref.watch(authSessionProvider(track.source));
+  }
+
   LyricsProvider? provider;
   for (final descriptor in ref.watch(onlineSourcesProvider)) {
     if (descriptor.id == track.source && descriptor.source is LyricsProvider) {
