@@ -15,6 +15,8 @@
 
 import 'package:dio/dio.dart';
 
+import 'package:flind_player/data/auth/auth_cookie_jar.dart';
+import 'package:flind_player/data/auth/set_cookie_parser.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/data/sources/netease/netease_crypto.dart';
 
@@ -52,6 +54,14 @@ class NeteaseApiException implements Exception {
   String toString() => 'NeteaseApiException($code): $message';
 }
 
+/// A decoded NetEase JSON response plus the cookies it set.
+class NeteaseJsonResponse {
+  const NeteaseJsonResponse({required this.json, required this.setCookies});
+
+  final Map<String, dynamic> json;
+  final List<String> setCookies;
+}
+
 /// Thin Dio wrapper around `music.163.com` (`weapi`) and
 /// `interface3.music.163.com` (`eapi`).
 class NeteaseClient {
@@ -60,9 +70,17 @@ class NeteaseClient {
 
   final String userAgent;
   final Dio _dio;
+  final AuthCookieJar? _cookieJar;
+  final String _sourceId;
 
-  NeteaseClient({Dio? dio, this.userAgent = kDesktopUserAgent})
-    : _dio = dio ?? Dio() {
+  NeteaseClient({
+    Dio? dio,
+    this.userAgent = kDesktopUserAgent,
+    AuthCookieJar? cookieJar,
+    String sourceId = 'netease',
+  }) : _cookieJar = cookieJar, // ignore: prefer_initializing_formals
+       _sourceId = sourceId, // ignore: prefer_initializing_formals
+       _dio = dio ?? Dio() {
     _dio.options
       ..baseUrl = weapiBaseUrl
       ..connectTimeout = const Duration(seconds: 10)
@@ -87,7 +105,14 @@ class NeteaseClient {
         'params': signed.params,
         'encSecKey': signed.encSecKey,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        // Preserve the original anonymous weapi request shape; only attach a
+        // Cookie header once a login exists.
+        headers: _cookieJar?.cookieHeader(_sourceId) == null
+            ? const <String, String>{}
+            : _headersWithCookies(),
+      ),
     );
     return _decode(response, path);
   }
@@ -106,13 +131,67 @@ class NeteaseClient {
       data: <String, dynamic>{'params': params},
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        headers: <String, String>{'Cookie': _anonCookie},
+        headers: _headersWithCookies(),
       ),
     );
     return _decode(response, apiPath);
   }
 
-  Map<String, dynamic> _decode(Response<Object?> response, String path) {
+  /// Performs a plain GET (QR login and account endpoints) and keeps cookies.
+  Future<NeteaseJsonResponse> getJsonWithResponse(
+    String path, {
+    Map<String, dynamic>? query,
+    Set<int> allowCodes = const <int>{},
+  }) async {
+    final response = await _dio.get<Object?>(
+      path,
+      queryParameters: query,
+      options: Options(headers: _headersWithCookies()),
+    );
+    final json = _decode(response, path, allowCodes: allowCodes);
+    return NeteaseJsonResponse(
+      json: json,
+      setCookies: response.headers.map['set-cookie'] ?? const <String>[],
+    );
+  }
+
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    Map<String, dynamic>? query,
+    Set<int> allowCodes = const <int>{},
+  }) async {
+    final response = await getJsonWithResponse(
+      path,
+      query: query,
+      allowCodes: allowCodes,
+    );
+    return response.json;
+  }
+
+  Map<String, String> _headersWithCookies({bool includeAnonymous = true}) {
+    final cookies = _requestCookies(includeAnonymous: includeAnonymous);
+    if (cookies.isEmpty) return const <String, String>{};
+    return <String, String>{
+      'Cookie': cookies.entries
+          .map((entry) => '${entry.key}=${entry.value}')
+          .join('; '),
+    };
+  }
+
+  Map<String, String> _requestCookies({bool includeAnonymous = true}) {
+    final cookies = includeAnonymous
+        ? parseCookieHeader(_anonCookie)
+        : <String, String>{};
+    final auth = _cookieJar?.cookiesFor(_sourceId);
+    if (auth != null) cookies.addAll(auth);
+    return cookies;
+  }
+
+  Map<String, dynamic> _decode(
+    Response<Object?> response,
+    String path, {
+    Set<int> allowCodes = const <int>{},
+  }) {
     final data = response.data;
     if (data is! Map) {
       throw NeteaseApiException(
@@ -122,17 +201,26 @@ class NeteaseClient {
     }
     final json = Map<String, dynamic>.from(data);
     final rawCode = json['code'];
-    final parsedCode = rawCode is num ? rawCode.toInt() : num.tryParse('$rawCode')?.toInt();
+    final parsedCode = rawCode is num
+        ? rawCode.toInt()
+        : num.tryParse('$rawCode')?.toInt();
     final code = rawCode == null ? 200 : parsedCode;
     if (code == null) {
-      throw NeteaseApiException(-1, 'Unexpected code value "$rawCode" for $path');
+      throw NeteaseApiException(
+        -1,
+        'Unexpected code value "$rawCode" for $path',
+      );
     }
-    if (code != 200) {
+    if (code != 200 && !allowCodes.contains(code)) {
       final message = json['message'];
       final msg = json['msg'];
       throw NeteaseApiException.fromCode(
         code,
-        message is String ? message : msg is String ? msg : null,
+        message is String
+            ? message
+            : msg is String
+            ? msg
+            : null,
       );
     }
     return json;

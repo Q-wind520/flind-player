@@ -19,13 +19,19 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/data/providers/auth_core_providers.dart';
 import 'package:flind_player/data/sources/bilibili/rate_limiter.dart';
 import 'package:flind_player/data/sources/netease/netease_api.dart';
 import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/data/sources/netease/netease_source.dart';
 
 /// Shared, configured Dio wrapper for `music.163.com`.
-final neteaseClientProvider = Provider<NeteaseClient>((ref) => NeteaseClient());
+///
+/// Reads the signed-in cookie jar on every request, so a NetEase login enables
+/// VIP streams without rebuilding the API provider.
+final neteaseClientProvider = Provider<NeteaseClient>((ref) {
+  return NeteaseClient(cookieJar: ref.watch(authCookieJarProvider));
+});
 
 /// Pacers NetEase requests (search, stream URL, lyrics).
 ///
@@ -54,5 +60,8 @@ final neteaseApiProvider = Provider<NeteaseApi>(
 
 /// NetEase as a searchable, streamable, lyrics-capable source.
 final neteaseSourceProvider = Provider<NeteaseSource>(
-  (ref) => NeteaseSource(api: ref.watch(neteaseApiProvider)),
+  (ref) => NeteaseSource(
+    api: ref.watch(neteaseApiProvider),
+    cookieJar: ref.watch(authCookieJarProvider),
+  ),
 );

@@ -16,6 +16,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/sources/remote_playlist.dart';
+import 'package:flind_player/data/providers/auth_core_providers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_api.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/data/sources/bilibili/bili_source.dart';
@@ -24,7 +25,12 @@ import 'package:flind_player/data/sources/bilibili/risk_control.dart';
 import 'package:flind_player/data/sources/bilibili/wbi_signer.dart';
 
 /// Shared, configured Dio wrapper for `api.bilibili.com`.
-final biliClientProvider = Provider<BiliClient>((ref) => BiliClient());
+///
+/// The client reads the signed-in cookie jar on every request, so a login or
+/// sign-out takes effect without rebuilding any API provider.
+final biliClientProvider = Provider<BiliClient>((ref) {
+  return BiliClient(cookieJar: ref.watch(authCookieJarProvider));
+});
 
 /// Serializes and paces all Bilibili requests.
 final biliRateLimiterProvider = Provider<RateLimiter>((ref) => RateLimiter());
@@ -66,7 +72,10 @@ final biliApiProvider = Provider<BiliApi>(
 
 /// Bilibili as a searchable, directly streamable [BiliSource].
 final biliSourceProvider = Provider<BiliSource>(
-  (ref) => BiliSource(api: ref.watch(biliApiProvider)),
+  (ref) => BiliSource(
+    api: ref.watch(biliApiProvider),
+    cookieJar: ref.watch(authCookieJarProvider),
+  ),
 );
 
 /// Bilibili's public favourite folders, viewed through the source-agnostic

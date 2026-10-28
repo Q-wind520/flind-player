@@ -9,7 +9,7 @@
 
 ## 1. 项目概述
 
-Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为主要在线音源**（提取视频流中的音频轨），**另支持网易云音乐（匿名）作为第二个在线音源**（搜索 / 播放 / 歌词，见 `netease-source.md`），同时支持本地音乐库，三者在统一曲库中混合呈现。
+Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为主要在线音源**（提取视频流中的音频轨），**另支持网易云音乐作为第二个在线音源**（搜索 / 播放 / 歌词；匿名可用，登录解锁更高音质，见 `netease-source.md`），同时支持本地音乐库，三者在统一曲库中混合呈现。
 
 | 项 | 值 |
 |---|---|
@@ -33,7 +33,7 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 | UI 方向 | Material 3 自适应（移动 / 桌面断点切换） |
 | 首页入口 | **Bilibili 为主入口**（D12） |
 | MVP 功能 | 基础播放、音乐库、系统集成、搜索、播放列表/收藏、离线缓存 |
-| 歌词 | 已落地 `Lyric` / `LyricsProvider` 抽象（D10），目前仅网易云源供词 |
+| 歌词 | 已落地 `Lyric` / `LyricsProvider` 抽象（D10）；网易云匿名供词，B 站登录后读 CC/AI 字幕 |
 | 离线缓存 | 支持，默认 **1 GiB**，可配置（D9） |
 
 ---
@@ -49,9 +49,9 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 | D5 | 本地扫描 | **`audio_metadata_reader`**（纯 Dart） | 零原生依赖，3392 首 < 200ms，字段齐全 |
 | D6 | 缓存 | **drift（SQLite + FTS5）** | 关系查询、迁移、后台 isolate、Flutter Favorite |
 | D7 | 系统集成 | **`audio_service`** 统一层 | 一个 AudioHandler 覆盖 Android 通知栏 / Linux MPRIS / macOS·iOS Now Playing；Windows 暂无 OS 媒体控制（需额外插件，v1.1 评估） |
-| D8 | 凭证存储 | **未启用（登录留 v1.1）；届时用 `flutter_secure_storage`** | SESSDATA 是全账号 bearer token；当前无登录实现，代码中无凭证落盘 |
+| D8 | 凭证存储 | **已启用（2026-10）：`flutter_secure_storage` + 按源 `AuthSession`** | SESSDATA / MUSIC_U 是全账号 bearer token；只进系统钥匙串与内存，数据库和日志不落凭证 |
 | D9 | 离线缓存 | Bilibili 音频缓存到本地，**默认 1 GiB 可配置**，LRU 淘汰 | 见 `local-library.md` §4 |
-| D10 | 歌词 | **保留 `LyricsProvider` 抽象**（2026-10-01 已落地为 `Lyric` / `LyricsProvider` / `lrc_parser`，见 §6.4） | Bilibili 无歌词源；网易云匿名源已实现 LRC 整行 + 翻译 |
+| D10 | 歌词 | **保留 `LyricsProvider` 抽象**（2026-10-01 已落地为 `Lyric` / `LyricsProvider` / `lrc_parser`，见 §6.4） | 网易云匿名 LRC + 翻译；B 站登录后读 CC/AI 字幕 JSON |
 | D11 | Web | **推迟至 v2** | CORS 全阻断，需代理且无法登录，性价比低 |
 | D12 | 首页 | **Bilibili 主入口** | 在线优先的产品定位 |
 | D13 | 许可证 | **GPL-3.0** | 强 copyleft；与全部依赖兼容；解除 libmpv GPL 构建限制（见 §12） |
@@ -116,10 +116,12 @@ flind_player/
 │   │   ├── models/                     # Track/Album/Artist/Playlist/PlaybackQueue/PlaybackState/Lyric
 │   │   ├── repositories/               # MusicLibraryRepository / PlaylistRepository (抽象)
 │   │   ├── services/                   # PlaybackController / LyricsProvider / ArtworkCache (抽象)
+│   │   ├── auth/                       # AuthSession / AuthDriver / AuthState / AuthSourcePolicy
 │   │   └── sources/                    # MusicSource + SourceCapabilities + StreamInfo + SourceTrackId
 │   ├── data/
 │   │   ├── database/                   # drift tables + DAO + migrations
 │   │   ├── repositories/               # drift 实现 + *_provider.dart 绑定
+│   │   ├── auth/                       # 钥匙串存储 / CookieJar / Set-Cookie 解析
 │   │   ├── sources/
 │   │   │   ├── local/                  # 目录扫描 + audio_metadata_reader
 │   │   │   ├── bilibili/               # client / wbi / auth / riskcontrol / mapper / ratelimiter
@@ -137,7 +139,7 @@ flind_player/
 │   │   ├── queue/
 │   │   ├── playlists/
 │   │   ├── search/                     # 多源切换搜索（SegmentedButton + onlineSearchProvider）
-│   │   └── settings/
+│   │   └── settings/                   # 设置 + 账号与登录 Sheet
 │   └── shared/                         # 通用组件、布局断点、扩展
 ├── android/  linux/  windows/  web/  macos/  ios/
 └── docs/
@@ -261,7 +263,20 @@ abstract interface class LyricsProvider {
 - LRC 解析在 `core/services/lrc_parser.dart`（纯函数 `parseLrc`，支持多时间标签、
   `[offset:±ms]`、翻译按时间戳合并、纯音乐占位判定）。
 - `trackLyricsProvider` 按 `track.source` 在注册表中匹配实现了 `LyricsProvider` 的源；
-  当前仅网易云实现，Bilibili / 本地回落占位。歌词缺失/失败一律 `null`，不阻塞播放、不弹错误。
+  网易云匿名供词，Bilibili 登录后读 CC/AI 字幕，本地回落占位。歌词缺失/失败一律 `null`，不阻塞播放、不弹错误。
+- B 站字幕由 `BiliApi.playerSubtitles` 取 `subtitle.subtitles[]`，再拉 `subtitle_url` 的 JSON；
+  未登录时 B 站返回空列表，歌词占位会显示登录入口而不是“暂无歌词”。
+
+### 6.5 账号与登录
+
+- 通用层在 `core/auth/`（`AuthSession` / `AuthDriver` / `AuthState` / `AuthSourcePolicy`），
+  持久化在 `data/auth/`（`SecureAuthSessionStore`、`AuthCookieJar`、`Set-Cookie` 解析）。
+- `AuthController` 是唯一写会话的地方：启动时从钥匙串恢复并注入 `AuthCookieJar`，登录/退出/失效时同步更新。
+- 各源只实现自己的 `AuthDriver`：B 站扫码 + `nav` 资料，网易云 `unikey` 扫码 + `nuser/account/get`；
+  UI 和控制器不按平台分支。QQ 音乐（Cookie 型）和 YouTube（OAuth device flow）以后只需新增驱动。
+- 未登录能力保持可用；登录只增强：B 站更高音质与字幕，网易云更高音质。
+- 凭证只存系统钥匙串（Linux libsecret、Android Keystore、iOS/macOS Keychain、Windows DPAPI），
+  退出时清除；B 站 Cookie 自动续期暂缓，失效后重新扫码。
 
 ---
 
@@ -355,8 +370,8 @@ Track → PlaybackController.playQueue(queue)
 | **M2 曲库** | 本地扫描 + 在线元数据入库 + 统一列表/搜索 | 混合列表可查询，FTS 生效 | 已完成 |
 | **M3 离线缓存** | 下载队列 + LRU 淘汰 + 1 GiB 默认上限 | 断网可播已缓存曲目；超限自动淘汰 | 已完成 |
 | **M4 系统集成** | audio_service + 通知栏 + MPRIS + 托盘 | 后台/桌面媒体键可控 | 已完成（`lib/platform/audio_handler.dart` + `lib/platform/tray/`） |
-| **M5 播放列表/收藏** | 队列持久化、收藏、Bilibili 收藏夹 | 重启后恢复队列与收藏 | 已完成（B 站仅公开收藏夹，登录留 v1.1） |
-| **M6 打磨** | 自适应、设置、错误处理、增量扫描、CI/发布 | 桌面/移动自适应无布局问题 | 已完成（应用图标已由 `tool/generate_icons.sh` 全平台生成；歌词已随网易云源落地，登录另行安排） |
+| **M5 播放列表/收藏** | 队列持久化、收藏、Bilibili 收藏夹 | 重启后恢复队列与收藏 | 已完成（B 站公开收藏夹；登录已落地，私有收藏夹待接入） |
+| **M6 打磨** | 自适应、设置、错误处理、增量扫描、CI/发布 | 桌面/移动自适应无布局问题 | 已完成（应用图标已由 `tool/generate_icons.sh` 全平台生成；B 站/网易云登录、字幕歌词已落地） |
 | **v2 Web** | JSON 代理 + 匿名能力 | 见 `bilibili-source.md` §9 | 推迟 |
 
 > 歌词已落地（D10 抽象 → §6.4）：`Lyric` / `LyricsProvider` / `lrc_parser` 由网易云源供词，

@@ -23,24 +23,35 @@ import 'package:flind_player/core/services/lyrics_provider.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
+import 'package:flind_player/data/auth/auth_cookie_jar.dart';
 import 'package:flind_player/data/sources/netease/netease_api.dart';
 import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/data/sources/netease/netease_mappers.dart';
+import 'package:flind_player/data/sources/netease/netease_models.dart';
 
 /// NetEase Cloud Music as a [MusicSource], [StreamResolver] and [LyricsProvider].
+///
+/// The source itself works anonymously; a signed-in cookie jar raises the
+/// requested stream tier to `exhigh`, with a standard fallback for accounts
+/// that cannot access it.
 class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
   final NeteaseApi _api;
+  final AuthCookieJar? _cookieJar;
 
-  NeteaseSource({required NeteaseApi api})
-    : _api = api; // ignore: prefer_initializing_formals
+  NeteaseSource({required NeteaseApi api, AuthCookieJar? cookieJar})
+    : _api = api, // ignore: prefer_initializing_formals
+      _cookieJar = cookieJar; // ignore: prefer_initializing_formals
 
   @override
   String get id => neteaseSourceId;
 
   @override
-  SourceCapabilities get capabilities => const SourceCapabilities(
-    <SourceCapability>{SourceCapability.search, SourceCapability.streamDirect},
-  );
+  SourceCapabilities get capabilities =>
+      const SourceCapabilities(<SourceCapability>{
+        SourceCapability.search,
+        SourceCapability.streamDirect,
+        SourceCapability.login,
+      });
 
   @override
   Future<List<Track>> search(String query, {int page = 1}) async {
@@ -51,7 +62,11 @@ class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
   @override
   Future<Track> fetchTrack(SourceTrackId id) async {
     if (id is! NeteaseTrackId) {
-      throw ArgumentError.value(id, 'id', 'NeteaseSource only accepts NeteaseTrackId');
+      throw ArgumentError.value(
+        id,
+        'id',
+        'NeteaseSource only accepts NeteaseTrackId',
+      );
     }
     final song = await _api.songDetail(id.songId);
     if (song == null) {
@@ -72,16 +87,28 @@ class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
         'NeteaseSource cannot resolve a ${id.runtimeType} track',
       );
     }
-    final dto = await _api.songUrl(id.songId);
+    final signedIn = _cookieJar?.cookieHeader('netease') != null;
+    NeteaseUrlDto? dto;
+    if (signedIn) {
+      try {
+        dto = await _api.songUrl(id.songId, level: 'exhigh');
+      } catch (_) {
+        // An account without the higher tier can reject the request outright.
+        dto = null;
+      }
+      if (dto?.url == null || dto!.url!.isEmpty) {
+        dto = await _api.songUrl(id.songId);
+      }
+    } else {
+      dto = await _api.songUrl(id.songId);
+    }
     final url = dto?.url;
     if (url == null || url.isEmpty) {
       throw StateError('No stream available for ${track.uri}');
     }
     return StreamInfo(
       url: _streamUri(url),
-      headers: const <String, String>{
-        'Referer': kNeteaseReferer,
-      },
+      headers: const <String, String>{'Referer': kNeteaseReferer},
       qualityId: dto?.level ?? 'standard',
     );
   }

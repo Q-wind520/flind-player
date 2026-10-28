@@ -82,6 +82,7 @@ class AppIcons {
   static const IconData playlistAdd = LucideIcons.listPlus;
   static const IconData playlistPlay = LucideIcons.listStart;
   static const IconData playlistRemove = LucideIcons.listX;
+  static const IconData qrCode = LucideIcons.qrCode;
   static const IconData queueMusic = LucideIcons.listMusic;
   static const IconData radioButtonChecked = LucideIcons.circleDot;
   static const IconData radioButtonUnchecked = LucideIcons.circle;

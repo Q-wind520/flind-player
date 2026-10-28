@@ -19,6 +19,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:flind_player/data/auth/auth_cookie_jar.dart';
 import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/data/sources/netease/netease_crypto.dart';
 
@@ -55,44 +56,90 @@ ResponseBody _json(Map<String, dynamic> body) => ResponseBody.fromString(
 );
 
 void main() {
-  test('weapi posts form params and sends the mandatory headers, no Origin', () async {
-    final adapter = _FakeAdapter((_) async => _json(<String, dynamic>{'code': 200, 'result': <String, dynamic>{}}));
+  test(
+    'weapi posts form params and sends the mandatory headers, no Origin',
+    () async {
+      final adapter = _FakeAdapter(
+        (_) async => _json(<String, dynamic>{
+          'code': 200,
+          'result': <String, dynamic>{},
+        }),
+      );
 
-    await _client(adapter).postWeapi('/weapi/cloudsearch/get/web?csrf_token=', <String, dynamic>{'s': 'q'});
+      await _client(adapter).postWeapi(
+        '/weapi/cloudsearch/get/web?csrf_token=',
+        <String, dynamic>{'s': 'q'},
+      );
 
-    final request = adapter.lastRequest!;
-    expect(request.headers['Referer'], kNeteaseReferer);
-    expect(request.headers.containsKey('Origin'), isFalse);
-    expect(request.contentType ?? '', contains('form-urlencoded'));
-    final data = request.data as Map;
-    expect(data['params'], isA<String>());
-    expect(data['encSecKey'], isA<String>());
-  });
+      final request = adapter.lastRequest!;
+      expect(request.headers['Referer'], kNeteaseReferer);
+      expect(request.headers.containsKey('Origin'), isFalse);
+      expect(request.contentType ?? '', contains('form-urlencoded'));
+      final data = request.data as Map;
+      expect(data['params'], isA<String>());
+      expect(data['encSecKey'], isA<String>());
+    },
+  );
 
-  test('eapi signs the /api path and sends the anonymous os=pc cookie', () async {
-    final adapter = _FakeAdapter((_) async => _json(<String, dynamic>{'code': 200, 'data': <dynamic>[]}));
+  test(
+    'eapi signs the /api path and sends the anonymous os=pc cookie',
+    () async {
+      final adapter = _FakeAdapter(
+        (_) async => _json(<String, dynamic>{'code': 200, 'data': <dynamic>[]}),
+      );
 
-    await _client(adapter).postEapi('/song/enhance/player/url/v1', <String, dynamic>{'ids': '[1]'});
+      await _client(adapter).postEapi(
+        '/song/enhance/player/url/v1',
+        <String, dynamic>{'ids': '[1]'},
+      );
 
-    final request = adapter.lastRequest!;
-    expect(request.uri.host, 'interface3.music.163.com');
-    expect(request.uri.path, '/eapi/song/enhance/player/url/v1');
-    expect(request.headers['Referer'], kNeteaseReferer);
-    expect(request.headers['Cookie'], contains('os=pc'));
-    expect(request.headers['Cookie'], contains('deviceId='));
-    expect(request.headers['Cookie'], contains('requestId='));
-    expect(request.headers.containsKey('Origin'), isFalse);
-    expect(request.contentType ?? '', contains('form-urlencoded'));
+      final request = adapter.lastRequest!;
+      expect(request.uri.host, 'interface3.music.163.com');
+      expect(request.uri.path, '/eapi/song/enhance/player/url/v1');
+      expect(request.headers['Referer'], kNeteaseReferer);
+      expect(request.headers['Cookie'], contains('os=pc'));
+      expect(request.headers['Cookie'], contains('deviceId='));
+      expect(request.headers['Cookie'], contains('requestId='));
+      expect(request.headers.containsKey('Origin'), isFalse);
+      expect(request.contentType ?? '', contains('form-urlencoded'));
 
-    final params = (request.data as Map)['params'] as String;
-    final bytes = Uint8List.fromList(
-      RegExp(r'.{2}').allMatches(params).map((m) => int.parse(m.group(0)!, radix: 16)).toList(),
+      final params = (request.data as Map)['params'] as String;
+      final bytes = Uint8List.fromList(
+        RegExp(r'.{2}')
+            .allMatches(params)
+            .map((m) => int.parse(m.group(0)!, radix: 16))
+            .toList(),
+      );
+      expect(
+        NeteaseCrypto.eapiDecrypt(bytes),
+        contains('/api/song/enhance/player/url/v1'),
+      );
+    },
+  );
+
+  test('a signed-in jar adds MUSIC_U to the eapi Cookie header', () async {
+    final adapter = _FakeAdapter(
+      (_) async => _json(<String, dynamic>{'code': 200, 'data': <dynamic>[]}),
     );
-    expect(NeteaseCrypto.eapiDecrypt(bytes), contains('/api/song/enhance/player/url/v1'));
+    final jar = AuthCookieJar()
+      ..replace('netease', const <String, String>{'MUSIC_U': 'token'});
+    final dio = Dio()..httpClientAdapter = adapter;
+    final client = NeteaseClient(dio: dio, cookieJar: jar);
+
+    await client.postEapi('/song/enhance/player/url/v1', <String, dynamic>{
+      'ids': '[1]',
+    });
+
+    final cookie = adapter.lastRequest!.headers['Cookie'] as String;
+    expect(cookie, contains('os=pc'));
+    expect(cookie, contains('MUSIC_U=token'));
   });
 
   test('maps code -462 to a login-required error', () async {
-    final adapter = _FakeAdapter((_) async => _json(<String, dynamic>{'code': -462, 'message': 'need login'}));
+    final adapter = _FakeAdapter(
+      (_) async =>
+          _json(<String, dynamic>{'code': -462, 'message': 'need login'}),
+    );
 
     expect(
       () => _client(adapter).postWeapi('/weapi/x', <String, dynamic>{}),
@@ -105,7 +152,9 @@ void main() {
   });
 
   test('throws for a non-JSON body', () async {
-    final adapter = _FakeAdapter((_) async => ResponseBody.fromString('nope', 200));
+    final adapter = _FakeAdapter(
+      (_) async => ResponseBody.fromString('nope', 200),
+    );
     expect(
       () => _client(adapter).postWeapi('/weapi/x', <String, dynamic>{}),
       throwsA(isA<NeteaseApiException>()),
@@ -113,13 +162,17 @@ void main() {
   });
 
   test('parses a numeric-string code and rejects an unreadable one', () async {
-    final stringCode = _FakeAdapter((_) async => _json(<String, dynamic>{'code': '-462'}));
+    final stringCode = _FakeAdapter(
+      (_) async => _json(<String, dynamic>{'code': '-462'}),
+    );
     await expectLater(
       () => _client(stringCode).postWeapi('/weapi/x', <String, dynamic>{}),
       throwsA(isA<NeteaseApiException>().having((e) => e.code, 'code', -462)),
     );
 
-    final garbageCode = _FakeAdapter((_) async => _json(<String, dynamic>{'code': 'weird'}));
+    final garbageCode = _FakeAdapter(
+      (_) async => _json(<String, dynamic>{'code': 'weird'}),
+    );
     await expectLater(
       () => _client(garbageCode).postWeapi('/weapi/x', <String, dynamic>{}),
       throwsA(isA<NeteaseApiException>().having((e) => e.code, 'code', -1)),

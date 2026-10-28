@@ -20,44 +20,66 @@
 
 import 'package:flutter/foundation.dart';
 
+import 'package:flind_player/core/models/lyric.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/services/lyrics_provider.dart';
 import 'package:flind_player/core/sources/music_source.dart';
 import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
+import 'package:flind_player/data/auth/auth_cookie_jar.dart';
 import 'package:flind_player/data/sources/bilibili/bili_api.dart';
 import 'package:flind_player/data/sources/bilibili/bili_client.dart';
 import 'package:flind_player/data/sources/bilibili/bili_mappers.dart';
 import 'package:flind_player/data/sources/bilibili/bili_models.dart';
+import 'package:flind_player/data/sources/bilibili/bili_subtitles.dart';
 
-/// Bilibili as a [MusicSource], [StreamResolver] and [RemotePlaylistSource].
+/// Bilibili as a [MusicSource], [StreamResolver], [RemotePlaylistSource] and
+/// [LyricsProvider].
 ///
 /// Search results carry a `bvid` but no `cid`, so [search] returns tracks with
 /// the [biliUnknownCid] placeholder; [resolveStream] lazily fetches the first
 /// part's real `cid` from `videoInfo` before asking for the audio URL. Public
 /// favourite folders are browsed anonymously through [playlistsForUser] /
 /// [playlistTracks].
-class BiliSource implements MusicSource, StreamResolver, RemotePlaylistSource {
+class BiliSource
+    implements
+        MusicSource,
+        StreamResolver,
+        RemotePlaylistSource,
+        LyricsProvider {
   /// Stream URLs are treated as valid for this long, matching Bilibili's
   /// documented ≈120-minute CDN expiry.
   static const Duration streamTtl = Duration(minutes: 120);
 
   final BiliApi _api;
+  final AuthCookieJar? _cookieJar;
 
   /// User agent reused for the CDN stream request.
   final String _userAgent;
 
-  BiliSource({required BiliApi api, String userAgent = kDesktopUserAgent})
-    : _api = api, // ignore: prefer_initializing_formals
-      _userAgent = userAgent; // ignore: prefer_initializing_formals
+  /// Subtitle JSONs are small and stable for a video; keep successful parses
+  /// for the session so reopening the lyrics pane does not hit the network.
+  final Map<String, Lyric> _lyricCache = <String, Lyric>{};
+
+  BiliSource({
+    required BiliApi api,
+    AuthCookieJar? cookieJar,
+    String userAgent = kDesktopUserAgent,
+  }) : _api = api, // ignore: prefer_initializing_formals
+       _cookieJar = cookieJar, // ignore: prefer_initializing_formals
+       _userAgent = userAgent; // ignore: prefer_initializing_formals
 
   @override
   String get id => biliSourceId;
 
   @override
-  SourceCapabilities get capabilities => const SourceCapabilities(
-    <SourceCapability>{SourceCapability.search, SourceCapability.streamDirect},
-  );
+  SourceCapabilities get capabilities =>
+      const SourceCapabilities(<SourceCapability>{
+        SourceCapability.search,
+        SourceCapability.streamDirect,
+        SourceCapability.login,
+      });
 
   @override
   Future<List<Track>> search(String query, {int page = 1}) async {
@@ -138,7 +160,11 @@ class BiliSource implements MusicSource, StreamResolver, RemotePlaylistSource {
       cid = video.pages.first.cid;
     }
 
-    final audio = await _api.playUrlAudio(id.bvid, cid);
+    final audio = await _api.playUrlAudio(
+      id.bvid,
+      cid,
+      includeFlac: _cookieJar?.cookieHeader('bilibili') != null,
+    );
     if (audio == null) {
       throw StateError('No audio stream available for ${id.bvid} (cid: $cid)');
     }
@@ -153,6 +179,47 @@ class BiliSource implements MusicSource, StreamResolver, RemotePlaylistSource {
       expiresAt: DateTime.now().add(streamTtl),
       qualityId: audio.id.toString(),
     );
+  }
+
+  /// Returns the video's CC/AI subtitle as a timed lyric.
+  ///
+  /// Subtitles are login-gated by Bilibili: an anonymous request yields an
+  /// empty track list, which is indistinguishable here from a video without
+  /// subtitles. The UI uses the account state to offer a login action.
+  @override
+  Future<Lyric?> lyricsFor(Track track) async {
+    final id = track.sourceTrackId;
+    if (id is! BiliTrackId) return null;
+
+    final cacheKey = '${id.bvid}:${id.cid}';
+    final cached = _lyricCache[cacheKey];
+    if (cached != null) return cached;
+
+    // Bilibili returns an empty subtitle list for anonymous requests; skip the
+    // round trip and let the UI offer the login action immediately.
+    final jar = _cookieJar;
+    if (jar != null && jar.cookieHeader('bilibili') == null) return null;
+
+    try {
+      var cid = id.cid;
+      if (cid < 0) {
+        final video = await _api.videoInfo(id.bvid);
+        if (video.pages.isEmpty) return null;
+        cid = video.pages.first.cid;
+      }
+
+      final tracks = await _api.playerSubtitles(bvid: id.bvid, cid: cid);
+      final selected = selectBiliSubtitleTrack(tracks);
+      if (selected == null) return null;
+
+      final body = await _api.subtitleBody(selected.url);
+      final lyric = parseBiliSubtitleBody(body);
+      if (lyric != null) _lyricCache[cacheKey] = lyric;
+      return lyric;
+    } catch (error) {
+      debugPrint('BiliSource: lyric fetch failed for ${track.uri}: $error');
+      return null;
+    }
   }
 
   VideoPageDto _pageFor(VideoInfoDto video, int cid) {

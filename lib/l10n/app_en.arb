@@ -449,5 +449,56 @@
   "downloadCover": "Download cover",
   "coverSaved": "Cover saved",
   "coverSaveFailed": "Failed to save cover",
-  "coverOriginalUnavailable": "Original image unavailable"
+  "coverOriginalUnavailable": "Original image unavailable",
+  "sectionAccounts": "Accounts & sources",
+  "accountNotSignedIn": "Not signed in",
+  "accountExpired": "Sign-in expired",
+  "accountSignIn": "Sign in",
+  "accountLogout": "Sign out",
+  "accountLogoutConfirmTitle": "Sign out?",
+  "accountLogoutConfirmBody": "The {source} credential will be removed from this device.",
+  "@accountLogoutConfirmBody": {
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "accountLoginTitle": "Sign in to {source}",
+  "@accountLoginTitle": {
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "accountScanHint": "Scan with the platform's mobile app",
+  "accountQrExpiresIn": "QR code expires in {time}",
+  "@accountQrExpiresIn": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "accountQrExpired": "QR code expired. Refresh to try again.",
+  "accountScanned": "Scanned. Confirm on your phone.",
+  "accountWaitingScan": "Waiting for scan",
+  "accountRefreshQr": "Refresh QR code",
+  "accountLoginFailed": "Sign-in failed: {detail}",
+  "@accountLoginFailed": {
+    "placeholders": {
+      "detail": { "type": "String" }
+    }
+  },
+  "accountSecureStorageUnavailable": "System secure storage is unavailable; sign-in cannot be saved",
+  "accountVip": "VIP",
+  "accountUid": "UID {id}",
+  "@accountUid": {
+    "placeholders": {
+      "id": { "type": "String" }
+    }
+  },
+  "accountLoginForLyrics": "Sign in to {source} for subtitles",
+  "@accountLoginForLyrics": {
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "accountLoginForQuality": "Sign in for higher audio quality",
+  "lyricsLoginRequiredHint": "Sign in to load subtitles for this video"
 }
