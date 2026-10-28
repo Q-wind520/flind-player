@@ -120,6 +120,34 @@ void main() {
     }
   });
 
+  test('the light canvas is white, not warm, and raised surfaces step away', () {
+    final light = AppTheme.light(seed).colorScheme;
+    // The page canvas is a clean white instead of the old paper cream.
+    expect(light.surface, const Color(0xFFFFFFFF));
+    int chroma(Color colour) {
+      final r = (colour.r * 255).round();
+      final g = (colour.g * 255).round();
+      final b = (colour.b * 255).round();
+      final max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      final min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      return max - min;
+    }
+
+    // Neither the page nor the panels carry a warm (yellow) cast.
+    expect(chroma(light.surface), 0);
+    expect(chroma(light.surfaceContainerLow), lessThanOrEqualTo(3));
+
+    // Because the page is already white, panels must be slightly darker or
+    // fields and cards would disappear into it.
+    expect(
+      light.surfaceContainerLow.computeLuminance(),
+      lessThan(light.surface.computeLuminance()),
+    );
+
+    // The dark canvas keeps its near-black page.
+    expect(AppTheme.dark(seed).colorScheme.surface, const Color(0xFF0D0D0F));
+  });
+
   test('surfaces stay neutral when only the accent seed changes', () {
     const purple = Color(0xFF8B5CF6);
     final lightTeal = AppTheme.light(seed);

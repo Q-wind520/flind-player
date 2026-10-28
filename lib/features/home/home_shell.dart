@@ -190,8 +190,10 @@ class _RailDestination {
 
 /// The narrow desktop navigation rail.
 ///
-/// A hand-built rail instead of [NavigationRail] so the hover/selected ink can
-/// be a rounded, inset shape; the stock rail paints a square highlight.
+/// A hand-built rail instead of [NavigationRail] so the selected/hover fill is
+/// a circle behind the icon (the stock rail paints a square highlight), a tap
+/// paints no rounded-rectangle ripple over the item, and the label cross-fades
+/// exactly like the compact bottom bar's.
 class _NarrowRail extends StatelessWidget {
   const _NarrowRail({
     required this.selectedIndex,
@@ -244,9 +246,41 @@ class _RailItem extends StatefulWidget {
   State<_RailItem> createState() => _RailItemState();
 }
 
-class _RailItemState extends State<_RailItem> {
+class _RailItemState extends State<_RailItem>
+    with SingleTickerProviderStateMixin {
   bool _hovered = false;
   bool _focused = false;
+
+  // The compact `NavigationBar`'s label cross-fade, mirrored here so the rail
+  // and the bottom bar reveal a label the same way: 500 ms, emphasised easing,
+  // a mirrored curve while fading back out.
+  static const Duration _labelDuration = Duration(milliseconds: 500);
+
+  late final AnimationController _label = AnimationController(
+    vsync: this,
+    duration: _labelDuration,
+    value: widget.selected ? 1 : 0,
+  );
+
+  late final Animation<double> _labelOpacity = CurvedAnimation(
+    parent: _label,
+    curve: Curves.easeInOutCubicEmphasized,
+    reverseCurve: Curves.easeInOutCubicEmphasized.flipped,
+  );
+
+  @override
+  void didUpdateWidget(covariant _RailItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected != widget.selected) {
+      widget.selected ? _label.forward() : _label.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -280,7 +314,10 @@ class _RailItemState extends State<_RailItem> {
               hoverColor: Colors.transparent,
               focusColor: Colors.transparent,
               highlightColor: Colors.transparent,
-              splashColor: scheme.primary.withValues(alpha: 0.10),
+              // The ripple would be clipped into a large rounded-rectangle
+              // overlay across the whole item; the circular fill below is the
+              // only feedback this destination paints.
+              splashFactory: NoSplash.splashFactory,
               onHover: (value) => setState(() => _hovered = value),
               onFocusChange: (value) => setState(() => _focused = value),
               onTap: widget.onTap,
@@ -292,6 +329,8 @@ class _RailItemState extends State<_RailItem> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // A circular fill carries selected/hover; the ring is
+                    // painted only for keyboard focus.
                     AnimatedContainer(
                       duration: AppMotion.fast,
                       curve: AppMotion.standardCurve,
@@ -317,10 +356,9 @@ class _RailItemState extends State<_RailItem> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    AnimatedOpacity(
-                      opacity: selected ? 1 : 0,
-                      duration: AppMotion.fast,
-                      curve: AppMotion.standardCurve,
+                    FadeTransition(
+                      alwaysIncludeSemantics: true,
+                      opacity: _labelOpacity,
                       child: Text(
                         widget.destination.label,
                         maxLines: 1,

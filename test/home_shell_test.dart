@@ -351,7 +351,10 @@ void main() {
       find.byKey(const ValueKey<String>('rail_destination_0')),
       findsOneWidget,
     );
-    final selectedBackground = tester.widget<AnimatedContainer>(
+
+    // The circular selected fill stays; only the rounded-rectangle ripple
+    // overlay is gone.
+    final iconBox = tester.widget<AnimatedContainer>(
       find
           .descendant(
             of: find.byKey(const ValueKey<String>('rail_destination_0')),
@@ -359,9 +362,34 @@ void main() {
           )
           .first,
     );
-    final decoration = selectedBackground.decoration! as BoxDecoration;
+    final decoration = iconBox.decoration! as BoxDecoration;
     expect(decoration.shape, BoxShape.circle);
     expect(decoration.color, isNot(Colors.transparent));
+
+    final ink = tester.widget<InkWell>(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('rail_destination_0')),
+        matching: find.byType(InkWell),
+      ),
+    );
+    expect(ink.splashFactory, NoSplash.splashFactory);
+    expect(ink.highlightColor, Colors.transparent);
+
+    // Labels cross-fade like the compact bottom bar's: only the selected one
+    // is shown, the others stay mounted at zero opacity.
+    double labelOpacity(String key) => tester
+        .widget<FadeTransition>(
+          find.descendant(
+            of: find.byKey(ValueKey<String>(key)),
+            matching: find.byType(FadeTransition),
+          ),
+        )
+        .opacity
+        .value;
+    expect(labelOpacity('rail_destination_0'), 1);
+    expect(labelOpacity('rail_destination_1'), 0);
+    expect(labelOpacity('rail_destination_2'), 0);
+
     expect(find.byType(NavigationBar), findsNothing);
   });
 

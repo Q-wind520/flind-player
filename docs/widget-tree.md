@@ -577,8 +577,9 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 
 - `AppTheme.light` / `AppTheme.dark`(Material 3),外加 `appThemeModeProvider`
   驱动的 **自动/浅色/深色** 三态外观切换(持久化于设置仓)。
-- `AppPalette` 提供中性纸感/近黑 surface,主题色(seed)只驱动 accent、
-  primary 与选中态,不再染遍全部 surface。
+- `AppPalette` 提供中性纯白/近黑 surface,主题色(seed)只驱动 accent、
+  primary 与选中态,不再染遍全部 surface;浅色主题的抬升表面用很浅的中性
+  灰阶,与白色页面拉开层次。
 - `AppTypography` 统一字阶、行高、字重与数字等宽;`AppRadius` 收敛为
   `sm 8 / md 16 / lg 24 / pill` 四档。
 - `AppIcons` 统一映射 Lucide Regular 线性图标;主播放/暂停是例外,使用
@@ -588,7 +589,8 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
   - `compact` 断点 = **600** 逻辑像素宽;窗口更窄或竖屏(`height >= width`)
     一律按紧凑布局处理,桌面端拉窄窗口也会切换为手机式底部导航。
   - 宽屏自绘 `_NarrowRail` 与紧凑 `NavigationBar` 均采用 **仅选中项显示标签**,
-    不再依赖窗口高度收起;窄栏的选中/悬停底是 16px 圆角块,不是方形。
+    不再依赖窗口高度收起;侧栏保留圆形选中/悬停底,但点击不画圆角矩形水波纹;
+    标签以 500 ms `easeInOutCubicEmphasized` 淡入淡出,与底部导航一致。
 
 ## 文件索引
 

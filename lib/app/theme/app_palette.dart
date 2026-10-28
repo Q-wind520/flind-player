@@ -16,16 +16,16 @@
 import 'package:flutter/material.dart';
 
 /// The app's neutral canvas. The user's theme colour only drives the accent
-/// roles; surfaces stay paper-warm (light) or near-black (dark), so switching
-/// the accent cannot repaint the whole app.
+/// roles; surfaces stay neutral — white (light) or near-black (dark) — so
+/// switching the accent cannot repaint the whole app.
 class AppPalette {
   const AppPalette._();
 
-  static const Color _lightPage = Color(0xFFF7F3EA);
-  static const Color _lightInk = Color(0xFF171411);
-  static const Color _lightMuted = Color(0xFF6E675E);
-  static const Color _lightOutline = Color(0xFF9A9185);
-  static const Color _lightHairline = Color(0xFFDED6C8);
+  static const Color _lightPage = Color(0xFFFFFFFF);
+  static const Color _lightInk = Color(0xFF16171A);
+  static const Color _lightMuted = Color(0xFF64676E);
+  static const Color _lightOutline = Color(0xFF8F929A);
+  static const Color _lightHairline = Color(0xFFE2E3E8);
 
   static const Color _darkPage = Color(0xFF0D0D0F);
   static const Color _darkInk = Color(0xFFF2EEE6);
@@ -47,27 +47,27 @@ class AppPalette {
       onSurfaceVariant: light ? _lightMuted : _darkMuted,
       outline: light ? _lightOutline : _darkOutline,
       outlineVariant: light ? _lightHairline : _darkHairline,
-      // Raised surfaces get lighter in both modes. The light theme used to
-      // place cards below the page, which inverted the depth metaphor between
-      // light and dark.
+      // In the dark theme raised surfaces get lighter. The light theme's page
+      // is already white, so its raised surfaces step down into a near-white
+      // grey instead — otherwise fields and cards would vanish into the page.
       surfaceContainerLowest: light
-          ? const Color(0xFFFFFDF8)
+          ? const Color(0xFFFFFFFF)
           : const Color(0xFF08080A),
       surfaceContainerLow: light
-          ? const Color(0xFFFDFAF4)
+          ? const Color(0xFFF6F6F8)
           : const Color(0xFF141416),
       surfaceContainer: light
-          ? const Color(0xFFF2ECE2)
+          ? const Color(0xFFF0F0F3)
           : const Color(0xFF19191C),
       surfaceContainerHigh: light
-          ? const Color(0xFFEDE6DA)
+          ? const Color(0xFFEAEAEE)
           : const Color(0xFF1F1F23),
       surfaceContainerHighest: light
-          ? const Color(0xFFE6DDD0)
+          ? const Color(0xFFE3E3E8)
           : const Color(0xFF27272C),
-      surfaceDim: light ? const Color(0xFFE9E2D6) : const Color(0xFF050506),
-      surfaceBright: light ? const Color(0xFFFFFCF6) : const Color(0xFF2E2E33),
-      inverseSurface: light ? const Color(0xFF24211D) : _lightPage,
+      surfaceDim: light ? const Color(0xFFEDEDF0) : const Color(0xFF050506),
+      surfaceBright: light ? const Color(0xFFFFFFFF) : const Color(0xFF2E2E33),
+      inverseSurface: light ? const Color(0xFF1B1C20) : _lightPage,
       onInverseSurface: light ? _lightPage : _lightInk,
       inversePrimary: base.primaryContainer,
       scrim: Colors.black,
