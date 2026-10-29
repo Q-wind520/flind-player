@@ -58,8 +58,10 @@ app.*.map.json
 .codegraph
 .omo/
 
-# Superpowers brainstorm mockups / session state
+# Superpowers brainstorm mockups / session state / local design specs & plans
 .superpowers/
+# Superpowers' default spec path is inside docs/; keep it local too.
+docs/superpowers/
 
 # Signing material — defense in depth; android/.gitignore already covers the
 # android/ paths, but a keystore kept at the repo root must never be committed.
