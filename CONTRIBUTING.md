@@ -133,7 +133,7 @@ flutter build ios --release --no-codesign
 | `flutter test` | 单元 / 组件测试（当前 **778** 通过） | CI 门禁 |
 | `flutter test integration_test` | 真机 / 桌面冒烟（11 用例） | **不在 CI**，需手动运行 |
 
-- 手工回归基线见 [`docs/manual-regression-1.0.md`](docs/manual-regression-1.0.md)。
+- 手工回归以 `flutter test integration_test` 为入口；1.0 的逐项回归清单已随里程碑归档（见 git 历史）。
 - 手写 Dart 文件顶部需带 GPL-3.0 文件头；工具生成且不手工编辑的文件（drift `*.g.dart`、`lib/l10n/app_localizations*.dart`）豁免。
 
 ## 🔐 签名发布（Android）
@@ -202,14 +202,10 @@ lib/
 | [`docs/local-library.md`](docs/local-library.md) | 本地曲库：扫描、元数据、drift schema、离线缓存 |
 | [`docs/packaging.md`](docs/packaging.md) | 桌面安装包（deb / rpm / AppImage / setup.exe）构建 |
 | [`docs/widget-tree.md`](docs/widget-tree.md) | 轻量级 Widget 树总览 |
-| [`docs/agent-model-policy.md`](docs/agent-model-policy.md) | Agent 协作与模型使用约定 |
-| [`docs/缓存延期问题.md`](docs/缓存延期问题.md) | 缓存评审遗留的延期小问题（触发条件 / 后果） |
-| [`docs/耦合TODO.md`](docs/耦合TODO.md) | 设置 / 主题 / 排序的 provider 耦合重构记录 |
-| [`docs/manual-regression-1.0.md`](docs/manual-regression-1.0.md) | 手工回归基线 |
-| [`docs/release-checklist-1.0.md`](docs/release-checklist-1.0.md) | 1.0 发布清单（签名 / 合规 / 隐私） |
-| [`docs/spec-1.0-hardening-2026-10-02.md`](docs/spec-1.0-hardening-2026-10-02.md) | 1.0 加固里程碑设计 |
-| [`docs/plan-1.0-hardening-2026-10-02.md`](docs/plan-1.0-hardening-2026-10-02.md) | 1.0 加固实施计划 |
-| [`docs/archive/`](docs/archive) | 已完成的设计稿与实施计划 |
+| [`docs/known-issues.md`](docs/known-issues.md) | 缓存相关已知延期项及其触发条件 |
+
+设计稿与实施计划（spec / plan）不随仓库分发：已落地的里程碑记录保留在 git 历史中，
+进行中的工作留在本地工作区。
 
 ## 📈 项目状态
 

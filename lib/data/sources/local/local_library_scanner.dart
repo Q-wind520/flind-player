@@ -268,8 +268,8 @@ class LocalLibraryScanner {
     final seenUris = <String>{};
     final knownMap = known ?? const <String, FileFingerprint>{};
 
-    // TODO(android-1.1): Android 本地曲库延后（见 docs/local-library.md §2.1 与
-    // docs/spec-1.0-hardening-2026-10-02.md D1）。1.1 起接入 MediaStore 适配器，
+    // TODO(android-1.1): Android 本地曲库延后（见 docs/local-library.md §2.1）。
+    // 1.1 起接入 MediaStore 适配器，
     // 并把候选文件喂给同一抽取池；此处隔离的发现层即为该平台接缝预留。
     for (final root in roots) {
       final directory = Directory(root);

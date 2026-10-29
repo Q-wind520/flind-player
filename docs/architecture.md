@@ -3,7 +3,7 @@
 > 版本：v1.0（设计定稿）
 > 日期：2026-09-10（状态于 2026-09-29 复核）
 > 状态：M0–M6 全部落地，随 v0.6.1 发布；本文档转为**现行架构参考**，
-> 不再是待实现的设计稿。已知延期项见 `缓存延期问题.md` 与 `耦合TODO.md`。
+> 不再是待实现的设计稿。已知延期项见 [`known-issues.md`](known-issues.md)。
 
 ---
 
@@ -146,7 +146,10 @@ flind_player/
     ├── architecture.md                 # 本文档
     ├── bilibili-source.md              # Bilibili 适配器设计
     ├── netease-source.md               # 网易云适配器设计（匿名）
-    └── local-library.md                # 本地库 + 离线缓存设计
+    ├── local-library.md                # 本地库 + 离线缓存设计
+    ├── packaging.md                    # 桌面安装包构建
+    ├── widget-tree.md                  # Widget 树总览
+    └── known-issues.md                 # 已知延期项
 ```
 
 ---

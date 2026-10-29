@@ -25,8 +25,8 @@ const String kNeteaseReferer = 'https://music.163.com';
 
 /// Anonymous client cookies required by the `eapi` endpoints.
 ///
-/// Matches the placeholder set of `docs/spec-netease-source-2026-10-01.md`
-/// §6.2: `os=pc` plus `appver`, `deviceId`, `versioncode`, `mobilename`,
+/// Matches the placeholder set documented in `docs/netease-source.md` §4:
+/// `os=pc` plus `appver`, `deviceId`, `versioncode`, `mobilename`,
 /// `buildver`, `resolution`, `__csrf`, `channel` and `requestId`.
 const String _anonCookie =
     'os=pc; appver=8.0.0; deviceId=; versioncode=140; mobilename=undefined; '

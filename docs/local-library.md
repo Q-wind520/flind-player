@@ -303,8 +303,7 @@ ALTER TABLE tracks ADD COLUMN cover_url TEXT;
   另在启动自愈里把旧根 `audio_cache/`、`cover_cache/` 的文件搬入 `cache/`（见 §4.2）。
 
 > **pinned 豁免配额是有意决策**：上限**不再约束总磁盘占用**，用户可无限下载，
-> 需在发布说明注明。代价与风险见
-> [`archive/spec-cache-refactor-2026-09-26.md`](archive/spec-cache-refactor-2026-09-26.md) §13。
+> 需在发布说明注明。代价与风险见 2026-09-26 缓存重构设计（§13，已不再入库，见 git 历史）。
 
 > **离线 / pinned 的管理入口**：设置页新增独立的「**离线缓存**」区块（列表 + 用量 +
 > 单条删除 + 全部清空），与曲库行的下载按钮状态一致。设置页原有的缓存区块**显示不变**，
@@ -350,8 +349,8 @@ Future<StreamInfo> resolveStream(Track track) async {
 > **schema v10（随 v0.4.0 发布）已把配额模型从"按资源类型"改为"按歌曲"**：
 > 音频与封面同生共死于层 1（`audio_cache.cover_path`），未缓存歌曲的封面走独立的层 2
 > （固定 256 MiB、启动清空、不计入音频上限）。本块描述的下载器行为未变；
-> 数据模型与配额规则以 §4.4 / §4.5 为准，评审遗留项见 `缓存延期问题.md`。
-> 迁移设计见 [`archive/spec-cache-refactor-2026-09-26.md`](archive/spec-cache-refactor-2026-09-26.md)。
+> 数据模型与配额规则以 §4.4 / §4.5 为准，评审遗留项见 [`known-issues.md`](known-issues.md)。
+> 迁移设计（2026-09-26 缓存重构）已不再入库，见 git 历史。
 >
 > 实现细节与偏差：
 > 1. **容量检查分两次**：`StreamInfo` 不含字节数，下载前只能按估算值（未知时为 0）预留；下载完成后按**真实
