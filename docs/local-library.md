@@ -8,25 +8,28 @@
 ## 1. 目标
 
 1. **本地曲库**：扫描用户目录，解析元数据与封面，与在线曲库混合呈现。
-2. **离线缓存**：把 Bilibili 音频缓存到本地，默认上限 **1 GiB**，可配置，支持离线播放。
+2. **离线缓存**：把在线音源（Bilibili / 网易云）的音频缓存到本地，默认上限 **1 GiB**，可配置，支持离线播放。
 
 ---
 
 ## 2. 本地扫描
 
-> **1.0 状态（Android 延后）**：Android 本地曲库**延后到 1.1**。1.0 的实现只做目录遍历
-> （`LocalLibraryScanner`），**未接入 `MediaStore`**；Android 上 `file_picker.getDirectoryPath()`
-> 返回 `content://`，`dart:io` 无法遍历，因此 **Android 本地曲库在 1.0 不可用**。
-> 本节 §2.1–§2.4 的 MediaStore 设计是 1.1 的目标方案，当前尚未实现；桌面/移动端的行为以
-> `lib/data/sources/local/local_library_scanner.dart` 为准。
+> **当前状态（v1.2，2026-10-29）**：Android 本地曲库**仍未实现**（原计划 1.1，现已延期）。
+> 现有实现只做目录遍历（`LocalLibraryScanner`），**未接入 `MediaStore`**；Android 上
+> `file_picker.getDirectoryPath()` 返回 `content://`，`dart:io` 无法遍历，因此 Android
+> 本地曲库不可用；iOS 因沙盒同样不提供本地曲库。本节 §2.1–§2.4 的 MediaStore 设计是
+> 目标方案，当前尚未实现；桌面端行为以 `lib/data/sources/local/local_library_scanner.dart` 为准。
 
 ### 2.1 平台差异
 
+下表中 Android 为 MediaStore 目标方案（**尚未实现**），Linux 为当前实现：
+
 | 平台 | 发现方式 | 权限 |
 |---|---|---|
-| Android 13+ | MediaStore（`MediaStore.Audio`） | `READ_MEDIA_AUDIO`（`permission_handler` 的 `Permission.audio`） |
-| Android ≤12 | MediaStore / 直接路径 | `READ_EXTERNAL_STORAGE` |
+| Android 13+ | MediaStore（`MediaStore.Audio`，目标） | `READ_MEDIA_AUDIO`（`permission_handler` 的 `Permission.audio`） |
+| Android ≤12 | MediaStore / 直接路径（目标） | `READ_EXTERNAL_STORAGE` |
 | Linux | `dart:io` 递归遍历用户选择的根目录 | 无（Flatpak/Snap 需声明文件系统权限） |
+| iOS | 不提供本地曲库 | —（沙盒无用户可选根目录） |
 
 **关键事实：**
 
@@ -35,7 +38,7 @@
 - **禁止使用 `MANAGE_EXTERNAL_STORAGE`**（Play 政策不允许音乐播放器滥用）。
 - **Android 的"任选文件夹"是 SAF 问题，不是路径问题**：`file_picker.getDirectoryPath()` 返回 `content://` tree URI，`dart:io` 无法遍历。MVP 不做任意目录选择，直接用 MediaStore。
 
-### 2.2 MediaStore 绑定（1.1 目标，1.0 未实现）
+### 2.2 MediaStore 绑定（未实现）
 
 - 目标：`on_audio_query_pluse` ^3.0.7（维护中的 fork）——**尚未加入 `pubspec.yaml`**。
 - **必须包一层薄适配器** `MediaStoreAdapter`，以便日后替换为 ~40 行 Kotlin MethodChannel
@@ -62,11 +65,11 @@
 ```
 根目录
  ├─ Linux:   file_picker.getDirectoryPath() → 持久化到 DB
- └─ Android: 目录遍历（1.0）；MediaStore.Audio 查询为 1.1 目标，尚未实现
+ └─ Android: 本地曲库不可用；MediaStore.Audio 查询尚未实现
                     │
                     ▼
       发现适配器 → 候选 {path, size, mtime, mediaStoreId}
-      （Android: MediaStore.getVersion() 未变 → 整轮跳过）
+      （目标：Android MediaStore.getVersion() 未变 → 整轮跳过）
                     │
                     ▼
       与 drift tracks 做 diff（path + size + mtime 为新鲜度键）
@@ -114,7 +117,7 @@
 ## 3. 封面策略
 
 - 内嵌封面：`audio_metadata_reader` 的 `pictures`
-- Android 系统封面兜底：`on_audio_query_pluse.queryArtwork()`
+- Android 系统封面兜底：`on_audio_query_pluse.queryArtwork()`（MediaStore 目标方案，**尚未实现**）
 - **两遍法**：第一遍不取图（快）；第二遍低优先级按需提取
 - **内容寻址缓存**：图片字节 SHA-1 → `covers/<sha1>.<ext>`（`<ext>` 由图片 MIME 决定）
   - 存在 `<app support>/covers/`（**不要用临时目录**，系统会清理）
@@ -122,13 +125,13 @@
   - 专辑封面天然去重（同专辑多曲共享 hash）
 - 读取、哈希与写盘必须在非 UI isolate（`ArtworkCache._cacheInIsolate`）
 
-### 3.1 在线（Bilibili）远程封面
+### 3.1 在线音源（Bilibili / 网易云）远程封面
 
-内嵌封面只覆盖本地文件；B 站音源需要单独抓取视频封面（`pic` / 收藏夹 `cover`）：
+内嵌封面只覆盖本地文件；在线音源需要单独抓取远程封面：
 
-- **来源**：搜索/详情/收藏夹 DTO 已带封面 URL，`bili_mappers` 透传并归一化；
-  `searchItemToTrack` / `favoriteResourceToTrack` / `videoPageToTrack` 写入
-  `Track.coverUrl`。缺失时用 `bvid` 调 `/x/web-interface/view` 兜底。
+- **来源**：Bilibili 的搜索/详情/收藏夹 DTO 已带封面 URL（`pic` / 收藏夹 `cover`），
+  `bili_mappers` 透传并归一化；缺失时用 `bvid` 调 `/x/web-interface/view` 兜底。
+  网易云的 `al.picUrl` 经 `netease_mappers` 归一化后写入 `Track.coverUrl`。
 - **归一化**：`normalizeCoverUrl` 把 `//host/...` 与 `http://` 升到 `https://`，
   并剥掉既有 CDN 处理后缀（`@672w_...`），保证同一图片的缓存键稳定。
 - **缓存**：`CoverCacheStore` 以 `sha1(归一化 URL)` 为键索引、以 `sha1(图片字节)`
@@ -151,7 +154,7 @@
 
 ### 4.1 目标
 
-Bilibili 音频缓存到本地，实现：
+在线音频（Bilibili / 网易云）缓存到本地，实现：
 
 - 播放即缓存（边听边存）
 - 手动标记下载（离线可用）
@@ -196,8 +199,8 @@ Bilibili 音频缓存到本地，实现：
 ```sql
 CREATE TABLE audio_cache (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  source           TEXT    NOT NULL,       -- 'bilibili'
-  source_track_id  TEXT    NOT NULL,       -- 'BV...:cid'
+  source           TEXT    NOT NULL,       -- 'bilibili' | 'netease'
+  source_track_id  TEXT    NOT NULL,       -- 'BV...:cid' | '<songId>'
   file_path        TEXT    NOT NULL,
   bytes            INTEGER NOT NULL,
   quality_id       TEXT    NOT NULL,       -- '30280' 等
@@ -322,8 +325,8 @@ Future<StreamInfo> resolveStream(Track track) async {
     return StreamInfo(url: Uri.file(cached.filePath), headers: const {});
   }
 
-  // 2. 解析在线流
-  final info = await bili.resolve(track);
+  // 2. 解析在线流（按 track.source 路由到对应音源）
+  final info = await resolver.resolve(track);
 
   // 3. 在线流解析成功后，后台边播边写（缓存始终开启，唯一可配置项是上限）
   unawaited(downloader.enqueue(track, info, pinned: false));
@@ -369,9 +372,9 @@ Future<StreamInfo> resolveStream(Track track) async {
 -- 统一曲库（在线 + 本地）—— 唯一的曲库池
 CREATE TABLE tracks (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  source          TEXT    NOT NULL,        -- 'bilibili' | 'local'
-  source_track_id TEXT    NOT NULL,        -- bvid:cid | 绝对路径
-  uri             TEXT    NOT NULL UNIQUE, -- 'bilibili:BV...:cid' | 'local:/path'（规范键）
+  source          TEXT    NOT NULL,        -- 'bilibili' | 'netease' | 'local'
+  source_track_id TEXT    NOT NULL,        -- bvid:cid | songId | 绝对路径
+  uri             TEXT    NOT NULL UNIQUE, -- 'bilibili:BV...:cid' | 'netease:<songId>' | 'local:/path'（规范键）
   title           TEXT    NOT NULL,
   artist          TEXT,
   album           TEXT,
@@ -466,7 +469,7 @@ CREATE INDEX idx_playlist_tracks_order
 | `drift` + `drift_flutter` | ^2.35.0 | SQLite + FTS5 |
 | `permission_handler` | ^12.0.0 | `Permission.audio` |
 | `file_picker` | ^12.2.0 | 桌面目录选择 |
-| `on_audio_query_pluse` | （1.1 计划） | Android MediaStore——**尚未加入 pubspec** |
+| `on_audio_query_pluse` | （未实现） | Android MediaStore——**尚未加入 pubspec** |
 | `path_provider` | latest | 应用私有目录 |
 
 **Linux 系统依赖**：`libsecret`（凭证）、`libmpv-dev` + `mpv`（播放）、`libayatana-appindicator3-dev`（托盘）。

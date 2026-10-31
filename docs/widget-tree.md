@@ -21,6 +21,9 @@ main (入口)
                └─ HomeShell (主界面壳)
 ```
 
+> `main` 在 `runApp` 前还会：桌面端获取单实例锁（`SingleInstanceGuard`,第二个实例请求
+> 唤醒已有窗口后退出）、初始化 `windowManager` 与 `AudioService`、恢复播放快照与语言。
+>
 > `FlindApp` 同时 watch `coverPrefetchCoordinatorProvider`,让队列封面预取
 > 协调器在整个会话期间保持存活。
 >
@@ -261,7 +264,8 @@ PlaylistPickerSheet (加入歌单底部选择器 ConsumerStatefulWidget)
 ## 设置页 SettingsScreen(设置)
 
 `AppPageHeader` 页头 + 限宽 760 的滚动列表;`SafeArea(bottom: false)` 保证
-「通用」标题不被状态栏遮挡。「通用」分区提供 **外观(主题模式)** 切换。
+「通用」标题不被状态栏遮挡。「通用」分区提供 **外观(主题模式)** 切换;
+「账号与来源」分区列出来源的登录状态(非 Web 平台)。
 
 ```
 SettingsScreen (设置页 ConsumerWidget)
@@ -273,6 +277,10 @@ SettingsScreen (设置页 ConsumerWidget)
          ├─ _GeneralSection (通用)
          │  ├─ ListTile (语言 → SimpleDialog: 跟随系统/中文/英文)
          │  └─ ListTile (外观 → SimpleDialog: 自动/浅色/深色, 经 appThemeModeProvider 持久化)
+         ├─ {非 Web} SectionHeader (「账号与来源」)
+         ├─ {非 Web} AccountSection (每个登录驱动一行)
+         │  └─ _AccountRow × N (头像 + 登录状态 + VIP 标记)
+         │     └─ AccountLoginSheet (未登录: 二维码 + 倒计时 + 扫描状态; 已登录: 账号资料 + 退出)
          ├─ SectionHeader (「播放」)
          ├─ _PlaybackSection (播放缓存)
          │  ├─ ListTile (缓存位置 → _CacheLocationDialog: 路径+复制+清空缓存)
@@ -490,8 +498,11 @@ LyricsView (全屏歌词 ConsumerWidget, 点击回调 onTap 收起竖屏歌词�
    ├─ {无曲目/无歌词/空歌词} _LyricsPlaceholder (占位)
    │  └─ LayoutBuilder → SingleChildScrollView → ConstrainedBox(minHeight) → Center
    │     └─ Column [ Icon(lyrics_outlined) + Text(占位标题)
-   │                 + Text(提示: sourceSupportsLyricsProvider 为真 → 「暂无歌词」,
-   │                        否则 → 「该音源暂未适配歌词」) ]
+   │                 + Text(提示: lyricsLoginRequiredProvider 为真 → 「登录后可获取该视频的字幕」,
+   │                        sourceSupportsLyricsProvider 为真 → 「暂无歌词」,
+   │                        否则 → 「该音源暂未适配歌词」)
+   │                 + {需要登录获取 B 站字幕} FilledButton.tonalIcon(
+   │                     「登录 Bilibili 后获取字幕」→ showAccountLoginSheet) ]
    └─ {有歌词} _LyricsScroll
       └─ SingleChildScrollView → Column (全量布局, key: ValueKey(曲目 uri))
          └─ _LyricLineTile × Lyric.lines
@@ -628,7 +639,14 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | `lib/data/services/track_deletion_service.dart` | `TrackDeletionService` — 删除曲目的缓存/歌单/曲库三步编排 |
 | `lib/platform/audio_handler.dart` | audio_service + `audio_service_mpris` 后台播放与媒体控制 |
 | `lib/platform/tray/tray_service.dart` | 系统托盘图标 + 关闭到托盘 |
-| `lib/features/settings/settings_screen.dart` | 设置页(通用/播放/曲库/关于) |
+| `lib/features/settings/settings_screen.dart` | 设置页(通用/账号与来源/播放/曲库/关于) |
+| `lib/features/settings/account_section.dart` | 账号与来源列表 + 扫码登录/退出 Sheet |
+| `lib/core/auth/` | `AuthSession` / `AuthDriver` / `AuthState` / `AuthSourcePolicy` |
+| `lib/data/auth/` | `SecureAuthSessionStore` / `AuthCookieJar` / `Set-Cookie` 解析 |
+| `lib/data/sources/bilibili/bili_auth_driver.dart` | Bilibili QR 登录 |
+| `lib/data/sources/netease/netease_auth_driver.dart` | 网易云 QR 登录 |
+| `lib/platform/single_instance/single_instance_guard.dart` | 桌面单实例文件锁 + 唤醒请求 |
+| `lib/shared/platform_support.dart` | 本地曲库平台能力(iOS/Web 不支持) |
 | `lib/features/player/mini_player_bar.dart` | 迷你播放条(可嵌入移动端合并 dock) |
 | `lib/features/player/player_screen.dart` | 全屏暗房播放页(封面环境色 + 横竖屏 + 传输控制) |
 | `lib/features/player/player_progress_bar.dart` | 波浪/直线 morph 进度条 + 缓冲点阵动画 |

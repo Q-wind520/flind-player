@@ -1,9 +1,10 @@
 # Flind Player 架构设计
 
-> 版本：v1.0（设计定稿）
-> 日期：2026-09-10（状态于 2026-09-29 复核）
-> 状态：M0–M6 全部落地，随 v0.6.1 发布；本文档转为**现行架构参考**，
-> 不再是待实现的设计稿。已知延期项见 [`known-issues.md`](known-issues.md)。
+> 版本：v1.2 + 未发布变更（现行架构参考）
+> 日期：2026-09-10（状态于 2026-10-29 复核）
+> 状态：M0–M6 与 v1.1/v1.2 已发布功能均已落地；未发布的 Bilibili / 网易云扫码登录、
+> 桌面单实例也已实现。本文档为**现行架构参考**，不再是待实现的设计稿。
+> 已知延期项见 [`known-issues.md`](known-issues.md)。
 
 ---
 
@@ -19,7 +20,7 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 | Linux application ID | `top.qwind.app.flind_player` |
 | 许可证 | **GPL-3.0**（见 D13） |
 | 主平台 | Android、Linux |
-| 辅平台 | Windows、macOS、iOS（可延后构建） |
+| 辅平台 | Windows、macOS、iOS（均已构建；Apple 平台为未签名预览） |
 | Web | **推迟至 v2**（见 D11） |
 
 ---
@@ -28,7 +29,7 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 
 | 维度 | 结论 |
 |---|---|
-| 音乐来源 | 多平台聚合架构，已接入 Bilibili + 网易云（匿名） |
+| 音乐来源 | 多平台聚合架构，已接入 Bilibili + 网易云（均可匿名使用，支持扫码登录） |
 | 曲库范围 | 在线 + 本地混合 |
 | UI 方向 | Material 3 自适应（移动 / 桌面断点切换） |
 | 首页入口 | **Bilibili 为主入口**（D12） |
@@ -43,14 +44,14 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 | # | 决策 | 选择 | 理由 |
 |---|---|---|---|
 | D1 | 状态管理 | **Riverpod**（`flutter_riverpod` + `Notifier`） | Linthra / Flick / sweyer 三个独立生产项目验证；兼做 DI，避免 get_it + provider 混用 |
-| D2 | 播放引擎 | **just_audio + audio_service 为主**，`media_kit` 为可选逃生舱 | Bilibili 音频为 AAC/FLAC/Opus，ExoPlayer 全覆盖；OS 集成最顺；桌面端 just_audio 底层本就是 libmpv |
+| D2 | 播放引擎 | **just_audio + audio_service**；桌面经 `just_audio_media_kit` 复用 libmpv | Bilibili 音频为 AAC/FLAC/Opus，ExoPlayer 全覆盖；OS 集成最顺；当前不引入第二个控制器 |
 | D3 | 在线源 | **`MusicSource` 抽象 + 适配器** | 多平台聚合的前提；单个源可替换、可远程禁用 |
 | D4 | Bilibili 接入 | 原生直连 + WBI + 安全凭证；Web 走无凭证代理 | 实测第三方 Origin 一律 403（见 `bilibili-source.md`） |
 | D5 | 本地扫描 | **`audio_metadata_reader`**（纯 Dart） | 零原生依赖，3392 首 < 200ms，字段齐全 |
 | D6 | 缓存 | **drift（SQLite + FTS5）** | 关系查询、迁移、后台 isolate、Flutter Favorite |
-| D7 | 系统集成 | **`audio_service`** 统一层 | 一个 AudioHandler 覆盖 Android 通知栏 / Linux MPRIS / macOS·iOS Now Playing；Windows 暂无 OS 媒体控制（需额外插件，v1.1 评估） |
+| D7 | 系统集成 | **`audio_service`** 统一层 | 一个 AudioHandler 覆盖 Android 通知栏 / Linux MPRIS / macOS·iOS Now Playing；Windows 暂无 OS 媒体控制（需额外插件，尚未接入） |
 | D8 | 凭证存储 | **已启用（2026-10）：`flutter_secure_storage` + 按源 `AuthSession`** | SESSDATA / MUSIC_U 是全账号 bearer token；只进系统钥匙串与内存，数据库和日志不落凭证 |
-| D9 | 离线缓存 | Bilibili 音频缓存到本地，**默认 1 GiB 可配置**，LRU 淘汰 | 见 `local-library.md` §4 |
+| D9 | 离线缓存 | 在线音频（Bilibili / 网易云）缓存到本地，**默认 1 GiB 可配置**，LRU 淘汰 | 见 `local-library.md` §4 |
 | D10 | 歌词 | **保留 `LyricsProvider` 抽象**（2026-10-01 已落地为 `Lyric` / `LyricsProvider` / `lrc_parser`，见 §6.4） | 网易云匿名 LRC + 翻译；B 站登录后读 CC/AI 字幕 JSON |
 | D11 | Web | **推迟至 v2** | CORS 全阻断，需代理且无法登录，性价比低 |
 | D12 | 首页 | **Bilibili 主入口** | 在线优先的产品定位 |
@@ -63,8 +64,10 @@ Flind Player 是一个 Flutter 跨平台音乐播放器。以 **Bilibili 作为�
 **裁决：**
 
 - **主引擎 = `just_audio`**。Bilibili 流为 AAC/FLAC/Opus，ExoPlayer 全覆盖；`audio_service` 集成最成熟；桌面端 `just_audio_media_kit` 底层即 media_kit/libmpv，格式能力不丢。
-- **`media_kit` = `PlaybackController` 的第二个实现**，仅当用户播放本地 APE/DSD 等 ExoPlayer 不支持的格式时按需热切换（参考 Flick 的 `AudioEngineManager` 竞态令牌模式）。
-- 代价：多一个引擎依赖；收益：OS 集成最顺 + 格式全覆盖。
+- **`media_kit` 第二实现尚未落地**：当前只有 `JustAudioPlaybackController` 一个实现；桌面端经
+  `just_audio_media_kit` 复用 libmpv。若将来确实需要本地 APE/DSD 等格式，再按 Flick 的
+  `AudioEngineManager` 竞态令牌模式引入按需热切换。
+- 现状代价最低：单一引擎、单一控制器；格式不足时再评估第二实现。
 
 ---
 
@@ -103,7 +106,7 @@ UI ← PlaybackController ← just_audio ← StreamInfo
 ```
 flind_player/
 ├── lib/
-│   ├── main.dart                       # ProviderScope + bootstrap
+│   ├── main.dart                       # ProviderContainer + 启动引导（单实例 / 音频 / 恢复）
 │   ├── app/
 │   │   ├── app.dart                    # MaterialApp + 应用外壳（HomeShell）
 │   │   ├── app_scroll_behavior.dart    # 全局滚动行为
@@ -126,11 +129,12 @@ flind_player/
 │   │   │   ├── local/                  # 目录扫描 + audio_metadata_reader
 │   │   │   ├── bilibili/               # client / wbi / auth / riskcontrol / mapper / ratelimiter
 │   │   │   └── netease/                # crypto(weapi/eapi) / client / api / dto / mapper / source
-│   │   ├── playback/                   # JustAudioPlaybackController / MediaKitPlaybackController
+│   │   ├── playback/                   # JustAudioPlaybackController（桌面经 just_audio_media_kit）
 │   │   └── cache/                      # 封面缓存 + 音频离线缓存（DownloadManager）
 │   ├── platform/
 │   │   ├── audio_handler.dart          # audio_service AudioHandler（桥接 PlaybackController）
 │   │   ├── permissions/                # 权限服务
+│   │   ├── single_instance/            # 桌面单实例（文件锁 + 唤醒请求）
 │   │   └── tray/                       # 桌面托盘（window_manager 在 main.dart 直接装配）
 │   ├── features/                       # 一屏一目录
 │   │   ├── home/                       # Bilibili 主入口
@@ -145,7 +149,7 @@ flind_player/
 └── docs/
     ├── architecture.md                 # 本文档
     ├── bilibili-source.md              # Bilibili 适配器设计
-    ├── netease-source.md               # 网易云适配器设计（匿名）
+    ├── netease-source.md               # 网易云适配器设计（匿名 + 扫码登录）
     ├── local-library.md                # 本地库 + 离线缓存设计
     ├── packaging.md                    # 桌面安装包构建
     ├── widget-tree.md                  # Widget 树总览
@@ -353,14 +357,14 @@ Track → PlaybackController.playQueue(queue)
 |---|---|---|
 | Android | MediaSession + 通知栏 + 锁屏 | `audio_service`（FGS `mediaPlayback` + `POST_NOTIFICATIONS`） |
 | Linux | MPRIS2 / 媒体键 | `audio_service_mpris` ^0.2.1 |
-| Windows | （未接入 OS 媒体控制；仅桌面托盘 / 窗口） | 需 `audio_service_win` / `smtc_windows` 一类插件，v1.1 评估 |
+| Windows | （未接入 OS 媒体控制；仅桌面托盘 / 窗口） | 需 `audio_service_win` / `smtc_windows` 一类插件，仍在评估 |
 | macOS | MPNowPlayingInfoCenter | `audio_service` darwin 内置 |
 | iOS | MPNowPlayingInfoCenter | `audio_service` 内置 |
 | Web | Media Session API | 推迟（D11） |
-| 桌面托盘 | tray | `tray_manager` ^0.5.2 |
+| 桌面托盘 | tray | `tray_manager` ^0.5.3（vendored） |
 | 桌面单实例 | 文件锁 + 激活请求文件 | `lib/platform/single_instance/`（`SingleInstanceGuard`） |
 
-桌面附加：`window_manager`（关闭到托盘）、Linux 需 `libmpv-dev` + `libayatana-appindicator3-dev`。
+桌面附加：`window_manager`（窗口）+ `tray_manager`（托盘 / 关闭到托盘）；Linux 需 `libmpv-dev` + `libayatana-appindicator3-dev`。
 
 ---
 
@@ -386,7 +390,7 @@ Track → PlaybackController.playQueue(queue)
 - **队列快照包含 `originalOrder`**：洗牌后的顺序无法反推洗牌前顺序，缺了它恢复后"取消随机"会错乱。快照以 `{tracks, originalOrder}` 形式存储。
 - **恢复为暂停态**：`PlaybackController.playQueue` 新增 `autoPlay` 参数（默认 true），持久化服务以 `autoPlay: false` 恢复，避免启动瞬间出声。
 - **收藏是内置歌单**：收藏 = `playlists` 表 `kind='favorites'` 的内置行（id 固定 1，不可删除/改名）；收藏与自建歌单的成员都存 `playlist_tracks`，每行只存 `(playlist_id, uri, added_at)`，是对 `tracks` 池的纯引用。写入前先 `promoteTrack` 把曲目并入池，读取时 `JOIN tracks`，因此池是唯一事实来源、元数据与封面始终最新（见 §7.3）。
-- **Bilibili 收藏夹仅公开**：按 UID 浏览他人公开收藏夹；个人收藏夹需要 QR 登录，按用户决定留到 v1.1。
+- **Bilibili 收藏夹仅公开**：按 UID 浏览他人公开收藏夹；QR 登录已落地，但私有收藏夹仍未接入（登录目前只增强音质与字幕）。
 
 ---
 
@@ -398,7 +402,7 @@ Track → PlaybackController.playQueue(queue)
 | API 不稳定（WBI 每日轮换、风控升级） | 高 | 集中签名客户端、限流退避、能力开关、feature flag |
 | Web CORS 全阻断 | 确定 | Web 推迟至 v2（D11） |
 | Android 17 音频加固 | 中 | 首次播放前台启 FGS、`androidStopForegroundOnPause: false`、17 beta 实测 |
-| 双引擎复杂度 | 中 | 接口隔离，media_kit 仅按需用于 APE/DSD |
+| 单一播放引擎的格式边界 | 低 | 当前仅 `just_audio`（桌面经 libmpv）；遇到不支持的格式再评估第二实现 |
 | 离线缓存占满磁盘 | 低 | 默认 1 GiB 上限 + LRU + 设置可调 |
 
 ---
@@ -425,6 +429,8 @@ Track → PlaybackController.playQueue(queue)
 | `file_picker` | 目录选择 | MIT | 是 |
 | `flutter_riverpod` | 状态管理 / DI | MIT | 是 |
 | `shared_preferences` | 轻量设置持久化 | BSD-3-Clause | 是 |
+| `flutter_secure_storage` | 账号会话保险库 | BSD-3-Clause | 是 |
+| `qr_flutter` | 登录二维码渲染 | BSD-3-Clause | 是 |
 | `crypto` / `pointycastle` | 网易云 weapi/eapi 加密 | MIT / MIT | 是 |
 | `dio` | HTTP 客户端（WBI / 网易云签名请求） | MIT | 是 |
 
@@ -463,5 +469,5 @@ Track → PlaybackController.playQueue(queue)
 ## 13. 相关文档
 
 - [`bilibili-source.md`](bilibili-source.md) —— Bilibili 适配器：端点、WBI、鉴权、风控、限流、法务
-- [`netease-source.md`](netease-source.md) —— 网易云适配器（匿名）：端点、weapi/eapi 协议、能力边界、法务
+- [`netease-source.md`](netease-source.md) —— 网易云适配器（匿名 + 扫码登录）：端点、weapi/eapi 协议、能力边界、法务
 - [`local-library.md`](local-library.md) —— 本地库：扫描、元数据、drift schema、离线缓存

@@ -10,18 +10,18 @@
 
 <br />
 
-<img src="https://img.shields.io/badge/version-1.1.0-2ea44f" />
+<img src="https://img.shields.io/badge/version-1.2.0-2ea44f" />
 <img src="https://img.shields.io/badge/license-GPL--3.0-red" />
 <img src="https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter&logoColor=white" />
 <img src="https://img.shields.io/badge/platform-Android%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20iOS-purple" />
-<img src="https://img.shields.io/badge/tests-850%20passing-brightgreen" />
+<img src="https://img.shields.io/badge/tests-984%20passing%20%C2%B7%201%20skipped-brightgreen" />
 <img src="https://img.shields.io/badge/Made%20with-Dart-0175C2?logo=dart&logoColor=white" />
 
 </div>
 
 <br />
 
-Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在线音源，另支持网易云音乐（匿名），并与本地音乐库在同一个界面中混合管理。桌面（Linux / Windows / macOS）与移动（Android / iOS）自适应，支持离线缓存、同步歌词与系统级媒体控制。
+Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在线音源，另支持网易云音乐（匿名可用，支持扫码登录），并与本地音乐库在同一个界面中混合管理。桌面（Linux / Windows / macOS）与移动（Android / iOS）自适应，支持离线缓存、同步歌词与系统级媒体控制。
 
 > ⚠️ 本项目仅供个人学习使用：不内置任何账号凭证，也不提供带凭证的公共代理。
 
@@ -40,11 +40,11 @@ Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在
   <tr>
     <td width="50%" valign="top">
       <h4>🎧 Bilibili 在线音源</h4>
-      <p>WBI 签名 API 直连，防盗链 CDN 播放（自动注入 Referer / UA）；直播流过期（403）自动刷新并跳回原进度，边听边播不中断。被收录曲目可一键离线缓存。</p>
+      <p>WBI 签名 API 直连，防盗链 CDN 播放（自动注入 Referer / UA）；直播流过期（403）自动刷新并跳回原进度，边听边播不中断。被收录曲目可一键离线缓存。可选扫码登录后请求更高音质并读取 CC/AI 字幕。</p>
     </td>
     <td width="50%" valign="top">
       <h4>🎵 网易云音乐音源</h4>
-      <p>匿名接入第二个在线音源：搜索、播放与歌词，与 Bilibili 在搜索页一键切换；不内置任何账号凭证。</p>
+      <p>匿名即可使用第二个在线音源：搜索、播放与歌词，与 Bilibili 在搜索页一键切换；可选扫码登录以请求更高音质。不内置任何账号凭证。</p>
     </td>
   </tr>
   <tr>
@@ -54,7 +54,7 @@ Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在
     </td>
     <td width="50%" valign="top">
       <h4>💾 离线缓存</h4>
-      <p>Bilibili 音频缓存到本地，默认 <strong>1 GiB</strong> 可配置，LRU 自动淘汰；手动下载的曲目 <strong>pinned 固定</strong>，断网也能播放。</p>
+      <p>在线音频（Bilibili / 网易云）缓存到本地，默认 <strong>1 GiB</strong> 可配置，LRU 自动淘汰；手动下载的曲目 <strong>pinned 固定</strong>，断网也能播放。</p>
     </td>
   </tr>
   <tr>
@@ -83,7 +83,7 @@ Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在
 
 | 平台 | 优先级 | 说明 |
 | -------- | -------- | ----- |
-| Android | 主推 | 分架构 APK + AAB；本地曲库延后（1.1） |
+| Android | 主推 | 分架构 APK + AAB；本地曲库尚未支持（延期） |
 | Linux | 主推 | deb / rpm / AppImage / tar.gz；deb/rpm 需要系统 `libmpv` |
 | Windows | 次要 | `setup.exe` 安装器或免安装 zip，均已内置 mpv 与 VC++ 运行时 |
 | macOS | 次要 | **未签名**预览（Apple Silicon / arm64，保留沙盒，仅加网络权限） |
@@ -109,7 +109,7 @@ Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在
 
 - **Linux**：deb/rpm 需要系统提供 `libmpv.so.2`（Ubuntu 24.04+ / Debian 12+ / Fedora 39+ 一类）；AppImage 自带 libmpv/FFmpeg，但需要系统 GTK3 与 FUSE（若提示 `libfuse2` 缺失，用 `APPIMAGE_EXTRACT_AND_RUN=1 ./FlindPlayer-….AppImage` 运行）。
 - **Windows**：Windows 10/11 x64；安装器已内置 mpv 与 VC++ 运行时。
-- **Android**：Android 8+；不发布 x86_64（仅模拟器用）。
+- **Android**：Android 7.0+（minSdk 24）；不发布 x86_64（仅模拟器用）。
 - **macOS / iOS**：未签名预览，详见常见问题。
 
 ### 数据与卸载
@@ -135,7 +135,11 @@ Flind Player 是一款开源的跨平台音乐播放器：以 Bilibili 为主在
 <details>
 <summary><b>需要登录账号吗？</b></summary>
 
-不需要。两个在线音源均为**匿名**访问，不内置也不保存任何账号凭证（SESSDATA / MUSIC_U 等）。因此部分需要登录的内容（更高音质、个人收藏夹等）不可用，二维码登录计划在后续版本提供。
+不登录也能使用两个在线音源。设置页可为 **Bilibili / 网易云**扫码登录（仅原生平台）：
+
+- 登录只增强、不锁定：Bilibili 可请求更高音质并读取 CC/AI 字幕；网易云可请求更高音质（无权限时自动回落标准档）。
+- 凭证由用户扫码产生，仅保存在系统钥匙串（Linux libsecret / Android Keystore / Apple Keychain / Windows DPAPI），不上传服务器。
+- 应用仍然不内置任何账号凭证；Bilibili **私有收藏夹**与网易云个人歌单/收藏暂未接入。
 
 </details>
 

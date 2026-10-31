@@ -9,8 +9,8 @@
 
 将 Bilibili 作为 Flind Player 的**主要在线音源**：从视频流中解析出音频轨并作为音乐播放。
 
-- MVP：搜索、视频详情（含分P）、音频流解析、公开收藏夹
-- v1.1：QR 登录、私有收藏夹、历史记录
+- MVP（已实现）：搜索、视频详情（含分P）、音频流解析、公开收藏夹
+- 登录与个人数据（部分实现，QR 登录已在未发布代码中落地）：QR 登录（已实现）、私有收藏夹（未接入）、历史记录（未实现）
 - **不做**：视频画面播放、弹幕、评论
 
 > ⚠️ **重要法律提示**：社区 API 文档仓库 `SocialSisterYi/bilibili-API-collect`（20.2k stars）已于 **2026-01-28 收到哔哩哔哩律师函，2026-01-30 永久关停并删除文档**。此前 PiliPala（2025-07 侵权通知后停更）、BBDown（2026-05 归档）、Nemo2011/bilibili-api（2026-07 归档）均受波及。本项目必须按个人使用姿态设计，并保证该音源可被远程禁用。
@@ -31,7 +31,10 @@
 | 风控指纹 | `GET https://api.bilibili.com/x/frontend/finger/spi` | UA |
 | WBI 密钥 | `GET https://api.bilibili.com/x/web-interface/nav` | UA（未登录也可取到 key） |
 
-### 2.2 v1.1
+### 2.2 登录与个人数据
+
+> 状态（2026-10-29）：QR 登录已实现（`BiliAuthDriver`）；Cookie 自动续期、私有收藏夹、
+> 历史记录尚未接入。
 
 | 用途 | 端点 | 鉴权 |
 |---|---|---|
@@ -99,8 +102,10 @@
 ```
 
 - `SESSDATA`：`HttpOnly; Secure`，约 6 个月有效期，**是全账号 bearer token**。
+- **状态**：已实现（`BiliAuthDriver`）。扫码成功后会话写入 `AuthCookieJar`，凭证持久化到
+  系统钥匙串；登录只增强更高音质与 CC/AI 字幕，私有收藏夹仍未接入。
 
-### 4.2 Cookie 刷新（v1.1）
+### 4.2 Cookie 刷新（未实现）
 
 ```
 1. GET  .../cookie/info?csrf=<bili_jct>     → {refresh: bool, timestamp}
@@ -110,11 +115,11 @@
 4. POST .../confirm/refresh
 ```
 
-MVP 可先不做：cookie 失效时引导重新 QR 登录。
+当前未实现：cookie 失效时引导重新 QR 登录。
 
 ### 4.3 凭证存储
 
-- **必须** `flutter_secure_storage`（Android Keystore / iOS Keychain / Linux libsecret）
+- **必须** `flutter_secure_storage`（Android Keystore / iOS·macOS Keychain / Linux libsecret / Windows DPAPI）
 - 反面教材：bobomusic 用 SharedPreferences、bili-music 用明文 Hive —— 不要模仿
 - 凭证**永不**上传服务器；不做托管用户凭证的公共代理
 
@@ -187,7 +192,7 @@ Cookie:     SESSDATA=...; bili_jct=...; buvid3=...; buvid4=...; b_nut=...; bili_
 | 30232 | 132K | 匿名可用 |
 | 30280 | 192K | 实测匿名可用（3/3 视频）；社区报告有时需登录，受风控影响 |
 | 30250 | Dolby Atmos | 大会员（匿名时 `dash.dolby.audio` 为 null） |
-| 30251 | Hi-Res FLAC | 大会员（匿名时 `dash.flac` 为 null） |
+| 30251 | Hi-Res FLAC | 大会员（匿名时 `dash.flac` 为 null；登录后有 FLAC 才纳入选择） |
 | 30255 / 100010 等 | 空间音频等 | 可选 |
 
 ### 7.3 响应结构
@@ -198,7 +203,8 @@ data.dash.dolby.audio[]  → Dolby（VIP）
 data.dash.flac.audio     → Hi-Res FLAC（VIP，无则 null）
 ```
 
-- 选择最高 `bandwidth`
+- 选择规则（`selectBiliAudio`）：优先可解码的 AAC；**登录且响应含 FLAC 时**也纳入候选，
+  再按 `bandwidth` 取最高。Dolby / EC-3 不选（并非所有后端都能解码）。
 - **必须保留 `backupUrl[]` 做 failover**
 - `baseUrl` **120 分钟过期**，过期后 403 → 重新解析并 seek 回原位置
 
@@ -270,22 +276,26 @@ BV1uv411q7Mv  audio=[(30216,67268),(30232,132803),(30280,315098)]  dolby=null fl
 
 ```
 data/sources/bilibili/
+├── bili_api.dart             # 端点封装（view/search/playurl/fav/subtitle）
 ├── bili_client.dart          # Dio + 拦截器（UA/Referer、WBI、限流、错误映射）
 ├── wbi_signer.dart           # nav 取 key + 重排 + md5 签名
-├── bili_auth.dart            # QR 登录、cookie 保险库、刷新
+├── bili_auth_driver.dart     # QR 登录、会话校验
+├── bili_auth_models.dart     # QR / nav / 账号 DTO
 ├── risk_control.dart         # buvid3/4、b_nut、bili_ticket
 ├── rate_limiter.dart         # 单飞 + 抖动 + 指数退避
+├── bili_subtitles.dart       # CC/AI 字幕解析
+├── bili_models.dart          # view/fav/search DTO
 ├── bili_source.dart          # implements MusicSource
-└── mappers.dart              # view/fav/search → Track/Playlist
+└── bili_mappers.dart         # view/fav/search → Track/Playlist
 ```
 
 **能力开关**（`SourceCapabilities`）：
 
-| 能力 | Android/Linux | Web (v2) |
+| 能力 | 原生平台（Android / 桌面 / Apple） | Web (v2) |
 |---|---|---|
-| `canLogin` | 是 | 否 |
-| `canSearch` | 是 | 代理后是 |
-| `canStreamDirect` | 是 | 视 CDN 而定 |
+| `login` | 是（扫码） | 否 |
+| `search` | 是 | 代理后是 |
+| `streamDirect` | 是 | 视 CDN 而定 |
 
 ---
 

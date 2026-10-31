@@ -130,8 +130,8 @@ flutter build ios --release --no-codesign
 | 命令 | 范围 | 门禁 |
 | --- | --- | --- |
 | `flutter analyze` | 静态分析 | 必须 0 issue |
-| `flutter test` | 单元 / 组件测试（当前 **778** 通过） | CI 门禁 |
-| `flutter test integration_test` | 真机 / 桌面冒烟（11 用例） | **不在 CI**，需手动运行 |
+| `flutter test` | 单元 / 组件测试（当前 **984** 通过 + 1 平台跳过，共 985） | CI 门禁 |
+| `flutter test integration_test` | 真机 / 桌面冒烟（12 用例） | **不在 CI**，需手动运行 |
 
 - 手工回归以 `flutter test integration_test` 为入口；1.0 的逐项回归清单已随里程碑归档（见 git 历史）。
 - 手写 Dart 文件顶部需带 GPL-3.0 文件头；工具生成且不手工编辑的文件（drift `*.g.dart`、`lib/l10n/app_localizations*.dart`）豁免。
@@ -185,8 +185,8 @@ lib/
 ├── app/            # MaterialApp、主题、语言、DI 装配
 ├── core/           # 纯 Dart 领域层：models / repositories(抽象) / services(抽象) / sources
 ├── data/           # drift、音源适配器（bilibili / netease / local）、缓存、播放实现
-├── platform/       # audio_service handler、权限、托盘
-├── features/       # 一屏一目录：home / library / player / playlists / search / settings
+├── platform/       # audio_service handler、权限、托盘、单实例
+├── features/       # 一屏一目录：home / library / player / queue / playlists / search / settings
 └── shared/         # 通用组件与工具
 ```
 
@@ -198,7 +198,7 @@ lib/
 | --- | --- |
 | [`docs/architecture.md`](docs/architecture.md) | 架构分层、关键决策（ADR）、里程碑与风险 |
 | [`docs/bilibili-source.md`](docs/bilibili-source.md) | Bilibili 适配器：端点、WBI 签名、鉴权、限流、法务 |
-| [`docs/netease-source.md`](docs/netease-source.md) | 网易云适配器（匿名）：端点、weapi/eapi 协议、能力边界、法务 |
+| [`docs/netease-source.md`](docs/netease-source.md) | 网易云适配器（匿名 + 扫码登录）：端点、weapi/eapi 协议、能力边界、法务 |
 | [`docs/local-library.md`](docs/local-library.md) | 本地曲库：扫描、元数据、drift schema、离线缓存 |
 | [`docs/packaging.md`](docs/packaging.md) | 桌面安装包（deb / rpm / AppImage / setup.exe）构建 |
 | [`docs/widget-tree.md`](docs/widget-tree.md) | 轻量级 Widget 树总览 |
@@ -212,7 +212,7 @@ lib/
 <table align="center">
   <tr>
     <td width="50%" valign="top">
-      <h4>✅ 已完成 · M0–M6</h4>
+      <h4>✅ 已完成 · M0–M6 + v1.1/v1.2</h4>
       <ul>
         <li>本地曲库（扫描 + 元数据 + FTS5 检索）</li>
         <li>Bilibili / 网易云在线音源</li>
@@ -220,15 +220,17 @@ lib/
         <li>系统集成（Android 通知栏 / Linux MPRIS / Apple Now Playing / 桌面托盘）</li>
         <li>队列持久化、收藏与自建歌单</li>
         <li>同步歌词（时间轴高亮 · 自动滚动 · 双语）</li>
+        <li>账号登录（Bilibili / 网易云扫码，凭证入系统钥匙串）</li>
+        <li>桌面单实例（文件锁 + 唤醒已有窗口）</li>
         <li>CI 与发布流水线（含签名与门禁）</li>
       </ul>
     </td>
     <td width="50%" valign="top">
       <h4>⏳ 延后</h4>
       <ul>
-        <li>Android 本地曲库（1.1）</li>
-        <li>QR 登录与个人收藏夹（v1.1）</li>
-        <li>Windows SMTC 等 OS 媒体控制（1.1 评估）</li>
+        <li>Android 本地曲库（尚未实现，延期）</li>
+        <li>Bilibili 私有收藏夹、网易云个人歌单/收藏（登录已落地，仅增强音质/字幕）</li>
+        <li>Windows SMTC 等 OS 媒体控制（尚未接入）</li>
         <li>自建歌单手动排序</li>
         <li>Web 端（v2）</li>
         <li>Apple 平台签名 / 公证 / TestFlight（长期推迟）</li>
@@ -245,8 +247,9 @@ lib/
 | 状态管理 | `flutter_riverpod` 3 | Notifier + 依赖注入 |
 | 播放引擎 | `just_audio` + `audio_service` | 桌面端经 `just_audio_media_kit`（libmpv） |
 | 数据库 | `drift`（SQLite + FTS5） | 曲库 / 收藏 / 队列持久化 |
+| 凭证 | `flutter_secure_storage` | 账号会话只存系统钥匙串 |
 | 网络 | `dio` | WBI 签名请求 + CDN 防盗链头 |
-| 桌面 | `tray_manager` · `window_manager` | 系统托盘、关闭到托盘 |
+| 桌面 | `tray_manager`（vendored 0.5.3） · `window_manager` | 系统托盘、关闭到托盘、单实例 |
 | 国际化 | flutter gen-l10n | 简体中文 / English |
 
 ## ✅ 提交约定
