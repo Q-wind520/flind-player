@@ -117,13 +117,23 @@ flutter build ios --release --no-codesign
 
 ## 🎨 图标管线
 
-全平台图标由 [`tool/generate_icons.sh`](tool/generate_icons.sh) 从圆角母版 `docs/FlindPlayer.png`（1120×1120 RGBA）生成：
+全平台图标由 [`tool/generate_icons.sh`](tool/generate_icons.sh) 从圆角母版 `docs/FlindPlayer.png`（1120×1120 RGBA）生成。各平台对形状的要求不同：
 
-- `assets/icon/*`：应用图标（含 Android 自适应前景 `app_icon_foreground.png`）；
-- `windows/runner/resources/app_icon.ico`、`docs/FlindPlayer.ico`：完整 16–256 多档 `.ico`（Windows 可执行文件与 Inno Setup 安装包）；
-- `assets/tray/tray_icon.ico`（Windows 托盘）与 `assets/tray/tray_icon.png`（Linux / macOS 托盘）——托盘与 ico 均使用圆角母版，与 PNG 圆角一致。
+| 平台 | 资源 | 形状 |
+| --- | --- | --- |
+| iOS | `ios/Runner/Assets.xcassets/AppIcon.appiconset/` | 满幅方形、不透明（系统自行裁切圆角） |
+| Web / PWA | `web/icons/`、`web/favicon.png` | 满幅方形、不透明（含 maskable 图标） |
+| Linux | `assets/icon/app_icon_256.png` | 圆角 RGBA（桌面原样显示） |
+| macOS | `macos/Runner/Assets.xcassets/AppIcon.appiconset/` | 圆角 RGBA |
+| Windows | `windows/runner/resources/app_icon.ico`、`docs/FlindPlayer.ico` | 圆角 RGBA，完整 16–256 多档 |
+| Android 8+ | `drawable-*/ic_launcher_foreground.png` + `values/colors.xml` | 自适应前景 + 纯色 `#1BA784` 背景 |
+| Android < 8 | `mipmap-*/ic_launcher.png` | 圆角 RGBA |
 
-替换母版后重跑脚本即可；脚本会同步上述全部产物。**打包前请确保 `build/` 干净**：脚本的 `ensure_bundle()` 会拒绝含有残留 `kernel_blob.bin` 的 release bundle（debug/JIT 产物，会把安装包撑大约 100 MiB）。
+- `assets/icon/app_icon.png` 是脚本生成的**满幅方形**版本，只供 iOS / Web 使用；不要把它当作其他平台的源。
+- 托盘图标（`assets/tray/`）同样使用圆角母版，与 PNG 圆角一致。
+- `pubspec.yaml` 中 `flutter_launcher_icons` 的 Android / iOS 选项必须写在**顶层**（`android: true`、`image_path_android`、`adaptive_icon_*` 等）。0.14.x 会静默忽略旧版嵌套在 `android:` 下的写法，导致自适应图标一直沿用旧资源。
+
+替换母版后运行**完整**脚本；`--skip-flutter` 只重建脚本直接生成的 PNG / `.ico` 和托盘资源，不会更新 Android、iOS、macOS、Web、Windows 的平台图标资源。脚本会校验 Android 自适应资源、`inset="0%"` 以及 `.ico` 每一档的四角透明度，防止再次生成方形图标。**打包前请确保 `build/` 干净**：脚本的 `ensure_bundle()` 会拒绝含有残留 `kernel_blob.bin` 的 release bundle（debug/JIT 产物，会把安装包撑大约 100 MiB）。
 
 ## 🧪 测试与验证
 

@@ -11,22 +11,30 @@
 #   - flutter_launcher_icons (installed as a dev dependency)
 #
 # USAGE:
-#   ./tool/generate_icons.sh            # full pipeline
-#   ./tool/generate_icons.sh --skip-flutter  # skip the flutter_launcher_icons step
+#   ./tool/generate_icons.sh                 # full pipeline
+#   ./tool/generate_icons.sh --skip-flutter  # tray/ICO-only rebuild; platform
+#                                            # icons stay at their previous state
 #
 # TO UPDATE THE ARTWORK:
 #   1. Replace docs/FlindPlayer.png (1120x1120 RGBA, transparent rounded corners)
 #      with your refined master artwork.
-#   2. Run this script — everything regenerates automatically, including
-#      docs/FlindPlayer.ico and the tray assets under assets/tray/.
+#   2. Run the full script — everything regenerates automatically, including
+#      Android adaptive resources, docs/FlindPlayer.ico and assets/tray/.
+#      Never use --skip-flutter when the artwork changed.
+#
+# PLATFORM SHAPE RULES:
+#   iOS, Web/PWA maskable  -> full-bleed square (the OS/browser applies a mask)
+#   Linux, macOS, Windows  -> rounded RGBA (desktops show the icon as-is)
+#   Android 8+             -> adaptive foreground on a flat #1BA784 background
+#   Android < 8            -> rounded legacy mipmaps
 #
 # The script uses two approaches for the foreground:
-#   - A Python pixel-manipulation step for precise alpha handling (coral removal
+#   - A Python pixel-manipulation step for precise alpha handling (green removal
 #     while preserving original transparent corners).
 #   - ffmpeg for scaling and color operations.
 #
 # CAVEAT: The foreground extraction uses a Euclidean RGB distance threshold of
-#   50 against the coral colour (#FE9288). This produces clean results for the
+#   50 against the theme green (#1BA784). This produces clean results for the
 #   current artwork. If the maintainer supplies a full-bleed master (no baked-in
 #   alpha), replace the Python foreground step with a simpler colourkey approach.
 # =============================================================================
@@ -111,23 +119,55 @@ assert proc.returncode == 0, "ffmpeg write failed"
 print(f"  -> {output}")
 PYEOF
 
-# --- 4. Linux icon (256x256, RGB, no alpha) ----------------------------------
-echo "[3/5] Generating app_icon_256.png (256x256, RGB)..."
-ffmpeg -y -i "$ICON_DIR/app_icon.png" \
+# --- Linux icon (256x256, RGBA, transparent rounded corners) -----------------
+# Do not derive this from the full-bleed app_icon.png: Linux desktops show the
+# icon as-is and do not apply an OS mask.
+echo "[3/5] Generating app_icon_256.png (256x256, RGBA, rounded)..."
+ffmpeg -y -i "$SOURCE_ARTWORK" \
   -vf "scale=256:256:flags=lanczos" \
-  -pix_fmt rgb24 -frames:v 1 -update 1 \
+  -pix_fmt rgba -frames:v 1 -update 1 \
   "$ICON_DIR/app_icon_256.png" 2>/dev/null
 echo "  -> $ICON_DIR/app_icon_256.png"
 
-# --- 4. Run flutter_launcher_icons for platform-specific assets ---------------
+# --- Platform-specific assets via flutter_launcher_icons ---------------------
 echo "[4/5] Running flutter_launcher_icons..."
 if [ "$SKIP_FLUTTER" = true ]; then
-  echo "  (skipped --use --skip-flutter to bypass)"
+  echo "  (skipped; platform icon resources may be stale after artwork changes)"
 else
   dart run flutter_launcher_icons 2>&1
+
+  # Fail loudly if a future flutter_launcher_icons version changes its output
+  # layout and the adaptive icon silently falls back to stale resources.
+  for required in \
+    android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png \
+    android/app/src/main/res/values/colors.xml; do
+    if [ ! -f "$required" ]; then
+      echo "error: expected generated resource is missing: $required" >&2
+      exit 1
+    fi
+  done
+  if ! grep -q '@color/ic_launcher_background' \
+    android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml; then
+    echo "error: adaptive icon does not use the generated color background" >&2
+    exit 1
+  fi
+  if ! grep -q 'android:inset="0%"' \
+    android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml; then
+    echo "error: adaptive icon foreground inset is not 0%" >&2
+    exit 1
+  fi
+
+  # flutter_launcher_icons 0.14 writes density-specific adaptive foregrounds
+  # (drawable-*/ic_launcher_foreground.png) and a color background. Remove the
+  # old single-density drawables so the previous artwork cannot be selected
+  # again, and keep the (unused but conventional) round alias in sync.
+  rm -f android/app/src/main/res/drawable/ic_launcher_foreground.png
+  rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+  cp android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
+    android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
 fi
 
-# --- 5. App + tray icons from the rounded master -----------------------------
+# --- App + tray icons from the rounded master --------------------------------
 # The full-bleed `app_icon.png` has square corners; the Windows exe, the Inno
 # installer and the tray all use the rounded master artwork instead, so their
 # rounding matches docs/FlindPlayer.png. flutter_launcher_icons 0.14.x also
@@ -140,7 +180,10 @@ convert "$SOURCE_ARTWORK" -define "icon:auto-resize=$ICO_SIZES" \
 cp "windows/runner/resources/app_icon.ico" "docs/FlindPlayer.ico"
 convert "$SOURCE_ARTWORK" -define "icon:auto-resize=$ICO_SIZES" \
   "$TRAY_DIR/tray_icon.ico"
-convert "$SOURCE_ARTWORK" -resize 96x96 "$TRAY_DIR/tray_icon.png"
+# Omit the tIME chunk so repeated pipeline runs do not dirty the PNG with a
+# fresh timestamp while the pixels are unchanged.
+convert "$SOURCE_ARTWORK" -resize 96x96 \
+  -define png:exclude-chunk=time "$TRAY_DIR/tray_icon.png"
 echo "  -> windows/runner/resources/app_icon.ico"
 echo "  -> docs/FlindPlayer.ico"
 echo "  -> $TRAY_DIR/tray_icon.ico"
@@ -169,6 +212,27 @@ for i in range(count):
         )
 print(f'  -> {path}: {count} entries, all PNG/BMP')
 PYEOF
+
+# Windows shows the .ico as-is. Guard the rounded master against an encoder
+# that flattens alpha in any frame (which would make the taskbar/Start icon
+# square again).
+echo "[check] Validating rounded corners in the .ico ladder..."
+ico_tmp="$(mktemp -d)"
+trap 'rm -rf "$ico_tmp"' EXIT
+ico_frames="$(identify "windows/runner/resources/app_icon.ico" | wc -l)"
+for ((i = 0; i < ico_frames; i++)); do
+  convert "windows/runner/resources/app_icon.ico[$i]" "$ico_tmp/frame-$i.png"
+  for gravity in northwest northeast southwest southeast; do
+    opaque="$(convert "$ico_tmp/frame-$i.png" -gravity "$gravity" \
+      -crop 1x1+0+0 +repage -format '%[opaque]' info:)"
+    if [ "$opaque" != "false" ]; then
+      echo "error: app_icon.ico frame $i has an opaque $gravity corner;" \
+        "Windows would render a square icon" >&2
+      exit 1
+    fi
+  done
+done
+echo "  -> $ico_frames frames, all four corners transparent"
 echo ""
 echo "=== Pipeline complete ==="
 echo ""
