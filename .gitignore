@@ -61,6 +61,7 @@ app.*.map.json
 # Local agent tooling (OpenCode skills, plugins and config are per-machine and
 # must never be published with the app).
 .opencode/
+/opencode.json
 
 # Superpowers brainstorm mockups / session state / local design specs & plans
 .superpowers/
