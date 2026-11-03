@@ -38,6 +38,8 @@ import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dar
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
+import 'package:flind_player/features/stats/playback_stats_screen.dart';
+import 'package:flind_player/features/stats/recent_plays_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
@@ -135,6 +137,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => const BilibiliFavoritesScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openRecentPlays() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (context) => const RecentPlaysScreen()),
+    );
+  }
+
+  Future<void> _openPlaybackStats() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const PlaybackStatsScreen(),
       ),
     );
   }
@@ -336,8 +352,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       LibrarySyncPhase.artwork => true,
       _ => false,
     };
-    final compact =
-        MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
 
     return Column(
@@ -476,6 +491,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           child: Text(l10n.menuView),
         ),
         MenuItemButton(
+          leadingIcon: const Icon(AppIcons.history),
+          onPressed: () {
+            _menuController.close();
+            unawaited(_openRecentPlays());
+          },
+          child: Text(l10n.recentPlays),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(AppIcons.analytics),
+          onPressed: () {
+            _menuController.close();
+            unawaited(_openPlaybackStats());
+          },
+          child: Text(l10n.playbackStats),
+        ),
+        MenuItemButton(
           leadingIcon: const Icon(AppIcons.cloud),
           onPressed: () {
             _menuController.close();
@@ -497,16 +528,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// The inline search field, shown under the header on the 全部 section.
   Widget _buildSearchField() {
     final l10n = AppLocalizations.of(context);
-    final compact =
-        MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        horizontal,
-        0,
-        horizontal,
-        AppSpacing.md,
-      ),
+      padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, AppSpacing.md),
       child: ValueListenableBuilder<TextEditingValue>(
         valueListenable: _searchController,
         builder: (context, value, child) {

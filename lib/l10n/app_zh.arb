@@ -270,5 +270,37 @@
     }
   },
   "accountLoginForQuality": "登录后使用更高音质",
-  "lyricsLoginRequiredHint": "登录后可获取该视频的字幕"
+  "lyricsLoginRequiredHint": "登录后可获取该视频的字幕",
+  "recentPlays": "最近播放",
+  "playbackStats": "播放统计",
+  "statsPeriodDay": "今天",
+  "statsPeriodWeek": "本周",
+  "statsPeriodMonth": "本月",
+  "statsPeriodYear": "今年",
+  "statsPeriodAll": "全部",
+  "statsTotalPlays": "{count} 次播放",
+  "@statsTotalPlays": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "statsTotalTime": "共 {time}",
+  "@statsTotalTime": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "statsTrackCount": "{count} 首",
+  "@statsTrackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "statsTopTracks": "最常播放",
+  "statsPlaysLabel": "播放次数",
+  "statsListenLabel": "收听时长",
+  "statsTracksLabel": "曲目数",
+  "statsEmpty": "还没有播放记录",
+  "recentEmpty": "还没有最近播放",
+  "menuListening": "收听"
 }

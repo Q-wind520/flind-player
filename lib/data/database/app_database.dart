@@ -31,6 +31,12 @@ part 'app_database.g.dart';
     PlaybackStates,
     Playlists,
     PlaylistTracks,
+    Downloads,
+    DownloadAssets,
+    PlayEvents,
+    TrackStats,
+    DailyStats,
+    LyricsCache,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -39,7 +45,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -130,9 +136,11 @@ CREATE TABLE IF NOT EXISTS favorites (
 
         // 2) Legacy favourites -> members (only when the old table exists; the
         // old `favorited_at` becomes `added_at`).
-        final hasLegacyFavorites = await customSelect(
-          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='favorites'",
-        ).getSingleOrNull() != null;
+        final hasLegacyFavorites =
+            await customSelect(
+              "SELECT 1 FROM sqlite_master WHERE type='table' AND name='favorites'",
+            ).getSingleOrNull() !=
+            null;
         if (hasLegacyFavorites) {
           await customStatement(
             'INSERT OR IGNORE INTO playlist_tracks '
@@ -199,6 +207,104 @@ WHERE uri NOT IN (SELECT uri FROM tracks)
         await m.createIndex(idxCoverCacheContentHash);
         await m.createIndex(idxCoverCacheFilePath);
       }
+      if (from < 11) {
+        // v10 had no public playlist ids, manual playlist ordering, download
+        // tasks, playback events/stats or lyrics cache. The whole upgrade is
+        // one transaction: a crash between the additive columns and the
+        // backfills must not leave a half-migrated library.
+        await transaction(() async {
+          await _addColumnIfMissing(m, tracks, tracks.deletedAt);
+          await _addColumnIfMissing(m, playlists, playlists.publicId);
+          await _addColumnIfMissing(m, playlistTracks, playlistTracks.position);
+          await _addColumnIfMissing(
+            m,
+            playlistTracks,
+            playlistTracks.updatedAt,
+          );
+          await _addColumnIfMissing(
+            m,
+            playlistTracks,
+            playlistTracks.deletedAt,
+          );
+          await _addColumnIfMissing(m, audioCache, audioCache.trackUri);
+
+          await m.createTable(downloads);
+          await m.createTable(downloadAssets);
+          await m.createTable(playEvents);
+          await m.createTable(trackStats);
+          await m.createTable(dailyStats);
+          await m.createTable(lyricsCache);
+
+          await m.createIndex(idxDownloadsTrackStatus);
+          await m.createIndex(idxDownloadsStatusCreated);
+          await m.createIndex(idxDownloadAssetsDownload);
+          await m.createIndex(idxPlayEventsTrackStarted);
+          await m.createIndex(idxPlayEventsStarted);
+          await m.createIndex(idxTrackStatsLastPlayed);
+          await m.createIndex(idxDailyStatsDay);
+          await m.createIndex(idxPlaylistTracksPosition);
+          await m.createIndex(idxAudioCacheTrackUri);
+
+          // Stable public ids: favourites keeps its readable constant, every
+          // other existing playlist gets a deterministic legacy id.
+          await customStatement(
+            "UPDATE playlists SET public_id = '$favoritesPlaylistPublicId' "
+            'WHERE id = $favoritesPlaylistId AND public_id IS NULL',
+          );
+          await customStatement(
+            "UPDATE playlists SET public_id = 'legacy-' || id "
+            'WHERE public_id IS NULL',
+          );
+          await m.createIndex(idxPlaylistsPublicId);
+
+          // Dense 0..n-1 positions in the old visible order
+          // (`added_at DESC, id DESC`). The `updated_at = 0` guard makes a
+          // re-run over an already-migrated table a no-op.
+          await customStatement('''
+UPDATE playlist_tracks
+SET position = (
+  SELECT COUNT(*)
+  FROM playlist_tracks AS newer
+  WHERE newer.playlist_id = playlist_tracks.playlist_id
+    AND (
+      newer.added_at > playlist_tracks.added_at
+      OR (
+        newer.added_at = playlist_tracks.added_at
+        AND newer.id > playlist_tracks.id
+      )
+    )
+),
+    updated_at = added_at
+WHERE updated_at = 0
+''');
+
+          // Audio cache joins the canonical track identity. Rows whose pool
+          // row is gone stay NULL rather than being deleted.
+          await customStatement('''
+UPDATE audio_cache
+SET track_uri = (
+  SELECT t.uri
+  FROM tracks t
+  WHERE t.source = audio_cache.source
+    AND t.source_track_id = audio_cache.source_track_id
+)
+WHERE track_uri IS NULL
+''');
+
+          // Pinned cache rows become completed download tasks when they have a
+          // canonical track. Legacy rows without one remain visible as offline
+          // cache entries; we deliberately do not fabricate a task for them.
+          await customStatement('''
+INSERT OR IGNORE INTO downloads
+  (public_id, track_uri, status, quality_id, file_path, bytes_done,
+   bytes_total, created_at, updated_at, completed_at)
+SELECT 'legacy-download-' || id, track_uri, 'done', quality_id, file_path,
+       bytes, bytes, cached_at, cached_at, cached_at
+FROM audio_cache
+WHERE pinned = 1 AND track_uri IS NOT NULL
+''');
+        });
+      }
     },
   );
 
@@ -217,9 +323,10 @@ WHERE uri NOT IN (SELECT uri FROM tracks)
   Future<void> _seedFavoritesPlaylist() async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await customStatement(
-      'INSERT OR IGNORE INTO playlists (id, name, kind, created_at, updated_at) '
-      "VALUES ($favoritesPlaylistId, '$favoritesPlaylistStoredName', "
-      "'$playlistKindFavorites', $now, $now)",
+      'INSERT OR IGNORE INTO playlists '
+      '(id, public_id, name, kind, created_at, updated_at) '
+      "VALUES ($favoritesPlaylistId, '$favoritesPlaylistPublicId', "
+      "'$favoritesPlaylistStoredName', '$playlistKindFavorites', $now, $now)",
     );
   }
 
@@ -251,9 +358,11 @@ WHERE uri NOT IN (SELECT uri FROM tracks)
     String column,
     String type,
   ) async {
-    final tableExists = await customSelect(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='$table'",
-    ).getSingleOrNull() != null;
+    final tableExists =
+        await customSelect(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='$table'",
+        ).getSingleOrNull() !=
+        null;
     if (!tableExists) return;
     final rows = await customSelect('PRAGMA table_info($table)').get();
     if (rows.any((row) => row.data['name'] == column)) return;

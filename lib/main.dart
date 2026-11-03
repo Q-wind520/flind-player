@@ -122,6 +122,16 @@ Future<void> main() async {
     );
   }
 
+  // Record real playback sessions once the restored queue is in place. A
+  // failure here must never block startup or playback.
+  try {
+    container.read(playbackStatsTrackerProvider).start();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: playback stats tracker start failed: $error\n$stackTrace',
+    );
+  }
+
   // One-time move of pre-v10 cache files into the unified cache/ root. Best-
   // effort startup healing: a failed relocation keeps the legacy path working
   // (`file_path` is authoritative) and retries on the next start.

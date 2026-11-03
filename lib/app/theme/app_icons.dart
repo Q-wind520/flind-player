@@ -57,6 +57,7 @@ class AppIcons {
   static const IconData folderOff = LucideIcons.folderX;
   static const IconData graphicEq = LucideIcons.audioLines;
   static const IconData gridView = LucideIcons.layoutGrid;
+  static const IconData history = LucideIcons.history;
   static const IconData home = LucideIcons.house;
   static const IconData image = LucideIcons.image;
   static const IconData imageNotSupported = LucideIcons.imageOff;

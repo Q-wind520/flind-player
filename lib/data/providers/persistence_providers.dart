@@ -18,11 +18,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/repositories/playback_snapshot_repository.dart';
+import 'package:flind_player/core/repositories/playback_stats_repository.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/repositories/drift_favorites_repository.dart';
 import 'package:flind_player/data/repositories/drift_playback_snapshot_repository.dart';
+import 'package:flind_player/data/repositories/drift_playback_stats_repository.dart';
 import 'package:flind_player/data/services/playback_persistence_service.dart';
+import 'package:flind_player/data/services/playback_stats_tracker.dart';
 
 /// Persistence for the user's favourite tracks.
 final favoritesRepositoryProvider = Provider<FavoritesRepository>(
@@ -47,6 +50,24 @@ final playbackPersistenceServiceProvider = Provider<PlaybackPersistenceService>(
     return service;
   },
 );
+
+/// Playback history and derived aggregates.
+final playbackStatsRepositoryProvider = Provider<PlaybackStatsRepository>(
+  (ref) => DriftPlaybackStatsRepository(ref.watch(appDatabaseProvider)),
+);
+
+/// Records real playback sessions into [playbackStatsRepositoryProvider].
+///
+/// Startup drives it via `start()` after the queue snapshot has been restored
+/// (see `main.dart`), so restored but unplayed tracks do not create sessions.
+final playbackStatsTrackerProvider = Provider<PlaybackStatsTracker>((ref) {
+  final tracker = PlaybackStatsTracker(
+    playback: ref.watch(playbackControllerProvider),
+    repository: ref.watch(playbackStatsRepositoryProvider),
+  );
+  ref.onDispose(tracker.dispose);
+  return tracker;
+});
 
 /// Reactive view of the favourites, newest first.
 final favoritesProvider = StreamProvider<List<Track>>(

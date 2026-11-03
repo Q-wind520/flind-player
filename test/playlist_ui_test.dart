@@ -298,6 +298,20 @@ class _FakePlaylistRepository implements PlaylistRepository {
       List.unmodifiable(_tracks[id] ?? const <Track>[]);
 
   @override
+  Future<void> reorderTrack(int playlistId, String uri, int newIndex) async {
+    final members = _tracks[playlistId];
+    if (members == null) return;
+    final current = members.indexWhere((member) => member.uri == uri);
+    if (current < 0) return;
+    final target = newIndex.clamp(0, members.length - 1);
+    if (current == target) return;
+    final moved = members.removeAt(current);
+    members.insert(target, moved);
+    _trackController(playlistId).add(List.unmodifiable(members));
+    _coverController(playlistId).add(_deriveCover(playlistId));
+  }
+
+  @override
   Future<void> addTrack(int playlistId, Track track) async {
     final members = _tracks.putIfAbsent(playlistId, () => <Track>[]);
     members.removeWhere((member) => member.uri == track.uri);

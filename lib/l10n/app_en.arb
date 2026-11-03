@@ -500,5 +500,37 @@
     }
   },
   "accountLoginForQuality": "Sign in for higher audio quality",
-  "lyricsLoginRequiredHint": "Sign in to load subtitles for this video"
+  "lyricsLoginRequiredHint": "Sign in to load subtitles for this video",
+  "recentPlays": "Recently played",
+  "playbackStats": "Listening stats",
+  "statsPeriodDay": "Today",
+  "statsPeriodWeek": "This week",
+  "statsPeriodMonth": "This month",
+  "statsPeriodYear": "This year",
+  "statsPeriodAll": "All time",
+  "statsTotalPlays": "{count} plays",
+  "@statsTotalPlays": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "statsTotalTime": "{time} listened",
+  "@statsTotalTime": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "statsTrackCount": "{count} tracks",
+  "@statsTrackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "statsTopTracks": "Most played",
+  "statsPlaysLabel": "Plays",
+  "statsListenLabel": "Listening time",
+  "statsTracksLabel": "Tracks",
+  "statsEmpty": "No listening history yet",
+  "recentEmpty": "Nothing played yet",
+  "menuListening": "Listening"
 }

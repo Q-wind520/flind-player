@@ -20,6 +20,7 @@ import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/codec/source_track_id_codec.dart';
 import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/data/database/ids.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
 import 'package:flind_player/data/repositories/drift_music_library_repository.dart';
 
@@ -38,14 +39,13 @@ class DriftPlaylistRepository implements PlaylistRepository {
 
   @override
   Stream<List<Playlist>> watchPlaylists() {
-    return (_db.select(_db.playlists)
-          ..orderBy([
-            // The built-in favourites playlist is pinned first; custom
-            // playlists follow newest first.
-            (p) => OrderingTerm.asc(p.kind.equals(playlistKindCustom)),
-            (p) => OrderingTerm.desc(p.createdAt),
-            (p) => OrderingTerm.desc(p.id),
-          ]))
+    return (_db.select(_db.playlists)..orderBy([
+          // The built-in favourites playlist is pinned first; custom
+          // playlists follow newest first.
+          (p) => OrderingTerm.asc(p.kind.equals(playlistKindCustom)),
+          (p) => OrderingTerm.desc(p.createdAt),
+          (p) => OrderingTerm.desc(p.id),
+        ]))
         .watch()
         .map((rows) => rows.map(_toPlaylist).toList(growable: false));
   }
@@ -67,20 +67,27 @@ class DriftPlaylistRepository implements PlaylistRepository {
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
-      throw ArgumentError.value(name, 'name', 'Playlist name must not be blank');
+      throw ArgumentError.value(
+        name,
+        'name',
+        'Playlist name must not be blank',
+      );
     }
     final now = DateTime.now().millisecondsSinceEpoch;
-    final id = await _db.into(_db.playlists).insert(
-      PlaylistsCompanion.insert(
-        name: trimmed,
-        kind: playlistKindCustom,
-        description: Value(description),
-        coverPath: Value(coverPath),
-        coverUrl: Value(coverUrl),
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
+    final id = await _db
+        .into(_db.playlists)
+        .insert(
+          PlaylistsCompanion.insert(
+            publicId: Value(newPublicId()),
+            name: trimmed,
+            kind: playlistKindCustom,
+            description: Value(description),
+            coverPath: Value(coverPath),
+            coverUrl: Value(coverUrl),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
     return (await playlistById(id))!;
   }
 
@@ -101,7 +108,11 @@ class DriftPlaylistRepository implements PlaylistRepository {
       );
     }
     if (name != null && name.trim().isEmpty) {
-      throw ArgumentError.value(name, 'name', 'Playlist name must not be blank');
+      throw ArgumentError.value(
+        name,
+        'name',
+        'Playlist name must not be blank',
+      );
     }
     await (_db.update(_db.playlists)..where((p) => p.id.equals(id))).write(
       PlaylistsCompanion(
@@ -157,41 +168,91 @@ class DriftPlaylistRepository implements PlaylistRepository {
 
     // Members are pure references: only the pool row (promoted above) carries
     // metadata, so no snapshot columns are written here.
-    final companion = PlaylistTracksCompanion(
-      playlistId: Value(playlistId),
-      uri: Value(track.uri),
-      addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.transaction(() async {
+      // Newest-first is the historical behaviour: place the new member before
+      // the current minimum instead of rewriting every sibling.
+      final minRow = await _db
+          .customSelect(
+            'SELECT COALESCE(MIN(position), 0) - 1 AS next_position '
+            'FROM playlist_tracks WHERE playlist_id = ?1',
+            variables: [Variable<int>(playlistId)],
+          )
+          .getSingle();
+      final position = minRow.read<int>('next_position');
 
-    // Conflict on (playlist_id, uri) is ignored: re-adding never reorders.
-    await _db.into(_db.playlistTracks).insert(
-      companion,
-      mode: InsertMode.insertOrIgnore,
-    );
+      final companion = PlaylistTracksCompanion(
+        playlistId: Value(playlistId),
+        uri: Value(track.uri),
+        addedAt: Value(now),
+        position: Value(position),
+        updatedAt: Value(now),
+      );
+
+      // Conflict on (playlist_id, uri) is ignored: re-adding never reorders.
+      await _db
+          .into(_db.playlistTracks)
+          .insert(companion, mode: InsertMode.insertOrIgnore);
+    });
+  }
+
+  @override
+  Future<void> reorderTrack(int playlistId, String uri, int newIndex) async {
+    await _db.transaction(() async {
+      final rows =
+          await (_db.select(_db.playlistTracks)
+                ..where(
+                  (pt) =>
+                      pt.playlistId.equals(playlistId) & pt.deletedAt.isNull(),
+                )
+                ..orderBy([
+                  (pt) => OrderingTerm.asc(pt.position),
+                  (pt) => OrderingTerm.asc(pt.id),
+                ]))
+              .get();
+
+      final currentIndex = rows.indexWhere((row) => row.uri == uri);
+      if (currentIndex < 0) return;
+
+      final targetIndex = newIndex.clamp(0, rows.length - 1);
+      if (currentIndex == targetIndex) return;
+
+      final moved = rows.removeAt(currentIndex);
+      rows.insert(targetIndex, moved);
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (var i = 0; i < rows.length; i++) {
+        await (_db.update(
+          _db.playlistTracks,
+        )..where((pt) => pt.id.equals(rows[i].id))).write(
+          PlaylistTracksCompanion(position: Value(i), updatedAt: Value(now)),
+        );
+      }
+    });
   }
 
   @override
   Future<void> removeTrack(int playlistId, String uri) async {
-    await (_db.delete(_db.playlistTracks)
-          ..where(
-            (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
-          ))
+    await (_db.delete(
+          _db.playlistTracks,
+        )..where((pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri)))
         .go();
   }
 
   @override
   Future<void> removeTrackFromAllPlaylists(String uri) async {
-    await (_db.delete(_db.playlistTracks)..where((pt) => pt.uri.equals(uri)))
-        .go();
+    await (_db.delete(
+      _db.playlistTracks,
+    )..where((pt) => pt.uri.equals(uri))).go();
   }
 
   @override
   Future<bool> containsTrack(int playlistId, String uri) async {
-    final row = await (_db.select(_db.playlistTracks)
-          ..where(
-            (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
-          ))
-        .getSingleOrNull();
+    final row =
+        await (_db.select(_db.playlistTracks)..where(
+              (pt) => pt.playlistId.equals(playlistId) & pt.uri.equals(uri),
+            ))
+            .getSingleOrNull();
     return row != null;
   }
 
@@ -224,11 +285,11 @@ class DriftPlaylistRepository implements PlaylistRepository {
       '''
 SELECT t.id AS pool_id, pt.uri AS uri, t.source, t.source_track_id,
        t.title, t.artist, t.album, t.duration_ms,
-       t.cover_path, t.cover_url, t.missing_at
+       t.cover_path, t.cover_url, t.missing_at, t.deleted_at
 FROM playlist_tracks pt
 JOIN tracks t ON t.uri = pt.uri
-WHERE pt.playlist_id = ?1
-ORDER BY pt.added_at DESC, pt.id DESC
+WHERE pt.playlist_id = ?1 AND pt.deleted_at IS NULL
+ORDER BY pt.position ASC, pt.id ASC
 ''',
       variables: [Variable<int>(playlistId)],
       readsFrom: {_db.playlistTracks, _db.tracks},
@@ -245,10 +306,11 @@ SELECT p.cover_path AS playlist_cover_path,
        t.cover_path AS member_cover_path,
        t.cover_url  AS member_cover_url
 FROM playlists p
-LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+LEFT JOIN playlist_tracks pt
+  ON pt.playlist_id = p.id AND pt.deleted_at IS NULL
 LEFT JOIN tracks t ON t.uri = pt.uri
 WHERE p.id = ?1
-ORDER BY pt.added_at DESC, pt.id DESC
+ORDER BY pt.position ASC, pt.id ASC
 LIMIT 1
 ''',
       variables: [Variable<int>(playlistId)],
@@ -274,12 +336,13 @@ LIMIT 1
   Track _toDomain(QueryRow row) {
     final poolId = row.read<int>('pool_id');
     final missingAt = row.read<int?>('missing_at');
+    final deletedAt = row.read<int?>('deleted_at');
     final source = row.read<String>('source');
     final sourceTrackId = row.read<String>('source_track_id');
     final uri = row.read<String>('uri');
     final durationMs = row.read<int?>('duration_ms');
     return Track(
-      id: missingAt == null ? poolId : null,
+      id: missingAt == null && deletedAt == null ? poolId : null,
       source: source,
       sourceTrackId: decodeSourceTrackId(source, sourceTrackId, uri),
       uri: uri,
