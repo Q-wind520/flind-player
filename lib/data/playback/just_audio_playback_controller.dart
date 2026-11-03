@@ -118,7 +118,17 @@ class JustAudioPlaybackController implements PlaybackController {
     required StreamResolver resolver,
     AudioPlayer? player,
   }) : _resolver = resolver, // ignore: prefer_initializing_formals
-       _player = player ?? AudioPlayer() {
+       _player =
+           player ??
+           AudioPlayer(
+             // ExoPlayer applies per-source headers itself. Routing them
+             // through just_audio's loopback proxy would make Android load
+             // http://127.0.0.1:PORT, which its cleartext policy rejects, so
+             // the first play of an uncached online track failed. Other
+             // platforms keep the proxy (media_kit has no native headers).
+             useProxyForRequestHeaders:
+                 kIsWeb || defaultTargetPlatform != TargetPlatform.android,
+           ) {
     _configureAudioSession();
     _bindPlayerStreams();
     _emit();

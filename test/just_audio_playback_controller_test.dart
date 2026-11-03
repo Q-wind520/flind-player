@@ -15,6 +15,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
@@ -34,6 +35,16 @@ class _FakeResolver implements StreamResolver {
   @override
   Future<StreamInfo> resolve(Track track) async =>
       StreamInfo(url: Uri.parse('https://cdn.example/${track.title}.mp3'));
+}
+
+/// Resolver whose stream carries the request headers online sources need
+/// (Referer / User-Agent), which makes just_audio route it through its proxy.
+class _HeaderResolver implements StreamResolver {
+  @override
+  Future<StreamInfo> resolve(Track track) async => StreamInfo(
+    url: Uri.parse('https://cdn.example/${track.title}.mp3'),
+    headers: const {'Referer': 'https://example.com'},
+  );
 }
 
 Track _biliTrack(String title) => Track(
@@ -103,6 +114,20 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
   /// When set, the next [load] call fails like an unreachable or 403 stream.
   bool failNextLoad = false;
   int loadCalls = 0;
+
+  /// URI the platform was actually asked to load (after any proxy rewrite).
+  final List<String> loadUris = <String>[];
+
+  void _collectLoadUris(AudioSourceMessage message) {
+    if (message is UriAudioSourceMessage) {
+      loadUris.add(message.uri);
+    }
+    if (message is ConcatenatingAudioSourceMessage) {
+      for (final child in message.children) {
+        _collectLoadUris(child);
+      }
+    }
+  }
   final List<double> volumes = <double>[];
   final List<double> speeds = <double>[];
   double volume = 1.0;
@@ -115,6 +140,7 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
   Future<LoadResponse> load(LoadRequest request) async {
     calls.add('load');
     loadCalls++;
+    _collectLoadUris(request.audioSourceMessage);
     if (failNextLoad) {
       failNextLoad = false;
       throw PlatformException(code: 'error', message: 'stream unavailable');
@@ -516,6 +542,27 @@ void main() {
     await controller.play();
     await Future<void>.delayed(timeout);
     expect(platform.player!.loadCalls, loadsBeforeReplay + 1);
+    expect(controller.currentState.isPlaying, isTrue);
+  });
+
+  test('on Android header sources bypass the loopback proxy', () async {
+    // Android blocks cleartext by default. just_audio would otherwise rewrite
+    // a header-bearing source to http://127.0.0.1:PORT, which the platform
+    // rejects ("Cleartext HTTP traffic not permitted"), so the first tap on an
+    // uncached online track stayed silent until the background downloader
+    // cached the file. ExoPlayer applies the headers itself.
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final controller = JustAudioPlaybackController(resolver: _HeaderResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+
+    final uri = Uri.parse(platform.player!.loadUris.single);
+    expect(uri.scheme, 'https');
+    expect(uri.host, 'cdn.example');
     expect(controller.currentState.isPlaying, isTrue);
   });
 
