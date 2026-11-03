@@ -58,6 +58,10 @@ app.*.map.json
 .codegraph
 .omo/
 
+# Local agent tooling (OpenCode skills, plugins and config are per-machine and
+# must never be published with the app).
+.opencode/
+
 # Superpowers brainstorm mockups / session state / local design specs & plans
 .superpowers/
 # Superpowers' default spec path is inside docs/; keep it local too.
