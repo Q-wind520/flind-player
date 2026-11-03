@@ -93,6 +93,14 @@ class JustAudioPlaybackController implements PlaybackController {
   /// by a newer one abandon its work instead of clobbering the live source.
   int _loadGeneration = 0;
 
+  /// URI of the track whose source is loaded and playable in the engine, or
+  /// null when the last resolve/load did not complete (failed stream, expired
+  /// URL, playback error).
+  ///
+  /// [play] compares it with the current track so a dead source is re-resolved
+  /// instead of being "played" in silence.
+  String? _loadedUri;
+
   /// Bumped to cancel an in-flight pause/switch gain ramp.
   int _fadeGeneration = 0;
 
@@ -177,6 +185,14 @@ class JustAudioPlaybackController implements PlaybackController {
     _playIntent = true;
     // A resume supersedes any in-flight ramp.
     _fadeGeneration++;
+    final track = _queue.currentTrack;
+    if (!_loadInFlight && track != null && _loadedUri != track.uri) {
+      // The last resolve/load for this track failed (stream unavailable,
+      // expired URL, playback error). Re-resolve instead of calling `play` on
+      // the dead source: the engine would report playing while staying silent.
+      await _playCurrent();
+      return;
+    }
     if (_isCompleted) {
       // just_audio will not restart a completed source; rewind first.
       _isCompleted = false;
@@ -382,7 +398,32 @@ class JustAudioPlaybackController implements PlaybackController {
       // just_audio 0.10.6 exposes no `bufferingStream`; buffering is a
       // `ProcessingState` on `processingStateStream`.
       ..add(_player.processingStateStream.listen(_onProcessingState))
-      ..add(_player.playerStateStream.listen(_onPlayerState));
+      ..add(_player.playerStateStream.listen(_onPlayerState))
+      ..add(_player.errorStream.listen(_onPlaybackError));
+  }
+
+  /// Handles an asynchronous playback failure (HTTP error, decoder error) that
+  /// happens after the source was loaded.
+  ///
+  /// Without this the engine keeps `playing == true` while nothing is audible,
+  /// so the UI shows a Pause button at 0:00 forever. Dropping [_loadedUri]
+  /// turns that into a plain paused state and lets the next play re-resolve the
+  /// stream (the URL of an online source may have expired).
+  void _onPlaybackError(PlayerException error) {
+    // A failure during a resolve/load is reported by [setAudioSource] itself;
+    // this stream may also still carry an error from the superseded source.
+    if (_disposed || _loadInFlight) {
+      return;
+    }
+    debugPrint(
+      'JustAudioPlaybackController: playback error for '
+      '"${_queue.currentTrack?.uri}": ${error.code} ${error.message}',
+    );
+    _loadedUri = null;
+    _isPlaying = false;
+    _isBuffering = false;
+    _emit();
+    unawaited(_player.pause().catchError((Object _) {}));
   }
 
   void _onPlaying(bool playing) {
@@ -543,6 +584,7 @@ class JustAudioPlaybackController implements PlaybackController {
     // song audible through the (possibly slow) resolve of the next one. This
     // also cancels any in-flight pause fade and restores the user's gain.
     _fadeGeneration++;
+    _loadedUri = null;
     if (_player.playing) {
       await _player.pause();
     }
@@ -567,6 +609,7 @@ class JustAudioPlaybackController implements PlaybackController {
       if (generation != _loadGeneration) {
         return;
       }
+      _loadedUri = track.uri;
       // Some platforms reset the gain when a new source is loaded; re-apply
       // the user's chosen volume so switching tracks never changes loudness.
       await _setPlayerVolume(_volume);
@@ -581,9 +624,19 @@ class JustAudioPlaybackController implements PlaybackController {
         'JustAudioPlaybackController: failed to play "${track.uri}": '
         '$error\n$stackTrace',
       );
+      _loadedUri = null;
       _loadInFlight = false;
       _isPlaying = false;
       _isBuffering = false;
+      // The engine may have been left with `playing == true` by a play request
+      // that raced the failure; normalise it so the UI shows a play button.
+      if (_player.playing) {
+        try {
+          await _player.pause();
+        } catch (_) {
+          // A dead platform player may reject pause; state is already paused.
+        }
+      }
       _emit();
       return;
     }
@@ -626,7 +679,16 @@ class JustAudioPlaybackController implements PlaybackController {
         _loadInFlight) {
       return;
     }
-    await _player.play();
+    // Do not await `play()`: on Android its future resolves only when playback
+    // stops (pause or end of source), so awaiting it would postpone the fade-in
+    // until the track is already over, leaving the engine silent at gain 0.
+    unawaited(
+      _player.play().catchError((Object error, StackTrace stackTrace) {
+        debugPrint(
+          'JustAudioPlaybackController: play failed: $error\n$stackTrace',
+        );
+      }),
+    );
     unawaited(_rampVolumeTo(_volume, generation));
   }
 

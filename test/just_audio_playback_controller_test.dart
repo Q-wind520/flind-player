@@ -54,9 +54,17 @@ PlaybackQueue _queueOf(List<Track> tracks) => PlaybackQueue(
 class _FakeJustAudio extends JustAudioPlatform {
   _FakeAudioPlayer? player;
 
+  /// Applied to the player created by `init`.
+  bool holdPlayFuture = false;
+
+  /// Applied to [load] calls, mirroring a stream that cannot be opened.
+  bool failNextLoad = false;
+
   @override
   Future<AudioPlayerPlatform> init(InitRequest request) async {
-    return player = _FakeAudioPlayer(request.id);
+    return player = _FakeAudioPlayer(request.id)
+      ..holdPlayFuture = holdPlayFuture
+      ..failNextLoad = failNextLoad;
   }
 
   @override
@@ -86,6 +94,15 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
 
   int playCalls = 0;
   int pauseCalls = 0;
+
+  /// Mirrors Android: the platform only resolves `play` once playback stops
+  /// (pause or end of source), never while a track is simply playing.
+  bool holdPlayFuture = false;
+  final List<Completer<void>> _heldPlays = <Completer<void>>[];
+
+  /// When set, the next [load] call fails like an unreachable or 403 stream.
+  bool failNextLoad = false;
+  int loadCalls = 0;
   final List<double> volumes = <double>[];
   final List<double> speeds = <double>[];
   double volume = 1.0;
@@ -97,6 +114,11 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
   @override
   Future<LoadResponse> load(LoadRequest request) async {
     calls.add('load');
+    loadCalls++;
+    if (failNextLoad) {
+      failNextLoad = false;
+      throw PlatformException(code: 'error', message: 'stream unavailable');
+    }
     _duration = const Duration(minutes: 3);
     _index = request.initialIndex ?? 0;
     _position = request.initialPosition ?? Duration.zero;
@@ -114,6 +136,11 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
     playCalls++;
     _playing = true;
     _emit();
+    if (holdPlayFuture) {
+      final completer = Completer<void>();
+      _heldPlays.add(completer);
+      await completer.future;
+    }
     return PlayResponse();
   }
 
@@ -122,8 +149,18 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
     calls.add('pause');
     pauseCalls++;
     _playing = false;
+    _resolveHeldPlays();
     _emit();
     return PauseResponse();
+  }
+
+  /// Resolves pending [play] futures the way the platform does when playback
+  /// stops for any reason.
+  void _resolveHeldPlays() {
+    for (final completer in _heldPlays) {
+      if (!completer.isCompleted) completer.complete();
+    }
+    _heldPlays.clear();
   }
 
   @override
@@ -139,6 +176,24 @@ class _FakeAudioPlayer extends AudioPlayerPlatform {
   void emitCompleted() {
     _processingState = ProcessingStateMessage.completed;
     _emit();
+  }
+
+  /// Simulates a mid-stream playback failure (HTTP 403, decoder error, ...).
+  void emitError(int code, String message) {
+    _events.add(
+      PlaybackEventMessage(
+        processingState: _processingState,
+        updateTime: _updateTime,
+        updatePosition: _position,
+        bufferedPosition: _position,
+        duration: _duration,
+        icyMetadata: null,
+        currentIndex: _index,
+        androidAudioSessionId: null,
+        errorCode: code,
+        errorMessage: message,
+      ),
+    );
   }
 
   /// Simulates the platform resuming/paused state without a transport command.
@@ -398,6 +453,70 @@ void main() {
     expect(volumes.first, 0);
     expect(volumes.any((v) => v > 0 && v < 1), isTrue);
     expect(volumes.last, closeTo(controller.currentState.volume, 0.001));
+  });
+
+  test('play fades in even when the platform play future stays pending', () async {
+    // Android's `play` future resolves only once playback stops (pause or end
+    // of source). Awaiting it before the gain ramp leaves the engine silent at
+    // volume 0 for the whole track.
+    platform.holdPlayFuture = true;
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    unawaited(controller.playQueue(_queueOf([_biliTrack('A')])));
+    await Future<void>.delayed(timeout);
+
+    final player = platform.player!;
+    expect(controller.currentState.isPlaying, isTrue);
+    expect(player.volumes.any((v) => v > 0 && v < 1), isTrue);
+    expect(player.volume, closeTo(controller.currentState.volume, 0.001));
+  });
+
+  test('a failed load leaves playback paused and the next play retries it', () async {
+    platform.failNextLoad = true;
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+
+    // The load failed: the UI must not claim to be playing.
+    expect(controller.currentState.isPlaying, isFalse);
+    final player = platform.player!;
+    expect(player.loadCalls, 1);
+
+    platform.player!.volumes.clear();
+    await controller.play();
+    await Future<void>.delayed(timeout);
+
+    // Pressing play re-resolves and loads instead of "playing" the dead source.
+    expect(player.loadCalls, 2);
+    expect(controller.currentState.isPlaying, isTrue);
+    expect(player.volumes.any((v) => v > 0 && v < 1), isTrue);
+    expect(player.volume, closeTo(controller.currentState.volume, 0.001));
+  });
+
+  test('a playback error stops the UI from claiming to play', () async {
+    final controller = JustAudioPlaybackController(resolver: _FakeResolver());
+    addTearDown(controller.dispose);
+
+    await controller.playQueue(_queueOf([_biliTrack('A')]));
+    await Future<void>.delayed(timeout);
+    expect(controller.currentState.isPlaying, isTrue);
+
+    platform.player!.emitError(2, 'HTTP 403');
+    await Future<void>.delayed(timeout);
+
+    expect(controller.currentState.isPlaying, isFalse);
+    expect(platform.player!.isPlaying, isFalse);
+
+    // The track stays selected, so the next play can re-resolve a fresh URL.
+    expect(controller.currentState.currentTrack?.title, 'A');
+    final loadsBeforeReplay = platform.player!.loadCalls;
+    await controller.play();
+    await Future<void>.delayed(timeout);
+    expect(platform.player!.loadCalls, loadsBeforeReplay + 1);
+    expect(controller.currentState.isPlaying, isTrue);
   });
 
   test('switching tracks stops the outgoing one before loading', () async {
