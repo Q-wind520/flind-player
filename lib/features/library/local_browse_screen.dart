@@ -52,7 +52,6 @@ class _LocalBrowseScreenState extends ConsumerState<LocalBrowseScreen> {
     final horizontal = compact ? 16.0 : 28.0;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: Column(
         children: [
           AppPageHeader(
@@ -257,7 +256,6 @@ class _LocalTracksScaffold extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: AppPageHeader(
         title: title,
         compact: compact,

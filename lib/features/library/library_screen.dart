@@ -237,7 +237,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     });
 
     return AppPageScaffold(
-      width: AppContentKind.wide,
       header: _buildHeaderRow(),
       body: _buildBody(),
     );
@@ -301,26 +300,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final horizontal = compact ? 16.0 : 28.0;
     return Padding(
       padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, AppSpacing.md),
-      child: ValueListenableBuilder<TextEditingValue>(
-        valueListenable: _searchController,
-        builder: (context, value, child) {
-          return TextField(
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            onChanged: _onSearchChanged,
-            style: Theme.of(context).textTheme.bodyMedium,
-            decoration: InputDecoration(
-              hintText: l10n.searchLibrary,
-              prefixIcon: const Icon(AppIcons.search),
-              suffixIcon: value.text.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(AppIcons.clear),
-                      onPressed: _clearSearch,
-                    ),
-            ),
-          );
-        },
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _searchController,
+            builder: (context, value, child) {
+              return TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                onChanged: _onSearchChanged,
+                style: Theme.of(context).textTheme.bodyMedium,
+                decoration: InputDecoration(
+                  hintText: l10n.searchLibrary,
+                  prefixIcon: const Icon(AppIcons.search),
+                  suffixIcon: value.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(AppIcons.clear),
+                          onPressed: _clearSearch,
+                        ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

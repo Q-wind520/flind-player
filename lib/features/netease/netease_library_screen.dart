@@ -48,7 +48,6 @@ class NeteaseLibraryScreen extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: AppPageHeader(
         title: l10n.neteaseLibrary,
         compact: compact,
@@ -222,7 +221,6 @@ class NeteasePlaylistScreen extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: AppPageHeader(
         title: playlist.title,
         subtitle: l10n.trackCount(playlist.trackCount),

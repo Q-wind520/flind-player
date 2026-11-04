@@ -68,7 +68,6 @@ class _NeteaseExploreScreenState extends ConsumerState<NeteaseExploreScreen> {
     final horizontal = compact ? 16.0 : 28.0;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: Column(
         children: [
           AppPageHeader(
@@ -262,7 +261,6 @@ class NeteaseAlbumScreen extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: AppPageHeader(
         title: album.title,
         subtitle: [
@@ -341,7 +339,6 @@ class NeteaseArtistScreen extends ConsumerWidget {
     final horizontal = compact ? 16.0 : 28.0;
 
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: AppPageHeader(
         title: artist.name,
         subtitle: '${artist.albumCount} · ${artist.songCount}',

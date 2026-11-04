@@ -15,26 +15,17 @@
 
 import 'package:flutter/material.dart';
 
-/// Content-width buckets shared by every full page.
+/// The single maximum content width shared by every full page.
 ///
-/// Forms stay narrow for readability, browsing surfaces use the standard
-/// column, and dense libraries/statistics use the wide column.
-enum AppContentKind { form, standard, wide }
-
-/// The maximum content width for an [AppContentKind].
+/// Previously each screen picked its own 760/960/1120 column, which left
+/// uneven margins on wide windows. Pages now use one 1600px frame; narrow
+/// reading columns (forms, search fields) are constrained *inside* that frame
+/// instead of shrinking the whole page.
 @immutable
 class AppContentWidth {
   const AppContentWidth._();
 
-  static const double form = 760;
-  static const double standard = 960;
-  static const double wide = 1120;
-
-  static double of(AppContentKind kind) => switch (kind) {
-    AppContentKind.form => form,
-    AppContentKind.standard => standard,
-    AppContentKind.wide => wide,
-  };
+  static const double page = 1600;
 }
 
 /// Spacing scale in logical pixels, on a 4pt base.

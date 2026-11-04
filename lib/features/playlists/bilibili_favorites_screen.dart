@@ -267,7 +267,6 @@ class _BilibiliFavoritesScreenState
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
     return AppPageScaffold(
-      width: AppContentKind.standard,
       header: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

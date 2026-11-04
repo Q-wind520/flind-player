@@ -28,7 +28,6 @@ class AppPageScaffold extends StatelessWidget {
     super.key,
     required this.header,
     required this.body,
-    this.width = AppContentKind.standard,
     this.resizeToAvoidBottomInset,
   });
 
@@ -37,9 +36,6 @@ class AppPageScaffold extends StatelessWidget {
 
   /// The page body, normally a scrollable.
   final Widget body;
-
-  /// Width bucket for wide windows.
-  final AppContentKind width;
 
   final bool? resizeToAvoidBottomInset;
 
@@ -52,7 +48,10 @@ class AppPageScaffold extends StatelessWidget {
         bottom: false,
         child: Center(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: AppContentWidth.of(width)),
+            key: const Key('app_page_content'),
+            constraints: const BoxConstraints(
+              maxWidth: AppContentWidth.page,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

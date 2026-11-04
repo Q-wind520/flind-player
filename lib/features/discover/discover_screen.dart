@@ -121,7 +121,6 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final horizontal = compact ? 16.0 : 28.0;
     return PlaybackPermissionScope(
       child: AppPageScaffold(
-        width: AppContentKind.standard,
         header: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -133,26 +132,32 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                 horizontal,
                 AppSpacing.md,
               ),
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _controller,
-                builder: (context, value, child) {
-                  return TextField(
-                    controller: _controller,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: _submit,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    decoration: InputDecoration(
-                      hintText: l10n.searchHint,
-                      prefixIcon: const Icon(AppIcons.search),
-                      suffixIcon: value.text.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(AppIcons.clear),
-                              onPressed: _clear,
-                            ),
-                    ),
-                  );
-                },
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _controller,
+                    builder: (context, value, child) {
+                      return TextField(
+                        controller: _controller,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: _submit,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        decoration: InputDecoration(
+                          hintText: l10n.searchHint,
+                          prefixIcon: const Icon(AppIcons.search),
+                          suffixIcon: value.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(AppIcons.clear),
+                                  onPressed: _clear,
+                                ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
             if (sources.length > 1)

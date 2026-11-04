@@ -492,6 +492,23 @@ void main() {
       });
     }
 
+    testWidgets('uses the shared 1600px page frame and two columns at 1880', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1880, 1000), _app(home: const MeScreen()));
+
+      final content = tester.getSize(find.byKey(const Key('app_page_content')));
+      expect(content.width, 1600);
+      expect(find.byKey(const Key('me_wide_columns')), findsOneWidget);
+    });
+
+    testWidgets('stacks Me sections below the two-column breakpoint', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(800, 1000), _app(home: const MeScreen()));
+      expect(find.byKey(const Key('me_wide_columns')), findsNothing);
+    });
+
     // Dialogs are the tallest thing the screen can show, so exercise them at
     // the smallest portrait and landscape viewports.
     for (final size in <Size>[const Size(320, 480), const Size(480, 320)]) {

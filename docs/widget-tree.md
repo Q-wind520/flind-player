@@ -415,13 +415,13 @@ LyricsPreview (竖屏滚动歌词窗 — 竖屏封面临下填满剩余高度 Co
 
 ## B 站收藏夹浏览页 BilibiliFavoritesScreen
 
-由曲库页「浏览 B 站收藏夹」菜单推入。内容内 `AppPageHeader` 提供返回/标题,
-UID 输入条仅文件夹页显示;内容区限宽 960。
+由曲库页「来源 > B 站收藏夹」推入。内容内 `AppPageHeader` 提供返回/标题,
+UID 输入条仅文件夹页显示;使用与其他页面一致的 1600px 页宽。
 
 ```
 BilibiliFavoritesScreen (收藏夹浏览页 ConsumerStatefulWidget)
-└─ Scaffold (background: AppSurface.colorOf) + SafeArea(bottom: false)
-   └─ Center → ConstrainedBox(maxWidth: 960) → Column
+└─ AppPageScaffold(page 1600)
+   └─ Column
       ├─ AppPageHeader (leading: arrow_back → {已打开收藏夹} 返回列表 | 否则 pop;
       │                  title: 「浏览 B 站公开收藏夹」或收藏夹名)
       ├─ {文件夹列表页} _buildUidBar
@@ -493,9 +493,11 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 - `AppBreakpoints` (app_theme.dart):
   - `compact` 断点 = **600** 逻辑像素宽;窗口更窄或竖屏(`height >= width`)
     一律按紧凑布局处理,桌面端拉窄窗口也会切换为手机式底部导航。
-  - 宽屏自绘 `_NarrowRail` 与紧凑 `NavigationBar` 均采用 **仅选中项显示标签**,
-    不再依赖窗口高度收起;侧栏保留圆形选中/悬停底,但点击不画圆角矩形水波纹;
-    标签以 500 ms `easeInOutCubicEmphasized` 淡入淡出,与底部导航一致。
+  - 宽屏自绘 `_NarrowRail` 的标签**常显**;紧凑 `NavigationBar` 仍只显示选中项
+    标签。侧栏保留圆形选中/悬停底,但点击不画圆角矩形水波纹。
+- `AppPageScaffold` 的页宽统一为 **1600** 逻辑像素,页面内部再用
+  `ConstrainedBox` 限制搜索框/表单等阅读宽度;不再由各页分别选择
+  760/960/1120。`MeScreen` 在 ≥1100px 时使用两栏设置布局。
 
 ## 文件索引
 

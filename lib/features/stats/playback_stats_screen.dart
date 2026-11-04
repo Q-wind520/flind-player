@@ -48,7 +48,6 @@ class _PlaybackStatsScreenState extends ConsumerState<PlaybackStatsScreen> {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.wide,
       header: AppPageHeader(
         title: l10n.playbackStats,
         compact: compact,

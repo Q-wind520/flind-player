@@ -56,7 +56,6 @@ class PlaylistDetailScreen extends ConsumerWidget {
 
     if (playlist == null) {
       return AppPageScaffold(
-        width: AppContentKind.wide,
         header: _PlaylistTopBar(compact: compact, actions: const []),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -66,7 +65,6 @@ class PlaylistDetailScreen extends ConsumerWidget {
     final horizontal = compact ? 16.0 : 28.0;
 
     return AppPageScaffold(
-      width: AppContentKind.wide,
       header: _PlaylistTopBar(
         compact: compact,
         actions: [

@@ -18,7 +18,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
-import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -43,7 +42,6 @@ class RecentPlaysScreen extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.wide,
       header: AppPageHeader(
         title: l10n.recentPlays,
         compact: compact,

@@ -62,7 +62,6 @@ class _DownloadLibraryScreenState extends ConsumerState<DownloadLibraryScreen> {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return AppPageScaffold(
-      width: AppContentKind.wide,
       header: AppPageHeader(
         title: l10n.offlineCache,
         compact: compact,

@@ -618,10 +618,11 @@ void main() {
 
         // There is no bare AppBar pinning the back button to the window edge.
         expect(find.byType(AppBar), findsNothing);
-        // 1280 wide -> the 1120 content column starts at x=80; the top bar's
-        // 20 px padding and 48 px button put the back button centre at x=124.
+        // 1280 is below the unified 1600 page frame, so the content column is
+        // full-width; the top bar's 20 px padding and 48 px button put the
+        // back button centre at x=44.
         final back = tester.getCenter(find.byIcon(AppIcons.arrowBack));
-        expect(back.dx, closeTo(124, 1));
+        expect(back.dx, closeTo(44, 1));
         expect(tester.takeException(), isNull);
       },
     );

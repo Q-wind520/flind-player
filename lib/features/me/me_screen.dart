@@ -64,8 +64,29 @@ class MeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final left = <Widget>[
+      SectionHeader(l10n.general),
+      const _GeneralSection(),
+      SectionHeader(l10n.sectionPlayback),
+      const _PlaybackSection(),
+      SectionHeader(l10n.sectionLibrary),
+      if (supportsLocalLibrary)
+        const _LibrarySection()
+      else
+        const _UnsupportedLibraryNotice(),
+    ];
+    final right = <Widget>[
+      if (!kIsWeb) ...[
+        SectionHeader(l10n.sectionAccounts),
+        const AccountSection(),
+      ],
+      SectionHeader(l10n.myActivity),
+      const _QuickLinks(),
+      SectionHeader(l10n.about),
+      const _AboutSection(),
+    ];
+
     return AppPageScaffold(
-      width: AppContentKind.form,
       header: AppPageHeader(title: l10n.navMe),
       body: SingleChildScrollView(
         // The shell extends this screen behind the bottom chrome, so the
@@ -73,32 +94,40 @@ class MeScreen extends ConsumerWidget {
         padding: EdgeInsets.only(
           bottom: 8 + MediaQuery.paddingOf(context).bottom,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionHeader(l10n.general),
-            const _GeneralSection(),
-
-            if (!kIsWeb) ...[
-              SectionHeader(l10n.sectionAccounts),
-              const AccountSection(),
-            ],
-
-            SectionHeader(l10n.myActivity),
-            const _QuickLinks(),
-
-            SectionHeader(l10n.sectionPlayback),
-            const _PlaybackSection(),
-
-            SectionHeader(l10n.sectionLibrary),
-            if (supportsLocalLibrary)
-              const _LibrarySection()
-            else
-              const _UnsupportedLibraryNotice(),
-
-            SectionHeader(l10n.about),
-            const _AboutSection(),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 1100;
+            if (!wide) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [...left, ...right],
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+              ),
+              child: Row(
+                key: const Key('me_wide_columns'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: left,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xxl),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: right,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
