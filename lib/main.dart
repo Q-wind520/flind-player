@@ -123,6 +123,18 @@ Future<void> main() async {
     );
   }
 
+  // Volume is a user preference, not part of the queue snapshot. Restore it
+  // before the UI mounts, then keep it in sync with the player slider.
+  final volumePersistence = container.read(
+    playbackVolumePersistenceServiceProvider,
+  );
+  try {
+    await volumePersistence.restore();
+    volumePersistence.start();
+  } catch (error, stackTrace) {
+    debugPrint('Flind Player: volume persistence failed: $error\n$stackTrace');
+  }
+
   // Record real playback sessions once the restored queue is in place. A
   // failure here must never block startup or playback.
   try {

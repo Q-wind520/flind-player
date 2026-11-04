@@ -61,6 +61,26 @@ void main() {
     expect(await repository.cacheSettings(), updated);
   });
 
+  test('playback volume defaults to 1.0 and round-trips', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.playbackVolume(), 1.0);
+
+    await repository.setPlaybackVolume(0.42);
+    expect(await repository.playbackVolume(), 0.42);
+  });
+
+  test('playback volume clamps out-of-range stored values', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'player.volume': 9.0,
+    });
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.playbackVolume(), 1.4);
+  });
+
   test('falls back to defaults for a corrupt stored limit', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'cache.limitBytes': -5,

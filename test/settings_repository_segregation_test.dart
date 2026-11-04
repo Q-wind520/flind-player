@@ -54,6 +54,7 @@ void main() {
     expect(repository, isA<CacheSettingsRepository>());
     expect(repository, isA<LibrarySettingsRepository>());
     expect(repository, isA<AppearanceSettingsRepository>());
+    expect(repository, isA<PlaybackSettingsRepository>());
   });
 
   test('AudioCacheStore depends on the cache settings slice only', () async {
