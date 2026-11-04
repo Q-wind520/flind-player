@@ -185,7 +185,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(AppIcons.moreVert), findsOneWidget);
-      expect(find.byIcon(AppIcons.tune), findsOneWidget);
+      expect(find.byIcon(AppIcons.speed), findsOneWidget);
       expect(find.byIcon(AppIcons.timerOutlined), findsOneWidget);
       expect(find.byIcon(AppIcons.volumeUp), findsOneWidget);
       expect(find.byIcon(AppIcons.playlistPlay), findsOneWidget);
@@ -283,7 +283,7 @@ void main() {
       },
     );
 
-    testWidgets('tapping 更多 opens a panel showing 暂无内容', (tester) async {
+    testWidgets('tapping 更多 opens the track actions panel', (tester) async {
       tester.view.physicalSize = const Size(800, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -295,11 +295,12 @@ void main() {
       await tester.tap(find.byKey(MiniSettings.moreKey));
       await tester.pumpAndSettle();
 
-      expect(find.text(testL10n().playerPanelEmpty), findsOneWidget);
+      expect(find.byType(PlayerMorePanel), findsOneWidget);
       expect(find.text(testL10n().playerMore), findsOneWidget);
+      expect(find.text(testL10n().viewCover), findsOneWidget);
     });
 
-    testWidgets('tapping 调节 opens the speed slider and drives setSpeed', (
+    testWidgets('tapping 播放速度 opens the speed slider and drives setSpeed', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(800, 900);
@@ -313,12 +314,12 @@ void main() {
       await tester.tap(find.byKey(MiniSettings.tuneKey));
       await tester.pumpAndSettle();
 
-      expect(find.byType(PlayerTunePanel), findsOneWidget);
+      expect(find.byType(PlaybackSpeedPanel), findsOneWidget);
       expect(find.text(testL10n().playerSpeed), findsOneWidget);
       expect(find.text(testL10n().volumePercent(100)), findsOneWidget);
 
       final slider = find.descendant(
-        of: find.byType(PlayerTunePanel),
+        of: find.byType(PlaybackSpeedPanel),
         matching: find.byType(Slider),
       );
       expect(slider, findsOneWidget);

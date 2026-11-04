@@ -15,6 +15,15 @@
 
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/models/track_sort.dart';
+import 'package:flind_player/l10n/app_localizations.dart';
+
+/// The localized menu label for a [TrackSort] option.
+String librarySortLabel(AppLocalizations l10n, TrackSort sort) => switch (sort) {
+  TrackSort.title => l10n.sortByTitle,
+  TrackSort.artist => l10n.sortByArtist,
+  TrackSort.album => l10n.sortByAlbum,
+  TrackSort.recentlyAdded => l10n.sortRecentlyAdded,
+};
 
 /// Sorts [tracks] client-side using the same comparators as the server-side
 /// library sort.

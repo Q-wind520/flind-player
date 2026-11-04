@@ -302,21 +302,19 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    // The search page now carries a large page title as well as the navigation
-    // label, so 搜索 appears twice; the other destinations only have their nav
+    // The Discover page carries a large page title as well as the navigation
+    // label, so 发现 appears twice; the other destinations only have their nav
     // labels (their pages are offstage).
-    expect(find.text('搜索'), findsNWidgets(2));
-    // Unselected labels stay mounted (faded) for the transition, so the finder
-    // still sees them even though they are not visible.
-    expect(find.text('曲库'), findsOneWidget); // nav label, faded (unselected)
-    expect(find.text('设置'), findsOneWidget); // nav label, faded (unselected)
+    expect(find.text('发现'), findsNWidgets(2));
+    expect(find.text('曲库'), findsOneWidget);
+    expect(find.text('我的'), findsOneWidget);
 
     // The previously mismatched labels are gone.
     expect(find.text('首页'), findsNothing);
     expect(find.text('账户'), findsNothing);
     expect(find.text('正在播放'), findsNothing);
     expect(find.byIcon(AppIcons.home), findsNothing);
-    expect(find.byIcon(AppIcons.accountCircle), findsNothing);
+    expect(find.byIcon(AppIcons.playCircle), findsNothing);
   });
 
   testWidgets('bottom NavigationBar shows only the selected label', (
@@ -375,20 +373,21 @@ void main() {
     expect(ink.splashFactory, NoSplash.splashFactory);
     expect(ink.highlightColor, Colors.transparent);
 
-    // Labels cross-fade like the compact bottom bar's: only the selected one
-    // is shown, the others stay mounted at zero opacity.
-    double labelOpacity(String key) => tester
-        .widget<FadeTransition>(
-          find.descendant(
-            of: find.byKey(ValueKey<String>(key)),
-            matching: find.byType(FadeTransition),
-          ),
-        )
-        .opacity
-        .value;
-    expect(labelOpacity('rail_destination_0'), 1);
-    expect(labelOpacity('rail_destination_1'), 0);
-    expect(labelOpacity('rail_destination_2'), 0);
+    // Wide-screen rail labels are always visible, not only for the selected
+    // destination.
+    for (final (key, label) in <(String, String)>[
+      ('rail_destination_0', '发现'),
+      ('rail_destination_1', '曲库'),
+      ('rail_destination_2', '我的'),
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey<String>(key)),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
+      );
+    }
 
     expect(find.byType(NavigationBar), findsNothing);
   });
@@ -408,16 +407,17 @@ void main() {
     expect(find.text('曲库还是空的'), findsOneWidget);
   });
 
-  testWidgets('tapping 设置 shows the settings screen', (tester) async {
+  testWidgets('tapping 我的 shows the personal hub', (tester) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     // The unselected label is hidden, so tap the destination's icon instead.
-    await tester.tap(find.byIcon(AppIcons.settingsOutlined));
+    await tester.tap(find.byIcon(AppIcons.accountCircle));
     await tester.pumpAndSettle();
 
-    // SettingsScreen shows the cache settings.
+    // MeScreen shows the cache settings and the activity shortcuts.
     expect(find.text('缓存上限'), findsOneWidget);
+    expect(find.text('我的足迹'), findsOneWidget);
   });
 
   testWidgets('does not have 正在播放 in navigation', (tester) async {
@@ -512,6 +512,12 @@ void main() {
       final content = tester.getRect(find.byType(IndexedStack));
       final bar = tester.getRect(find.byKey(MiniPlayerBar.barKey));
       expect(content.bottom, greaterThanOrEqualTo(bar.bottom - 0.5));
+      // Scrollable pages receive the dock height as bottom padding, so their
+      // last item can clear the floating chrome.
+      final padding = MediaQuery.of(
+        tester.element(find.byType(IndexedStack)),
+      ).padding.bottom;
+      expect(padding, greaterThanOrEqualTo(120));
     });
 
     testWidgets('wide: the desktop player bar sits below the content', (

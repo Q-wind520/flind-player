@@ -25,7 +25,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/stats_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/empty_state.dart';
 
@@ -47,54 +47,42 @@ class _PlaybackStatsScreenState extends ConsumerState<PlaybackStatsScreen> {
     final summaryAsync = ref.watch(playbackStatsSummaryProvider(_period));
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1120),
-            child: Column(
-              children: [
-                AppPageHeader(
-                  title: l10n.playbackStats,
-                  compact: compact,
-                  leading: IconButton(
-                    key: const Key('stats_back'),
-                    tooltip: '',
-                    icon: const Icon(AppIcons.arrowBack),
-                    onPressed: () => Navigator.of(context).maybePop(),
+    return AppPageScaffold(
+      width: AppContentKind.wide,
+      header: AppPageHeader(
+        title: l10n.playbackStats,
+        compact: compact,
+        leading: IconButton(
+          key: const Key('stats_back'),
+          tooltip: '',
+          icon: const Icon(AppIcons.arrowBack),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: Column(
+        children: [
+          _PeriodPicker(
+            period: _period,
+            onChanged: (period) => setState(() => _period = period),
+          ),
+          Expanded(
+            child: summaryAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) => Center(
+                child: TextButton.icon(
+                  onPressed: () => ref.invalidate(
+                    playbackStatsSummaryProvider(_period),
                   ),
+                  icon: const Icon(AppIcons.refresh),
+                  label: Text(l10n.retry),
                 ),
-                _PeriodPicker(
-                  period: _period,
-                  onChanged: (period) => setState(() => _period = period),
-                ),
-                Expanded(
-                  child: summaryAsync.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stackTrace) => Center(
-                      child: TextButton.icon(
-                        onPressed: () => ref.invalidate(
-                          playbackStatsSummaryProvider(_period),
-                        ),
-                        icon: const Icon(AppIcons.refresh),
-                        label: Text(l10n.retry),
-                      ),
-                    ),
-                    data: (summary) => summary.totalPlayCount == 0
-                        ? EmptyState(
-                            icon: AppIcons.analytics,
-                            title: l10n.statsEmpty,
-                          )
-                        : _StatsBody(summary: summary),
-                  ),
-                ),
-              ],
+              ),
+              data: (summary) => summary.totalPlayCount == 0
+                  ? EmptyState(icon: AppIcons.analytics, title: l10n.statsEmpty)
+                  : _StatsBody(summary: summary),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

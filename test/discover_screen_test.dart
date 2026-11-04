@@ -33,7 +33,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/stats_providers.dart';
 import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
-import 'package:flind_player/features/search/search_screen.dart';
+import 'package:flind_player/features/discover/discover_screen.dart';
 
 import 'support/fake_music_source.dart';
 import 'support/l10n.dart';
@@ -114,7 +114,7 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
   }
 }
 
-/// Pumps [SearchScreen] with the source registry, search family, playback
+/// Pumps [DiscoverScreen] with the source registry, search family, playback
 /// state and favourites providers overridden.
 ///
 /// Overriding [onlineSourcesProvider] with [fakeSourceRegistry] and
@@ -144,7 +144,7 @@ Widget _app({
       favoritesRepositoryProvider.overrideWithValue(favRepo),
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
     ],
-    child: localizedApp(const SearchScreen(), theme: theme),
+    child: localizedApp(const DiscoverScreen(), theme: theme),
   );
 }
 

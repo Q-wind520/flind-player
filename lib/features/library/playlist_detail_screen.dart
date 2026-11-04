@@ -32,7 +32,7 @@ import 'package:flind_player/features/library/widgets/library_view_menu_button.d
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -55,105 +55,74 @@ class PlaylistDetailScreen extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     if (playlist == null) {
-      return Scaffold(
-        backgroundColor: AppSurface.colorOf(context),
-        body: SafeArea(
-          bottom: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: Column(
-                children: [
-                  _PlaylistTopBar(compact: compact, actions: const []),
-                  const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+      return AppPageScaffold(
+        width: AppContentKind.wide,
+        header: _PlaylistTopBar(compact: compact, actions: const []),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     final canManage = playlist.kind != PlaylistKind.favorites;
     final horizontal = compact ? 16.0 : 28.0;
 
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1120),
-            child: Column(
-              children: [
-                // The back button and playlist actions live inside the content
-                // column so they line up with the header on wide windows
-                // instead of hugging the window edge under a bare AppBar.
-                _PlaylistTopBar(
-                  compact: compact,
-                  actions: [
-                    if (canManage) ...[
-                      IconButton(
-                        tooltip: l10n.editPlaylist,
-                        icon: const Icon(AppIcons.editOutlined),
-                        onPressed: () => _edit(context, ref, playlist),
-                      ),
-                      IconButton(
-                        tooltip: l10n.deletePlaylistTitle,
-                        icon: const Icon(AppIcons.delete),
-                        onPressed: () => _confirmDelete(context, ref, playlist),
-                      ),
-                    ],
-                    const LibraryViewMenuButton(
-                      scope: LibraryViewScope.playlistDetail,
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: tracksAsync.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stackTrace) => Center(
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            ref.invalidate(playlistTracksProvider(playlistId)),
-                        icon: const Icon(AppIcons.refresh),
-                        label: Text(l10n.retry),
-                      ),
-                    ),
-                    data: (tracks) => Column(
-                      children: [
-                        _PlaylistHeader(
-                          playlist: playlist,
-                          cover: coverAsync.value,
-                          count: tracks.length,
-                          compact: compact,
-                          onEditCover: canManage
-                              ? () => _edit(context, ref, playlist)
-                              : null,
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: horizontal),
-                          child: Divider(
-                            height: 1,
-                            color: Theme.of(context).colorScheme.outlineVariant
-                                .withValues(alpha: 0.55),
-                          ),
-                        ),
-                        Expanded(
-                          child: tracks.isEmpty
-                              ? const _EmptyPlaylist()
-                              : _memberList(ref, tracks, playlist),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    return AppPageScaffold(
+      width: AppContentKind.wide,
+      header: _PlaylistTopBar(
+        compact: compact,
+        actions: [
+          if (canManage) ...[
+            IconButton(
+              tooltip: l10n.editPlaylist,
+              icon: const Icon(AppIcons.editOutlined),
+              onPressed: () => _edit(context, ref, playlist),
             ),
+            IconButton(
+              tooltip: l10n.deletePlaylistTitle,
+              icon: const Icon(AppIcons.delete),
+              onPressed: () => _confirmDelete(context, ref, playlist),
+            ),
+          ],
+          const LibraryViewMenuButton(
+            scope: LibraryViewScope.playlistDetail,
           ),
+        ],
+      ),
+      body: tracksAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) => Center(
+          child: TextButton.icon(
+            onPressed: () =>
+                ref.invalidate(playlistTracksProvider(playlistId)),
+            icon: const Icon(AppIcons.refresh),
+            label: Text(l10n.retry),
+          ),
+        ),
+        data: (tracks) => Column(
+          children: [
+            _PlaylistHeader(
+              playlist: playlist,
+              cover: coverAsync.value,
+              count: tracks.length,
+              compact: compact,
+              onEditCover: canManage
+                  ? () => _edit(context, ref, playlist)
+                  : null,
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontal),
+              child: Divider(
+                height: 1,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.55),
+              ),
+            ),
+            Expanded(
+              child: tracks.isEmpty
+                  ? const _EmptyPlaylist()
+                  : _memberList(ref, tracks, playlist),
+            ),
+          ],
         ),
       ),
     );

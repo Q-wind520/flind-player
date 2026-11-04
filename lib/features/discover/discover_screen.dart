@@ -34,8 +34,8 @@ import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/settings/account_section.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
-import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/app_page_header.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -48,14 +48,14 @@ import 'package:flind_player/shared/responsive_center.dart';
 /// The query is only committed on submit (never per keystroke): the search
 /// endpoints are hard rate-limited and would answer `-412` on a keystroke
 /// storm.
-class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+class DiscoverScreen extends ConsumerStatefulWidget {
+  const DiscoverScreen({super.key});
 
   @override
-  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
+class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   final TextEditingController _controller = TextEditingController();
   String _submittedQuery = '';
   String? _selectedSourceId;
@@ -120,68 +120,59 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
     return PlaybackPermissionScope(
-      child: Scaffold(
-        backgroundColor: AppSurface.colorOf(context),
-        body: SafeArea(
-          bottom: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 960),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AppPageHeader(title: l10n.navSearch),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontal,
-                      0,
-                      horizontal,
-                      AppSpacing.md,
+      child: AppPageScaffold(
+        width: AppContentKind.standard,
+        header: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppPageHeader(title: l10n.discover),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                0,
+                horizontal,
+                AppSpacing.md,
+              ),
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, child) {
+                  return TextField(
+                    controller: _controller,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: _submit,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    decoration: InputDecoration(
+                      hintText: l10n.searchHint,
+                      prefixIcon: const Icon(AppIcons.search),
+                      suffixIcon: value.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(AppIcons.clear),
+                              onPressed: _clear,
+                            ),
                     ),
-                    child: ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _controller,
-                      builder: (context, value, child) {
-                        return TextField(
-                          controller: _controller,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: _submit,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          decoration: InputDecoration(
-                            hintText: l10n.searchHint,
-                            prefixIcon: const Icon(AppIcons.search),
-                            suffixIcon: value.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    icon: const Icon(AppIcons.clear),
-                                    onPressed: _clear,
-                                  ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (sources.length > 1)
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        horizontal,
-                        0,
-                        horizontal,
-                        AppSpacing.md,
-                      ),
-                      child: _SourceSwitcher(
-                        ids: [for (final source in sources) source.id],
-                        selectedId: selectedId,
-                        labelFor: (id) => _sourceLabel(l10n, id),
-                        onSelected: (id) =>
-                            setState(() => _selectedSourceId = id),
-                      ),
-                    ),
-                  Expanded(child: _buildBody(selectedId)),
-                ],
+                  );
+                },
               ),
             ),
-          ),
+            if (sources.length > 1)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontal,
+                  0,
+                  horizontal,
+                  AppSpacing.md,
+                ),
+                child: _SourceSwitcher(
+                  ids: [for (final source in sources) source.id],
+                  selectedId: selectedId,
+                  labelFor: (id) => _sourceLabel(l10n, id),
+                  onSelected: (id) => setState(() => _selectedSourceId = id),
+                ),
+              ),
+          ],
         ),
+        body: _buildBody(selectedId),
       ),
     );
   }
@@ -203,15 +194,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final hotAsync = account == null
         ? const AsyncData<List<RemotePlaylist>>(<RemotePlaylist>[])
         : ref.watch(neteasePopularPlaylistsProvider);
-    final playback = ref.watch(playbackStateProvider).value;
-    final current = playback?.currentTrack;
     final daily = dailyAsync.value ?? const <Track>[];
     final recommended = playlistsAsync.value ?? const <RemotePlaylist>[];
     final hot = hotAsync.value ?? const <RemotePlaylist>[];
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
 
-    if (current == null && recent.isEmpty && recommended.isEmpty) {
+    if (recent.isEmpty &&
+        daily.isEmpty &&
+        recommended.isEmpty &&
+        hot.isEmpty) {
       return EmptyState(
         icon: AppIcons.search,
         title: l10n.searchSourcesTitle,
@@ -235,21 +227,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         AppSpacing.md + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
-        if (current != null) ...[
-          _DiscoverySection(
-            title: l10n.continuePlaying,
-            child: _ContinueCard(
-              track: current,
-              isPlaying: playback?.isPlaying ?? false,
-              onTap: () => ref.read(playbackControllerProvider).play(),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
         if (daily.isNotEmpty) ...[
           _DiscoverySection(
             title: l10n.dailyRecommendations,
-            child: _TrackCarousel(
+            child: _PosterTrackCarousel(
               tracks: daily.take(10).toList(growable: false),
               onPlay: (tracks, index) => _play(tracks, index),
             ),
@@ -259,7 +240,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (recent.isNotEmpty) ...[
           _DiscoverySection(
             title: l10n.recentPlays,
-            child: _TrackCarousel(
+            child: _RecentTrackCarousel(
               tracks: recent.take(10).toList(growable: false),
               onPlay: (tracks, index) => _play(tracks, index),
             ),
@@ -280,7 +261,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 icon: const Icon(AppIcons.refresh),
                 label: Text(l10n.retry),
               ),
-              data: (playlists) => _PlaylistCarousel(playlists: playlists),
+              data: (playlists) =>
+                  _PlaylistPosterCarousel(playlists: playlists),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -288,7 +270,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (hot.isNotEmpty)
           _DiscoverySection(
             title: l10n.hotPlaylists,
-            child: _PlaylistCarousel(playlists: hot),
+            child: _HotPlaylistCarousel(playlists: hot),
           ),
       ],
     );
@@ -378,36 +360,48 @@ class _DiscoverySection extends StatelessWidget {
   }
 }
 
-class _ContinueCard extends StatelessWidget {
-  const _ContinueCard({
-    required this.track,
-    required this.isPlaying,
+/// Shared rounded, tonal surface for every discovery card. The visible
+/// background + hairline keeps cards distinct from the near-black page.
+class _DiscoveryCardSurface extends StatelessWidget {
+  const _DiscoveryCardSurface({
+    required this.width,
     required this.onTap,
+    required this.child,
   });
 
-  final Track track;
-  final bool isPlaying;
+  final double width;
   final VoidCallback onTap;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: CoverImage(path: track.coverPath, url: track.coverUrl, size: 56),
-      title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        track.artist ?? '',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: child,
+          ),
+        ),
       ),
-      trailing: Icon(isPlaying ? AppIcons.pause : AppIcons.playArrow, size: 32),
-      onTap: onTap,
     );
   }
 }
 
-class _TrackCarousel extends StatelessWidget {
-  const _TrackCarousel({required this.tracks, required this.onPlay});
+/// Daily picks: a poster card — large square cover, text underneath.
+class _PosterTrackCarousel extends StatelessWidget {
+  const _PosterTrackCarousel({required this.tracks, required this.onPlay});
 
   final List<Track> tracks;
   final void Function(List<Track>, int) onPlay;
@@ -415,20 +409,15 @@ class _TrackCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      // 136 cover + 6 gap + two text lines; 176 clipped the second line on
-      // Linux (7 px overflow). Keep the same height as the playlist carousel.
-      height: 200,
+      height: 236,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: tracks.length,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final track = tracks[index];
-          return _DiscoveryCard(
-            title: track.title,
-            subtitle: track.artist ?? '',
-            coverPath: track.coverPath,
-            coverUrl: track.coverUrl,
+          return _PosterTrackCard(
+            track: track,
             onTap: () => onPlay(tracks, index),
           );
         },
@@ -437,31 +426,79 @@ class _TrackCarousel extends StatelessWidget {
   }
 }
 
-class _PlaylistCarousel extends StatelessWidget {
-  const _PlaylistCarousel({required this.playlists});
+class _PosterTrackCard extends StatelessWidget {
+  const _PosterTrackCard({required this.track, required this.onTap});
 
-  final List<RemotePlaylist> playlists;
+  final Track track;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return _DiscoveryCardSurface(
+      width: 168,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: CoverImage(
+              path: track.coverPath,
+              url: track.coverUrl,
+              size: 152,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SizedBox(
+            height: 40,
+            child: Text(
+              track.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            track.artist ?? l10n.unknownArtist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Recently played: a compact row card so it reads differently from the
+/// poster-style daily picks.
+class _RecentTrackCarousel extends StatelessWidget {
+  const _RecentTrackCarousel({required this.tracks, required this.onPlay});
+
+  final List<Track> tracks;
+  final void Function(List<Track>, int) onPlay;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 196,
+      height: 80,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: playlists.length,
+        itemCount: tracks.length,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
-          final playlist = playlists[index];
-          return _DiscoveryCard(
-            title: playlist.title,
-            subtitle: AppLocalizations.of(context)
-                .trackCount(playlist.trackCount),
-            coverUrl: playlist.coverUrl,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) => NeteasePlaylistScreen(playlist: playlist),
-              ),
-            ),
+          final track = tracks[index];
+          return _RecentTrackCard(
+            track: track,
+            onTap: () => onPlay(tracks, index),
           );
         },
       ),
@@ -469,50 +506,242 @@ class _PlaylistCarousel extends StatelessWidget {
   }
 }
 
-class _DiscoveryCard extends StatelessWidget {
-  const _DiscoveryCard({
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.coverPath,
-    this.coverUrl,
-  });
+class _RecentTrackCard extends StatelessWidget {
+  const _RecentTrackCard({required this.track, required this.onTap});
 
-  final String title;
-  final String subtitle;
-  final String? coverPath;
-  final String? coverUrl;
+  final Track track;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return _DiscoveryCardSurface(
+      width: 276,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: SizedBox(
-        width: 136,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CoverImage(path: coverPath, url: coverUrl, size: 136),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium,
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: CoverImage(
+              path: track.coverPath,
+              url: track.coverUrl,
+              size: 56,
             ),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  track.artist ?? l10n.unknownArtist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Icon(AppIcons.playArrow, size: 20, color: scheme.primary),
+        ],
+      ),
+    );
+  }
+}
+
+/// Recommended playlists: a poster with the title/count overlaid on the cover.
+class _PlaylistPosterCarousel extends StatelessWidget {
+  const _PlaylistPosterCarousel({required this.playlists});
+
+  final List<RemotePlaylist> playlists;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 184,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final playlist = playlists[index];
+          return _PlaylistPosterCard(playlist: playlist);
+        },
+      ),
+    );
+  }
+}
+
+class _PlaylistPosterCard extends StatelessWidget {
+  const _PlaylistPosterCard({required this.playlist});
+
+  final RemotePlaylist playlist;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return _DiscoveryCardSurface(
+      width: 176,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => NeteasePlaylistScreen(playlist: playlist),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: SizedBox(
+          width: 160,
+          height: 160,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CoverImage(url: playlist.coverUrl, size: 160),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.center,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0xCC000000)],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: AppSpacing.sm,
+                right: AppSpacing.sm,
+                bottom: AppSpacing.sm,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      playlist.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.trackCount(playlist.trackCount),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hot playlists: ranked rows with tabular rank numbers.
+class _HotPlaylistCarousel extends StatelessWidget {
+  const _HotPlaylistCarousel({required this.playlists});
+
+  final List<RemotePlaylist> playlists;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 80,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          return _HotPlaylistCard(playlist: playlists[index], rank: index + 1);
+        },
+      ),
+    );
+  }
+}
+
+class _HotPlaylistCard extends StatelessWidget {
+  const _HotPlaylistCard({required this.playlist, required this.rank});
+
+  final RemotePlaylist playlist;
+  final int rank;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context);
+    return _DiscoveryCardSurface(
+      width: 292,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) => NeteasePlaylistScreen(playlist: playlist),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              rank.toString().padLeft(2, '0'),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: rank <= 3 ? scheme.primary : scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
-          ],
-        ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: CoverImage(url: playlist.coverUrl, size: 56),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  playlist.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  l10n.trackCount(playlist.trackCount),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

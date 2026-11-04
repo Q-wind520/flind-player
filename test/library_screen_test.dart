@@ -21,7 +21,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
-import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -190,8 +189,10 @@ Widget _app({
         trackDeletionServiceProvider.overrideWithValue(
           _FakeDeletionService(deleteTrack),
         ),
-      if (offlineEntries != null)
-        offlineCacheEntriesProvider.overrideWith(offlineEntries),
+      offlineCacheEntriesProvider.overrideWith(
+        (ref) async => offlineEntries?.call(ref) ?? const <CachedAudio>[],
+      ),
+      offlineCacheUsageProvider.overrideWith((ref) async => 0),
     ],
     child: localizedApp(
       MediaQuery(
@@ -283,20 +284,19 @@ void main() {
       expect(find.text('iOS 暂不支持本地曲库'), findsOneWidget);
       expect(find.text('曲库还是空的'), findsNothing);
 
-      // No library-management entry points: add folder, import, rescan, sort.
+      // Local management lives in Me now, not in the library header.
       expect(find.text('添加文件夹'), findsNothing);
       expect(find.text('导入文件'), findsNothing);
-      expect(find.byIcon(AppIcons.sort), findsNothing);
       expect(find.byType(TextField), findsNothing);
 
-      // The Bilibili favourites browser stays available via the more menu.
-      expect(find.byKey(const Key('library_more_menu')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('library_more_menu')));
+      // Online sources remain reachable from the playlists tab; the local
+      // source card is hidden on iOS.
+      expect(find.byKey(const Key('library_more_menu')), findsNothing);
+      expect(find.byKey(const Key('library_sort_menu')), findsOneWidget);
+      await tester.tap(find.text('歌单'));
       await tester.pumpAndSettle();
-      expect(find.text('浏览 B 站收藏夹'), findsOneWidget);
-      // No local-library submenu on iOS.
-      expect(find.text('本地'), findsNothing);
-      expect(find.text('重新扫描'), findsNothing);
+      expect(find.text('B 站收藏夹'), findsOneWidget);
+      expect(find.text('本地曲库'), findsNothing);
       expect(find.text('添加文件夹'), findsNothing);
     } finally {
       debugDefaultTargetPlatformOverride = null;
@@ -646,65 +646,52 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
-  testWidgets('the header row shows the selector and two icons', (
+  testWidgets('the header row shows the tabs and sort/view actions', (
     tester,
   ) async {
     await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('library_filter_selector')), findsOneWidget);
+    expect(find.byType(TabBar), findsOneWidget);
     expect(find.text('全部'), findsOneWidget);
     expect(find.text('收藏'), findsOneWidget);
-    expect(find.byIcon(AppIcons.search), findsOneWidget);
-    expect(find.byKey(const Key('library_more_menu')), findsOneWidget);
-    // The old sort icon is gone: sort lives in the overflow menu now.
-    expect(find.byIcon(AppIcons.sort), findsNothing);
+    expect(find.text('歌单'), findsOneWidget);
+    expect(find.byKey(const Key('library_sort_menu')), findsOneWidget);
+    expect(find.byKey(const Key('library_view_menu')), findsOneWidget);
+    expect(find.byKey(const Key('library_more_menu')), findsNothing);
   });
 
-  testWidgets('swiping the selector changes the filter', (tester) async {
+  testWidgets('tapping the favorites tab changes the filter', (tester) async {
     await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
     await tester.pumpAndSettle();
 
     expect(find.text('Alpha'), findsOneWidget);
 
-    await tester.fling(
-      find.byKey(const Key('library_filter_selector')),
-      const Offset(120, 0),
-      800,
-    );
+    await tester.tap(find.text('收藏'));
     await tester.pumpAndSettle();
 
     // The favourites filter is now active and empty.
     expect(find.text('还没有收藏的歌曲'), findsOneWidget);
   });
 
-  testWidgets('the more menu exposes local, sort and view submenus', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_app(tracks: [_biliTrack('Online', id: 2)]));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('library_more_menu')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('本地'), findsOneWidget);
-    expect(find.text('排序'), findsOneWidget);
-    expect(find.text('视图'), findsOneWidget);
-
-    await tester.tap(find.text('本地'));
-    await tester.pumpAndSettle();
-    expect(find.text('添加文件夹'), findsOneWidget);
-    expect(find.text('重新扫描'), findsOneWidget);
-    expect(find.text('导入文件'), findsOneWidget);
-  });
-
-  testWidgets('the view submenu on 全部 offers all three views', (tester) async {
+  testWidgets('the sort menu offers every sort order', (tester) async {
     await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('library_more_menu')));
+    await tester.tap(find.byKey(const Key('library_sort_menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('视图'));
+
+    expect(find.text('按标题'), findsOneWidget);
+    expect(find.text('按艺术家'), findsOneWidget);
+    expect(find.text('按专辑'), findsOneWidget);
+    expect(find.text('最近添加'), findsOneWidget);
+  });
+
+  testWidgets('the view menu on 全部 offers all three views', (tester) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('library_view_menu')));
     await tester.pumpAndSettle();
 
     expect(find.text('展柜视图'), findsOneWidget);
@@ -712,46 +699,34 @@ void main() {
     expect(find.text('瀑布流视图'), findsOneWidget);
   });
 
-  testWidgets('the more menu does not overflow at 400 px', (tester) async {
+  testWidgets('header actions do not overflow at 400 px', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('library_more_menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('排序'));
+    await tester.tap(find.byKey(const Key('library_sort_menu')));
     await tester.pumpAndSettle();
 
     expect(find.text('最近添加'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sync-disabled local actions are not tappable', (tester) async {
-    await tester.pumpWidget(
-      _app(
-        tracks: [_biliTrack('Alpha', id: 1)],
-        syncState: const LibrarySyncState(
-          phase: LibrarySyncPhase.scanning,
-          discovered: 1,
-          processed: 0,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('library_more_menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('本地'));
+  testWidgets('playlists tab shows source shortcuts and custom playlists', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
     await tester.pumpAndSettle();
 
-    final addFolder = tester.widget<MenuItemButton>(
-      find.ancestor(
-        of: find.text('添加文件夹'),
-        matching: find.byType(MenuItemButton),
-      ),
-    );
-    expect(addFolder.onPressed, isNull);
+    await tester.tap(find.text('歌单'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('离线缓存'), findsOneWidget);
+    expect(find.text('B 站收藏夹'), findsOneWidget);
+    expect(find.text('网易云音乐'), findsOneWidget);
+    expect(find.text('本地曲库'), findsOneWidget);
+    expect(find.text('还没有自建歌单'), findsOneWidget);
   });
 
   testWidgets('全部 track menu offers delete but not remove-from-playlist', (

@@ -28,7 +28,7 @@ import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/empty_state.dart';
 
@@ -51,54 +51,44 @@ class _LocalBrowseScreenState extends ConsumerState<LocalBrowseScreen> {
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
 
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Column(
-              children: [
-                AppPageHeader(
-                  title: l10n.localLibrary,
-                  compact: compact,
-                  leading: IconButton(
-                    key: const Key('local_browse_back'),
-                    tooltip: '',
-                    icon: const Icon(AppIcons.arrowBack),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontal),
-                  child: SegmentedButton<_LocalMode>(
-                    segments: [
-                      ButtonSegment(
-                        value: _LocalMode.artists,
-                        label: Text(l10n.artists),
-                      ),
-                      ButtonSegment(
-                        value: _LocalMode.albums,
-                        label: Text(l10n.albums),
-                      ),
-                    ],
-                    selected: {_mode},
-                    onSelectionChanged: (value) =>
-                        setState(() => _mode = value.first),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Expanded(
-                  child: _mode == _LocalMode.artists
-                      ? const _ArtistList()
-                      : const _AlbumList(),
-                ),
-              ],
+    return AppPageScaffold(
+      width: AppContentKind.standard,
+      header: Column(
+        children: [
+          AppPageHeader(
+            title: l10n.localLibrary,
+            compact: compact,
+            leading: IconButton(
+              key: const Key('local_browse_back'),
+              tooltip: '',
+              icon: const Icon(AppIcons.arrowBack),
+              onPressed: () => Navigator.of(context).maybePop(),
             ),
           ),
-        ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontal),
+            child: SegmentedButton<_LocalMode>(
+              segments: [
+                ButtonSegment(
+                  value: _LocalMode.artists,
+                  label: Text(l10n.artists),
+                ),
+                ButtonSegment(
+                  value: _LocalMode.albums,
+                  label: Text(l10n.albums),
+                ),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (value) =>
+                  setState(() => _mode = value.first),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
       ),
+      body: _mode == _LocalMode.artists
+          ? const _ArtistList()
+          : const _AlbumList(),
     );
   }
 }
@@ -266,53 +256,35 @@ class _LocalTracksScaffold extends ConsumerWidget {
     final playback = ref.watch(playbackStateProvider).value;
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Column(
-              children: [
-                AppPageHeader(
-                  title: title,
-                  compact: compact,
-                  leading: IconButton(
-                    tooltip: '',
-                    icon: const Icon(AppIcons.arrowBack),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                ),
-                Expanded(
-                  child: tracksAsync.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stackTrace) => Center(
-                      child: TextButton.icon(
-                        onPressed: onRetry,
-                        icon: const Icon(AppIcons.refresh),
-                        label: Text(l10n.retry),
-                      ),
-                    ),
-                    data: (tracks) => tracks.isEmpty
-                        ? EmptyState(
-                            icon: AppIcons.musicOff,
-                            title: l10n.noResults,
-                          )
-                        : TrackView(
-                            tracks: tracks,
-                            view: LibraryView.list,
-                            currentUri: playback?.currentTrack?.uri,
-                            isPlaying: playback?.isPlaying ?? false,
-                            onPlay: (index) => _play(ref, tracks, index),
-                          ),
-                  ),
-                ),
-              ],
-            ),
+    return AppPageScaffold(
+      width: AppContentKind.standard,
+      header: AppPageHeader(
+        title: title,
+        compact: compact,
+        leading: IconButton(
+          tooltip: '',
+          icon: const Icon(AppIcons.arrowBack),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: tracksAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) => Center(
+          child: TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(AppIcons.refresh),
+            label: Text(l10n.retry),
           ),
         ),
+        data: (tracks) => tracks.isEmpty
+            ? EmptyState(icon: AppIcons.musicOff, title: l10n.noResults)
+            : TrackView(
+                tracks: tracks,
+                view: LibraryView.list,
+                currentUri: playback?.currentTrack?.uri,
+                isPlaying: playback?.isPlaying ?? false,
+                onPlay: (index) => _play(ref, tracks, index),
+              ),
       ),
     );
   }

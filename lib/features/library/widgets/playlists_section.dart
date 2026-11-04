@@ -20,7 +20,6 @@ import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
-import 'package:flind_player/data/database/playlist_defaults.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/features/library/playlist_detail_screen.dart';
 import 'package:flind_player/features/library/widgets/playlist_card.dart';
@@ -28,20 +27,23 @@ import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/section_header.dart';
 
-/// The 歌单 section of the library: a pinned favourites row followed by every
+/// The 歌单 section of the library: source shortcuts followed by every
 /// user-created playlist.
+///
+/// Favourites have their own library tab, so this section deliberately does
+/// not repeat a favourites row.
 class PlaylistsSection extends ConsumerWidget {
   const PlaylistsSection({
     super.key,
     required this.view,
-    required this.onOpenFavorites,
+    this.header,
   });
 
   /// The layout chosen for the playlists scope (showcase or list).
   final LibraryView view;
 
-  /// Called when the pinned favourites row is tapped.
-  final VoidCallback onOpenFavorites;
+  /// Optional source-shortcut block rendered above the playlists.
+  final Widget? header;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,49 +54,45 @@ class PlaylistsSection extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final horizontal = compact ? 16.0 : 28.0;
     final custom = ref.watch(customPlaylistsProvider);
-    final favoritesCount = ref
-        .watch(playlistTracksProvider(favoritesPlaylistId))
-        .value
-        ?.length;
 
     // The showcase grid needs a cover-sized card; with no custom playlists
     // fall back to the list branch so the empty-state notice stays visible.
     if (view == LibraryView.showcase && custom.isNotEmpty) {
-      return GridView.builder(
-        padding: EdgeInsets.fromLTRB(
-          horizontal,
-          AppSpacing.sm,
-          horizontal,
-          AppSpacing.md + bottomInset,
-        ),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 260,
-          childAspectRatio: 0.82,
-          crossAxisSpacing: 24,
-          mainAxisSpacing: 28,
-        ),
-        itemCount: custom.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return PlaylistCard(
-              playlistId: favoritesPlaylistId,
-              name: l10n.tabFavorites,
-              fallbackIcon: AppIcons.favorite,
-              onTap: onOpenFavorites,
-            );
-          }
-          final playlist = custom[index - 1];
-          return PlaylistCard(
-            playlistId: playlist.id,
-            name: playlist.name,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) =>
-                    PlaylistDetailScreen(playlistId: playlist.id),
-              ),
+      return CustomScrollView(
+        slivers: [
+          if (header != null)
+            SliverToBoxAdapter(child: header),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              AppSpacing.sm,
+              horizontal,
+              AppSpacing.md + bottomInset,
             ),
-          );
-        },
+            sliver: SliverGrid(
+              gridDelegate:
+                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 260,
+                    childAspectRatio: 0.82,
+                    crossAxisSpacing: 24,
+                    mainAxisSpacing: 28,
+                  ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final playlist = custom[index];
+                return PlaylistCard(
+                  playlistId: playlist.id,
+                  name: playlist.name,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) =>
+                          PlaylistDetailScreen(playlistId: playlist.id),
+                    ),
+                  ),
+                );
+              }, childCount: custom.length),
+            ),
+          ),
+        ],
       );
     }
 
@@ -106,7 +104,7 @@ class PlaylistsSection extends ConsumerWidget {
         4 + bottomInset,
       ),
       children: [
-        _FavoritesRow(trackCount: favoritesCount, onTap: onOpenFavorites),
+        ?header,
         if (custom.isEmpty)
           const _EmptyPlaylists()
         else ...[
@@ -114,39 +112,6 @@ class PlaylistsSection extends ConsumerWidget {
           for (final playlist in custom) _PlaylistRow(playlist: playlist),
         ],
       ],
-    );
-  }
-}
-
-/// The pinned favourites row: primary-toned, always first, never deletable.
-class _FavoritesRow extends ConsumerWidget {
-  const _FavoritesRow({required this.trackCount, required this.onTap});
-
-  final int? trackCount;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final cover = ref.watch(playlistCoverProvider(favoritesPlaylistId)).value;
-    final count = trackCount;
-
-    return ListTile(
-      onTap: onTap,
-      leading: _PlaylistCover(
-        cover: cover,
-        size: 48,
-        fallbackIcon: AppIcons.favorite,
-      ),
-      title: Text(
-        l10n.tabFavorites,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: count == null ? null : Text(l10n.playlistTrackCount(count)),
-      trailing: const Icon(AppIcons.chevronRight),
     );
   }
 }
@@ -181,15 +146,10 @@ class _PlaylistRow extends ConsumerWidget {
 
 /// Rounded playlist cover with a tonal fallback icon.
 class _PlaylistCover extends StatelessWidget {
-  const _PlaylistCover({
-    required this.cover,
-    required this.size,
-    this.fallbackIcon = AppIcons.queueMusic,
-  });
+  const _PlaylistCover({required this.cover, required this.size});
 
   final PlaylistCover? cover;
   final double size;
-  final IconData fallbackIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -219,11 +179,15 @@ class _PlaylistCover extends StatelessWidget {
   }
 
   Widget _placeholder(ColorScheme scheme) => Center(
-    child: Icon(fallbackIcon, size: size * 0.5, color: scheme.onSurfaceVariant),
+    child: Icon(
+      AppIcons.queueMusic,
+      size: size * 0.5,
+      color: scheme.onSurfaceVariant,
+    ),
   );
 }
 
-/// Shown when there are no user-created playlists (the favourites row stays).
+/// Shown when there are no user-created playlists.
 class _EmptyPlaylists extends StatelessWidget {
   const _EmptyPlaylists();
 

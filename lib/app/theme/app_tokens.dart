@@ -15,6 +15,28 @@
 
 import 'package:flutter/material.dart';
 
+/// Content-width buckets shared by every full page.
+///
+/// Forms stay narrow for readability, browsing surfaces use the standard
+/// column, and dense libraries/statistics use the wide column.
+enum AppContentKind { form, standard, wide }
+
+/// The maximum content width for an [AppContentKind].
+@immutable
+class AppContentWidth {
+  const AppContentWidth._();
+
+  static const double form = 760;
+  static const double standard = 960;
+  static const double wide = 1120;
+
+  static double of(AppContentKind kind) => switch (kind) {
+    AppContentKind.form => form,
+    AppContentKind.standard => standard,
+    AppContentKind.wide => wide,
+  };
+}
+
 /// Spacing scale in logical pixels, on a 4pt base.
 @immutable
 class AppSpacing {

@@ -137,13 +137,15 @@ flind_player/
 │   │   ├── single_instance/            # 桌面单实例（文件锁 + 唤醒请求）
 │   │   └── tray/                       # 桌面托盘（window_manager 在 main.dart 直接装配）
 │   ├── features/                       # 一屏一目录
-│   │   ├── home/                       # Bilibili 主入口
-│   │   ├── library/
-│   │   ├── player/                      # 播放页 + 歌词视图（Lyric / trackLyricsProvider 驱动）
-│   │   ├── queue/
-│   │   ├── playlists/
-│   │   ├── search/                     # 多源切换搜索（SegmentedButton + onlineSearchProvider）
-│   │   └── settings/                   # 设置 + 账号与登录 Sheet
+│   │   ├── home/                       # 自适应导航壳（发现 / 曲库 / 我的）
+│   │   ├── discover/                   # 发现页：多源搜索 + 每日推荐/最近播放
+│   │   ├── library/                    # 曲库（全部 / 收藏 / 歌单 + 来源卡片）
+│   │   ├── downloads/                  # 离线缓存（下载任务 + 已下载歌曲）
+│   │   ├── me/                         # 我的：账号 / 足迹 / 设置
+│   │   ├── netease/                    # 网易云歌单、专辑、艺人浏览
+│   │   ├── player/                      # 播放页 + 歌词 + 播放器面板
+│   │   ├── playlists/                  # B 站公开收藏夹
+│   │   └── stats/                      # 最近播放 / 播放统计
 │   └── shared/                         # 通用组件、布局断点、扩展
 ├── android/  linux/  windows/  web/  macos/  ios/
 └── docs/

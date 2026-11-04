@@ -31,7 +31,7 @@ import 'package:flind_player/features/library/widgets/track_actions_button.dart'
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -266,35 +266,25 @@ class _BilibiliFavoritesScreenState
     final folder = _openFolder;
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppPageHeader(
-                  leading: IconButton(
-                    icon: const Icon(AppIcons.arrowBack),
-                    tooltip: '',
-                    onPressed: folder == null
-                        ? () => Navigator.of(context).maybePop()
-                        : _backToFolders,
-                  ),
-                  title: folder == null
-                      ? l10n.browseBiliFavorites
-                      : folder.title,
-                ),
-                if (folder == null) _buildUidBar(horizontal),
-                Expanded(child: _buildBody(horizontal)),
-              ],
+    return AppPageScaffold(
+      width: AppContentKind.standard,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppPageHeader(
+            leading: IconButton(
+              icon: const Icon(AppIcons.arrowBack),
+              tooltip: '',
+              onPressed: folder == null
+                  ? () => Navigator.of(context).maybePop()
+                  : _backToFolders,
             ),
+            title: folder == null ? l10n.browseBiliFavorites : folder.title,
           ),
-        ),
+          if (folder == null) _buildUidBar(horizontal),
+        ],
       ),
+      body: _buildBody(horizontal),
     );
   }
 

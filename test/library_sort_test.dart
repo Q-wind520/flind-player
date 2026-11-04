@@ -28,9 +28,11 @@ import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
@@ -142,6 +144,10 @@ Widget _app({
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
       libraryViewsProvider.overrideWith(() => _FakeLibraryViews(view)),
+      offlineCacheEntriesProvider.overrideWith(
+        (ref) async => const <CachedAudio>[],
+      ),
+      offlineCacheUsageProvider.overrideWith((ref) async => 0),
     ],
     child: localizedApp(const LibraryScreen()),
   );
@@ -154,9 +160,7 @@ void main() {
       await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('library_more_menu')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('排序'));
+      await tester.tap(find.byKey(const Key('library_sort_menu')));
       await tester.pumpAndSettle();
 
       expect(find.text('按标题'), findsOneWidget);
@@ -170,9 +174,7 @@ void main() {
       await tester.pumpWidget(_app(tracks: [_track('Alpha'), _track('Beta')]));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('library_more_menu')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('排序'));
+      await tester.tap(find.byKey(const Key('library_sort_menu')));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('按艺术家'));

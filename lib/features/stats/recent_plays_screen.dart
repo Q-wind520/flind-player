@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
@@ -26,7 +27,7 @@ import 'package:flind_player/data/providers/stats_providers.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/empty_state.dart';
 
 /// The tracks most recently played, newest first and de-duplicated.
@@ -41,55 +42,36 @@ class RecentPlaysScreen extends ConsumerWidget {
     final state = ref.watch(playbackStateProvider).value;
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1120),
-            child: Column(
-              children: [
-                AppPageHeader(
-                  title: l10n.recentPlays,
-                  compact: compact,
-                  leading: IconButton(
-                    key: const Key('recent_back'),
-                    tooltip: '',
-                    icon: const Icon(AppIcons.arrowBack),
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                ),
-                Expanded(
-                  child: tracksAsync.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stackTrace) => Center(
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            ref.invalidate(recentPlayEventsProvider),
-                        icon: const Icon(AppIcons.refresh),
-                        label: Text(l10n.retry),
-                      ),
-                    ),
-                    data: (_) => tracks.isEmpty
-                        ? EmptyState(
-                            icon: AppIcons.history,
-                            title: l10n.recentEmpty,
-                          )
-                        : TrackView(
-                            tracks: tracks,
-                            view: LibraryView.list,
-                            currentUri: state?.currentTrack?.uri,
-                            isPlaying: state?.isPlaying ?? false,
-                            onPlay: (index) => _play(ref, tracks, index),
-                          ),
-                  ),
-                ),
-              ],
-            ),
+    return AppPageScaffold(
+      width: AppContentKind.wide,
+      header: AppPageHeader(
+        title: l10n.recentPlays,
+        compact: compact,
+        leading: IconButton(
+          key: const Key('recent_back'),
+          tooltip: '',
+          icon: const Icon(AppIcons.arrowBack),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: tracksAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) => Center(
+          child: TextButton.icon(
+            onPressed: () => ref.invalidate(recentPlayEventsProvider),
+            icon: const Icon(AppIcons.refresh),
+            label: Text(l10n.retry),
           ),
         ),
+        data: (_) => tracks.isEmpty
+            ? EmptyState(icon: AppIcons.history, title: l10n.recentEmpty)
+            : TrackView(
+                tracks: tracks,
+                view: LibraryView.list,
+                currentUri: state?.currentTrack?.uri,
+                isPlaying: state?.isPlaying ?? false,
+                onPlay: (index) => _play(ref, tracks, index),
+              ),
       ),
     );
   }

@@ -18,11 +18,11 @@ import 'package:flutter/material.dart';
 import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
+import 'package:flind_player/features/discover/discover_screen.dart';
 import 'package:flind_player/features/library/library_screen.dart';
+import 'package:flind_player/features/me/me_screen.dart';
 import 'package:flind_player/features/player/desktop_player_bar.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
-import 'package:flind_player/features/search/search_screen.dart';
-import 'package:flind_player/features/settings/settings_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/glass_surface.dart';
@@ -44,33 +44,40 @@ class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
   static const List<Widget> _screens = <Widget>[
-    SearchScreen(),
+    DiscoverScreen(),
     LibraryScreen(),
-    SettingsScreen(),
+    MeScreen(),
   ];
 
-  List<NavigationDestination> _destinations(AppLocalizations l10n) =>
-      <NavigationDestination>[
-        NavigationDestination(
-          icon: const Icon(AppIcons.searchOutlined),
-          selectedIcon: const Icon(AppIcons.search),
-          label: l10n.navSearch,
-          // Empty message suppresses the label hover bubble.
-          tooltip: '',
+  List<_AppDestination> _destinations(AppLocalizations l10n) =>
+      <_AppDestination>[
+        _AppDestination(
+          icon: AppIcons.searchOutlined,
+          selectedIcon: AppIcons.search,
+          label: l10n.discover,
         ),
-        NavigationDestination(
-          icon: const Icon(AppIcons.libraryMusicOutlined),
-          selectedIcon: const Icon(AppIcons.libraryMusic),
+        _AppDestination(
+          icon: AppIcons.libraryMusicOutlined,
+          selectedIcon: AppIcons.libraryMusic,
           label: l10n.navLibrary,
-          tooltip: '',
         ),
-        NavigationDestination(
-          icon: const Icon(AppIcons.settingsOutlined),
-          selectedIcon: const Icon(AppIcons.settings),
-          label: l10n.navSettings,
-          tooltip: '',
+        _AppDestination(
+          icon: AppIcons.accountCircle,
+          selectedIcon: AppIcons.accountCircle,
+          label: l10n.navMe,
         ),
       ];
+
+  List<NavigationDestination> _navDestinations(AppLocalizations l10n) => [
+    for (final destination in _destinations(l10n))
+      NavigationDestination(
+        icon: Icon(destination.icon),
+        selectedIcon: Icon(destination.selectedIcon),
+        label: destination.label,
+        // Empty message suppresses the label hover bubble.
+        tooltip: '',
+      ),
+  ];
 
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) {
@@ -98,23 +105,7 @@ class _HomeShellState extends State<HomeShell> {
                         _NarrowRail(
                           selectedIndex: _selectedIndex,
                           onDestinationSelected: _onDestinationSelected,
-                          destinations: <_RailDestination>[
-                            _RailDestination(
-                              icon: AppIcons.searchOutlined,
-                              selectedIcon: AppIcons.search,
-                              label: l10n.navSearch,
-                            ),
-                            _RailDestination(
-                              icon: AppIcons.libraryMusicOutlined,
-                              selectedIcon: AppIcons.libraryMusic,
-                              label: l10n.navLibrary,
-                            ),
-                            _RailDestination(
-                              icon: AppIcons.settingsOutlined,
-                              selectedIcon: AppIcons.settings,
-                              label: l10n.navSettings,
-                            ),
-                          ],
+                          destinations: _destinations(l10n),
                         ),
                         Expanded(
                           child: IndexedStack(
@@ -138,7 +129,17 @@ class _HomeShellState extends State<HomeShell> {
           // The list extends behind the bottom chrome so the frosted dock
           // blurs it instead of sitting on a flat background.
           extendBody: true,
-          body: IndexedStack(index: _selectedIndex, children: _screens),
+          // The glass dock floats over the content. Reserve its height in the
+          // page padding so the last list item can scroll clear of the dock
+          // and the mini player, while the content still blurs underneath it.
+          body: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              padding: MediaQuery.of(context).padding.copyWith(
+                bottom: MediaQuery.of(context).padding.bottom + 120,
+              ),
+            ),
+            child: IndexedStack(index: _selectedIndex, children: _screens),
+          ),
           bottomNavigationBar: SafeArea(
             top: false,
             minimum: const EdgeInsets.fromLTRB(
@@ -163,7 +164,7 @@ class _HomeShellState extends State<HomeShell> {
                         NavigationDestinationLabelBehavior.onlyShowSelected,
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: _onDestinationSelected,
-                    destinations: _destinations(l10n),
+                    destinations: _navDestinations(l10n),
                   ),
                 ],
               ),
@@ -176,8 +177,8 @@ class _HomeShellState extends State<HomeShell> {
 }
 
 /// One destination in the narrow rail.
-class _RailDestination {
-  const _RailDestination({
+class _AppDestination {
+  const _AppDestination({
     required this.icon,
     required this.selectedIcon,
     required this.label,
@@ -203,7 +204,7 @@ class _NarrowRail extends StatelessWidget {
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
-  final List<_RailDestination> destinations;
+  final List<_AppDestination> destinations;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +239,7 @@ class _RailItem extends StatefulWidget {
     required this.onTap,
   });
 
-  final _RailDestination destination;
+  final _AppDestination destination;
   final bool selected;
   final VoidCallback onTap;
 
@@ -246,41 +247,9 @@ class _RailItem extends StatefulWidget {
   State<_RailItem> createState() => _RailItemState();
 }
 
-class _RailItemState extends State<_RailItem>
-    with SingleTickerProviderStateMixin {
+class _RailItemState extends State<_RailItem> {
   bool _hovered = false;
   bool _focused = false;
-
-  // The compact `NavigationBar`'s label cross-fade, mirrored here so the rail
-  // and the bottom bar reveal a label the same way: 500 ms, emphasised easing,
-  // a mirrored curve while fading back out.
-  static const Duration _labelDuration = Duration(milliseconds: 500);
-
-  late final AnimationController _label = AnimationController(
-    vsync: this,
-    duration: _labelDuration,
-    value: widget.selected ? 1 : 0,
-  );
-
-  late final Animation<double> _labelOpacity = CurvedAnimation(
-    parent: _label,
-    curve: Curves.easeInOutCubicEmphasized,
-    reverseCurve: Curves.easeInOutCubicEmphasized.flipped,
-  );
-
-  @override
-  void didUpdateWidget(covariant _RailItem oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selected != widget.selected) {
-      widget.selected ? _label.forward() : _label.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _label.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -356,17 +325,17 @@ class _RailItemState extends State<_RailItem>
                       ),
                     ),
                     const SizedBox(height: 2),
-                    FadeTransition(
-                      alwaysIncludeSemantics: true,
-                      opacity: _labelOpacity,
-                      child: Text(
-                        widget.destination.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      widget.destination.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: selected
+                            ? scheme.onSurface
+                            : scheme.onSurfaceVariant,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
                       ),
                     ),
                   ],
