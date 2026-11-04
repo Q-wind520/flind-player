@@ -40,6 +40,13 @@ final neteaseRecommendedPlaylistsProvider =
           .recommendedPlaylists();
     });
 
+/// Daily recommended NetEase songs (requires a signed-in account).
+final neteaseRecommendedSongsProvider = FutureProvider.autoDispose<List<Track>>(
+  (ref) {
+    return ref.watch(neteaseRecommendationSourceProvider).recommendedSongs();
+  },
+);
+
 /// Track ids the signed-in user has liked; empty when signed out.
 final neteaseLikedIdsProvider = FutureProvider.autoDispose<Set<String>>((
   ref,

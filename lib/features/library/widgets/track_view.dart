@@ -25,6 +25,7 @@ class TrackView extends StatelessWidget {
     required this.onPlay,
     this.playlistId,
     this.showDeleteTrack = false,
+    this.onReorder,
   });
 
   final List<Track> tracks;
@@ -34,6 +35,9 @@ class TrackView extends StatelessWidget {
   final void Function(int index) onPlay;
   final int? playlistId;
   final bool showDeleteTrack;
+
+  /// When non-null, list view becomes drag-reorderable.
+  final void Function(int oldIndex, int newIndex)? onReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -52,13 +56,41 @@ class TrackView extends StatelessWidget {
 
   Widget _list(double bottomInset, double horizontal) {
     final side = (horizontal - AppSpacing.md).clamp(0.0, 16.0);
+    final padding = EdgeInsets.fromLTRB(
+      side,
+      AppSpacing.xs,
+      side,
+      AppSpacing.md + bottomInset,
+    );
+
+    if (onReorder != null) {
+      return ReorderableListView.builder(
+        padding: padding,
+        itemCount: tracks.length,
+        buildDefaultDragHandles: false,
+        onReorderItem: onReorder!,
+        itemBuilder: (context, index) {
+          final track = tracks[index];
+          final isCurrent = currentUri != null && track.uri == currentUri;
+          return ReorderableDragStartListener(
+            key: ValueKey<String>(track.uri),
+            index: index,
+            child: TrackTile(
+              track: track,
+              isCurrent: isCurrent,
+              isPlaying: isCurrent && isPlaying,
+              unavailable: track.id == null,
+              playlistId: playlistId,
+              showDeleteTrack: showDeleteTrack,
+              onTap: () => onPlay(index),
+            ),
+          );
+        },
+      );
+    }
+
     return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
-        side,
-        AppSpacing.xs,
-        side,
-        AppSpacing.md + bottomInset,
-      ),
+      padding: padding,
       itemCount: tracks.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,

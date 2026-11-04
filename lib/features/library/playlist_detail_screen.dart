@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -143,7 +145,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
                         Expanded(
                           child: tracks.isEmpty
                               ? const _EmptyPlaylist()
-                              : _memberList(ref, tracks),
+                              : _memberList(ref, tracks, playlist),
                         ),
                       ],
                     ),
@@ -222,7 +224,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
     }
   }
 
-  Widget _memberList(WidgetRef ref, List<Track> tracks) {
+  Widget _memberList(WidgetRef ref, List<Track> tracks, Playlist playlist) {
     final view =
         (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults).viewOf(
           LibraryViewScope.playlistDetail,
@@ -235,6 +237,16 @@ class PlaylistDetailScreen extends ConsumerWidget {
       onPlay: (index) => _play(ref, tracks, index),
       playlistId: playlistId,
       showDeleteTrack: true,
+      onReorder: playlist.kind == PlaylistKind.custom
+          ? (oldIndex, newIndex) {
+              if (oldIndex < 0 || oldIndex >= tracks.length) return;
+              unawaited(
+                ref
+                    .read(playlistRepositoryProvider)
+                    .reorderTrack(playlistId, tracks[oldIndex].uri, newIndex),
+              );
+            }
+          : null,
     );
   }
 }

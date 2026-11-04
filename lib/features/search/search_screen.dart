@@ -196,8 +196,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final playlistsAsync = account == null
         ? const AsyncData<List<RemotePlaylist>>(<RemotePlaylist>[])
         : ref.watch(neteaseRecommendedPlaylistsProvider);
+    final dailyAsync = account == null
+        ? const AsyncData<List<Track>>(<Track>[])
+        : ref.watch(neteaseRecommendedSongsProvider);
     final playback = ref.watch(playbackStateProvider).value;
     final current = playback?.currentTrack;
+    final daily = dailyAsync.value ?? const <Track>[];
     final recommended = playlistsAsync.value ?? const <RemotePlaylist>[];
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
@@ -225,6 +229,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               track: current,
               isPlaying: playback?.isPlaying ?? false,
               onTap: () => ref.read(playbackControllerProvider).play(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+        if (daily.isNotEmpty) ...[
+          _DiscoverySection(
+            title: l10n.dailyRecommendations,
+            child: _TrackCarousel(
+              tracks: daily.take(10).toList(growable: false),
+              onPlay: (tracks, index) => _play(tracks, index),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
