@@ -21,15 +21,21 @@ import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/sources/remote_playlist.dart';
+import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/data/providers/netease_library_providers.dart';
 import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/data/providers/stats_providers.dart';
+import 'package:flind_player/features/netease/netease_library_screen.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/app_surface.dart';
 import 'package:flind_player/shared/app_page_header.dart';
+import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/empty_state.dart';
@@ -179,14 +185,85 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildBody(String sourceId) {
-    final l10n = AppLocalizations.of(context);
-    if (_submittedQuery.isEmpty) {
+  /// The landing surface before a query: continue playing, recent tracks and
+  /// recommended NetEase playlists.
+  Widget _buildDiscovery(AppLocalizations l10n) {
+    final recent = ref.watch(recentTracksProvider);
+    final account = ref.watch(authAccountProvider('netease'));
+    // Only signed-in users hit the personalised endpoint here. Anonymous users
+    // still get continue-playing/recent; a cold anonymous start stays a search
+    // prompt instead of firing a network request on every app launch.
+    final playlistsAsync = account == null
+        ? const AsyncData<List<RemotePlaylist>>(<RemotePlaylist>[])
+        : ref.watch(neteaseRecommendedPlaylistsProvider);
+    final playback = ref.watch(playbackStateProvider).value;
+    final current = playback?.currentTrack;
+    final recommended = playlistsAsync.value ?? const <RemotePlaylist>[];
+    final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
+    final horizontal = compact ? 16.0 : 28.0;
+
+    if (current == null && recent.isEmpty && recommended.isEmpty) {
       return EmptyState(
         icon: AppIcons.search,
         title: l10n.searchSourcesTitle,
         message: l10n.searchSourcesHint,
       );
+    }
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        horizontal,
+        0,
+        horizontal,
+        AppSpacing.md + MediaQuery.paddingOf(context).bottom,
+      ),
+      children: [
+        if (current != null) ...[
+          _DiscoverySection(
+            title: l10n.continuePlaying,
+            child: _ContinueCard(
+              track: current,
+              isPlaying: playback?.isPlaying ?? false,
+              onTap: () => ref.read(playbackControllerProvider).play(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+        if (recent.isNotEmpty) ...[
+          _DiscoverySection(
+            title: l10n.recentPlays,
+            child: _TrackCarousel(
+              tracks: recent.take(10).toList(growable: false),
+              onPlay: (tracks, index) => _play(tracks, index),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+        if (recommended.isNotEmpty)
+          _DiscoverySection(
+            title: l10n.recommendedPlaylists,
+            child: playlistsAsync.when(
+              loading: () => const SizedBox(
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (error, stackTrace) => TextButton.icon(
+                onPressed: () =>
+                    ref.invalidate(neteaseRecommendedPlaylistsProvider),
+                icon: const Icon(AppIcons.refresh),
+                label: Text(l10n.retry),
+              ),
+              data: (playlists) => _PlaylistCarousel(playlists: playlists),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBody(String sourceId) {
+    final l10n = AppLocalizations.of(context);
+    if (_submittedQuery.isEmpty) {
+      return _buildDiscovery(l10n);
     }
 
     final resultsAsync = ref.watch(
@@ -243,6 +320,164 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _DiscoverySection extends StatelessWidget {
+  const _DiscoverySection({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        child,
+      ],
+    );
+  }
+}
+
+class _ContinueCard extends StatelessWidget {
+  const _ContinueCard({
+    required this.track,
+    required this.isPlaying,
+    required this.onTap,
+  });
+
+  final Track track;
+  final bool isPlaying;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CoverImage(path: track.coverPath, url: track.coverUrl, size: 56),
+      title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        track.artist ?? '',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Icon(isPlaying ? AppIcons.pause : AppIcons.playArrow, size: 32),
+      onTap: onTap,
+    );
+  }
+}
+
+class _TrackCarousel extends StatelessWidget {
+  const _TrackCarousel({required this.tracks, required this.onPlay});
+
+  final List<Track> tracks;
+  final void Function(List<Track>, int) onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 176,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: tracks.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final track = tracks[index];
+          return _DiscoveryCard(
+            title: track.title,
+            subtitle: track.artist ?? '',
+            coverPath: track.coverPath,
+            coverUrl: track.coverUrl,
+            onTap: () => onPlay(tracks, index),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlaylistCarousel extends StatelessWidget {
+  const _PlaylistCarousel({required this.playlists});
+
+  final List<RemotePlaylist> playlists;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 196,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final playlist = playlists[index];
+          return _DiscoveryCard(
+            title: playlist.title,
+            subtitle: AppLocalizations.of(context)
+                .trackCount(playlist.trackCount),
+            coverUrl: playlist.coverUrl,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (context) => NeteasePlaylistScreen(playlist: playlist),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DiscoveryCard extends StatelessWidget {
+  const _DiscoveryCard({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.coverPath,
+    this.coverUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? coverPath;
+  final String? coverUrl;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: SizedBox(
+        width: 136,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CoverImage(path: coverPath, url: coverUrl, size: 136),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

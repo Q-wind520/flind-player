@@ -31,7 +31,9 @@ abstract final class NeteaseCrypto {
   static const String _base62 =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-  static final Uint8List _iv = Uint8List.fromList(utf8.encode('0102030405060708'));
+  static final Uint8List _iv = Uint8List.fromList(
+    utf8.encode('0102030405060708'),
+  );
   static final BigInt _rsaModulus = BigInt.parse(
     '00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b72515'
     '2b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ec'
@@ -50,7 +52,10 @@ abstract final class NeteaseCrypto {
     Uint8List? secretKey,
   }) {
     final key = secretKey ?? _randomSecretKey();
-    final inner = _aesCbcEncrypt(utf8.encode(jsonEncode(object)), utf8.encode(_presetKey));
+    final inner = _aesCbcEncrypt(
+      utf8.encode(jsonEncode(object)),
+      utf8.encode(_presetKey),
+    );
     final middle = utf8.encode(base64.encode(inner));
     final outer = _aesCbcEncrypt(middle, key);
     return (params: base64.encode(outer), encSecKey: _rsaEncrypt(key));
@@ -63,43 +68,57 @@ abstract final class NeteaseCrypto {
     Map<String, String> header,
   ) {
     final text = jsonEncode(<String, dynamic>{...body, 'header': header});
-    final digest = md5.convert(utf8.encode('nobody${path}use${text}md5forencrypt')).toString();
+    final digest = md5
+        .convert(utf8.encode('nobody${path}use${text}md5forencrypt'))
+        .toString();
     final data = '$path-36cd479b6b5-$text-36cd479b6b5-$digest';
     final encrypted = _aesEcbEncrypt(utf8.encode(data), utf8.encode(eapiKey));
-    return encrypted.map((b) => b.toRadixString(16).padLeft(2, '0')).join().toUpperCase();
+    return encrypted
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join()
+        .toUpperCase();
   }
 
   /// Decrypts an `eapi` `params` payload (used for round-trip tests).
   static String eapiDecrypt(Uint8List cipher) {
-    final padded = PaddedBlockCipherImpl(PKCS7Padding(), ECBBlockCipher(AESEngine()))
-      ..init(
-        false,
-        PaddedBlockCipherParameters(KeyParameter(Uint8List.fromList(utf8.encode(eapiKey))), null),
-      );
+    final padded =
+        PaddedBlockCipherImpl(PKCS7Padding(), ECBBlockCipher(AESEngine()))
+          ..init(
+            false,
+            PaddedBlockCipherParameters(
+              KeyParameter(Uint8List.fromList(utf8.encode(eapiKey))),
+              null,
+            ),
+          );
     return utf8.decode(padded.process(cipher));
   }
 
   static Uint8List _aesCbcEncrypt(List<int> data, List<int> key) {
-    final cipher = PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
-      ..init(
-        true,
-        PaddedBlockCipherParameters(
-          ParametersWithIV(
-            KeyParameter(Uint8List.fromList(key)),
-            Uint8List.fromList(_iv),
-          ),
-          null,
-        ),
-      );
+    final cipher =
+        PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
+          ..init(
+            true,
+            PaddedBlockCipherParameters(
+              ParametersWithIV(
+                KeyParameter(Uint8List.fromList(key)),
+                Uint8List.fromList(_iv),
+              ),
+              null,
+            ),
+          );
     return cipher.process(Uint8List.fromList(data));
   }
 
   static Uint8List _aesEcbEncrypt(List<int> data, List<int> key) {
-    final cipher = PaddedBlockCipherImpl(PKCS7Padding(), ECBBlockCipher(AESEngine()))
-      ..init(
-        true,
-        PaddedBlockCipherParameters(KeyParameter(Uint8List.fromList(key)), null),
-      );
+    final cipher =
+        PaddedBlockCipherImpl(PKCS7Padding(), ECBBlockCipher(AESEngine()))
+          ..init(
+            true,
+            PaddedBlockCipherParameters(
+              KeyParameter(Uint8List.fromList(key)),
+              null,
+            ),
+          );
     return cipher.process(Uint8List.fromList(data));
   }
 

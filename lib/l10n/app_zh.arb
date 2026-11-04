@@ -316,5 +316,13 @@
   "downloadsActive": "进行中",
   "downloadsFinished": "已完成",
   "downloadMissingTrack": "曲目已不在曲库",
-  "downloadClearFinished": "清除已完成"
+  "downloadClearFinished": "清除已完成",
+  "neteaseLibrary": "网易云音乐",
+  "myPlaylists": "我的歌单",
+  "recommendedPlaylists": "推荐歌单",
+  "loginToSeeNetease": "登录网易云后查看我的歌单",
+  "neteasePlaylistEmpty": "这个歌单还没有歌曲",
+  "neteaseLoginRequired": "登录网易云后可用",
+  "continuePlaying": "继续播放",
+  "discover": "发现"
 }

@@ -38,6 +38,7 @@ import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dar
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
 import 'package:flind_player/features/downloads/downloads_screen.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
+import 'package:flind_player/features/netease/netease_library_screen.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/features/stats/playback_stats_screen.dart';
 import 'package:flind_player/features/stats/recent_plays_screen.dart';
@@ -159,6 +160,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Future<void> _openDownloads() {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (context) => const DownloadsScreen()),
+    );
+  }
+
+  Future<void> _openNeteaseLibrary() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const NeteaseLibraryScreen(),
+      ),
     );
   }
 
@@ -520,6 +529,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             unawaited(_openPlaybackStats());
           },
           child: Text(l10n.playbackStats),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(AppIcons.cloud),
+          onPressed: () {
+            _menuController.close();
+            unawaited(_openNeteaseLibrary());
+          },
+          child: Text(l10n.neteaseLibrary),
         ),
         MenuItemButton(
           leadingIcon: const Icon(AppIcons.cloud),

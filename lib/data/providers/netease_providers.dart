@@ -19,6 +19,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/core/sources/remote_library.dart';
+import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/data/providers/auth_core_providers.dart';
 import 'package:flind_player/data/sources/bilibili/rate_limiter.dart';
 import 'package:flind_player/data/sources/netease/netease_api.dart';
@@ -64,4 +66,16 @@ final neteaseSourceProvider = Provider<NeteaseSource>(
     api: ref.watch(neteaseApiProvider),
     cookieJar: ref.watch(authCookieJarProvider),
   ),
+);
+
+/// NetEase's account playlists and playlist tracks behind the generic
+/// [RemotePlaylistSource] interface.
+final neteaseRemotePlaylistSourceProvider = Provider<RemotePlaylistSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase recommendations behind the generic [RecommendationSource]
+/// interface.
+final neteaseRecommendationSourceProvider = Provider<RecommendationSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
 );

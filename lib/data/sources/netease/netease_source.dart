@@ -21,6 +21,10 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/lrc_parser.dart';
 import 'package:flind_player/core/services/lyrics_provider.dart';
 import 'package:flind_player/core/sources/music_source.dart';
+import 'package:flind_player/core/sources/remote_album.dart';
+import 'package:flind_player/core/sources/remote_artist.dart';
+import 'package:flind_player/core/sources/remote_library.dart';
+import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/core/sources/stream_resolver.dart';
 import 'package:flind_player/data/auth/auth_cookie_jar.dart';
@@ -34,7 +38,16 @@ import 'package:flind_player/data/sources/netease/netease_models.dart';
 /// The source itself works anonymously; a signed-in cookie jar raises the
 /// requested stream tier to `exhigh`, with a standard fallback for accounts
 /// that cannot access it.
-class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
+class NeteaseSource
+    implements
+        MusicSource,
+        StreamResolver,
+        LyricsProvider,
+        RemotePlaylistSource,
+        RecommendationSource,
+        RemoteAlbumSource,
+        RemoteArtistSource,
+        LikeSource {
   final NeteaseApi _api;
   final AuthCookieJar? _cookieJar;
 
@@ -124,6 +137,170 @@ class NeteaseSource implements MusicSource, StreamResolver, LyricsProvider {
       return uri.replace(scheme: 'https');
     }
     return uri;
+  }
+
+  @override
+  Future<List<RemotePlaylist>> playlistsForUser(String userId) async {
+    final uid = int.tryParse(userId);
+    if (uid == null) return const <RemotePlaylist>[];
+    final playlists = await _api.userPlaylists(uid);
+    return playlists.map(_playlistToRemote).toList(growable: false);
+  }
+
+  @override
+  Future<RemoteTrackPage> playlistTracks(
+    String playlistId, {
+    int page = 1,
+  }) async {
+    final id = int.tryParse(playlistId);
+    if (id == null) {
+      return const RemoteTrackPage(
+        tracks: <Track>[],
+        page: 1,
+        hasMore: false,
+        totalCount: 0,
+      );
+    }
+    final detail = await _api.playlistDetail(id);
+    final tracks = detail == null
+        ? const <Track>[]
+        : detail.songs.map(neteaseSongToTrack).toList(growable: false);
+    return RemoteTrackPage(
+      tracks: tracks,
+      page: 1,
+      hasMore: false,
+      totalCount: tracks.length,
+    );
+  }
+
+  @override
+  Future<List<RemotePlaylist>> recommendedPlaylists({int limit = 30}) async {
+    final playlists = await _api.recommendedPlaylists(limit: limit);
+    return playlists.map(_playlistToRemote).toList(growable: false);
+  }
+
+  @override
+  Future<List<Track>> recommendedSongs() async {
+    final songs = await _api.recommendedSongs();
+    return songs.map(neteaseSongToTrack).toList(growable: false);
+  }
+
+  @override
+  Future<RemoteAlbum?> album(String albumId) async {
+    final id = int.tryParse(albumId);
+    if (id == null) return null;
+    final detail = await _api.albumDetail(id);
+    return detail == null ? null : _albumToRemote(detail.album);
+  }
+
+  @override
+  Future<RemoteTrackPage> albumTracks(String albumId, {int page = 1}) async {
+    final id = int.tryParse(albumId);
+    if (id == null) {
+      return const RemoteTrackPage(
+        tracks: <Track>[],
+        page: 1,
+        hasMore: false,
+        totalCount: 0,
+      );
+    }
+    final detail = await _api.albumDetail(id);
+    final tracks = detail == null
+        ? const <Track>[]
+        : detail.songs.map(neteaseSongToTrack).toList(growable: false);
+    return RemoteTrackPage(
+      tracks: tracks,
+      page: 1,
+      hasMore: false,
+      totalCount: tracks.length,
+    );
+  }
+
+  @override
+  Future<RemoteArtist?> artist(String artistId) async {
+    final id = int.tryParse(artistId);
+    if (id == null) return null;
+    final artist = await _api.artistDetail(id);
+    return artist == null ? null : _artistToRemote(artist);
+  }
+
+  @override
+  Future<RemoteTrackPage> artistSongs(String artistId, {int page = 1}) async {
+    final id = int.tryParse(artistId);
+    if (id == null) {
+      return const RemoteTrackPage(
+        tracks: <Track>[],
+        page: 1,
+        hasMore: false,
+        totalCount: 0,
+      );
+    }
+    final songs = await _api.artistSongs(id, offset: (page - 1) * 100);
+    final tracks = songs.map(neteaseSongToTrack).toList(growable: false);
+    return RemoteTrackPage(
+      tracks: tracks,
+      page: page,
+      hasMore: songs.length >= 100,
+      totalCount: tracks.length,
+    );
+  }
+
+  @override
+  Future<List<RemoteAlbum>> artistAlbums(
+    String artistId, {
+    int page = 1,
+  }) async {
+    final id = int.tryParse(artistId);
+    if (id == null) return const <RemoteAlbum>[];
+    final albums = await _api.artistAlbums(id, offset: (page - 1) * 50);
+    return albums.map(_albumToRemote).toList(growable: false);
+  }
+
+  @override
+  Future<Set<String>> likedTrackIds(String userId) async {
+    final uid = int.tryParse(userId);
+    if (uid == null) return <String>{};
+    final ids = await _api.likedSongIds(uid);
+    return ids.map((id) => '$id').toSet();
+  }
+
+  @override
+  Future<void> setLiked(String trackId, bool liked) async {
+    final id = int.tryParse(trackId);
+    if (id == null) return;
+    await _api.setLiked(id, liked);
+  }
+
+  RemotePlaylist _playlistToRemote(NeteasePlaylistDto playlist) {
+    return RemotePlaylist(
+      id: '${playlist.id}',
+      title: playlist.name,
+      coverUrl: playlist.coverUrl,
+      trackCount: playlist.trackCount,
+    );
+  }
+
+  RemoteAlbum _albumToRemote(NeteaseAlbumDto album) {
+    return RemoteAlbum(
+      id: '${album.id}',
+      title: album.name,
+      coverUrl: album.coverUrl,
+      artist: album.artist,
+      trackCount: album.trackCount,
+      year: album.publishTime == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(album.publishTime!).year,
+    );
+  }
+
+  RemoteArtist _artistToRemote(NeteaseArtistDto artist) {
+    return RemoteArtist(
+      id: '${artist.id}',
+      name: artist.name,
+      avatarUrl: artist.avatarUrl,
+      albumCount: artist.albumCount,
+      songCount: artist.songCount,
+    );
   }
 
   @override

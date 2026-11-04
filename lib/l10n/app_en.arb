@@ -546,5 +546,13 @@
   "downloadsActive": "In progress",
   "downloadsFinished": "Downloaded",
   "downloadMissingTrack": "Track is no longer in the library",
-  "downloadClearFinished": "Clear completed"
+  "downloadClearFinished": "Clear completed",
+  "neteaseLibrary": "NetEase Cloud Music",
+  "myPlaylists": "My playlists",
+  "recommendedPlaylists": "Recommended playlists",
+  "loginToSeeNetease": "Sign in to NetEase to see your playlists",
+  "neteasePlaylistEmpty": "This playlist is empty",
+  "neteaseLoginRequired": "Sign in to NetEase to use this",
+  "continuePlaying": "Continue playing",
+  "discover": "Discover"
 }
