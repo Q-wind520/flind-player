@@ -22,8 +22,10 @@ import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/remote_playlist.dart';
+import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/netease_library_providers.dart';
+import 'package:flind_player/data/providers/netease_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
@@ -214,6 +216,10 @@ class NeteasePlaylistScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final tracksAsync = ref.watch(neteasePlaylistTracksProvider(playlist.id));
     final state = ref.watch(playbackStateProvider).value;
+    final account = ref.watch(authAccountProvider('netease'));
+    final liked = account == null
+        ? const <String>{}
+        : (ref.watch(neteaseLikedIdsProvider).value ?? const <String>{});
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
 
     return Scaffold(
@@ -271,12 +277,25 @@ class NeteasePlaylistScreen extends ConsumerWidget {
                             ),
                             itemBuilder: (context, index) {
                               final track = tracks[index];
+                              final likedId =
+                                  track.sourceTrackId is NeteaseTrackId
+                                  ? '${(track.sourceTrackId as NeteaseTrackId).songId}'
+                                  : null;
                               return _TrackRow(
                                 track: track,
                                 isCurrent:
                                     state?.currentTrack?.uri == track.uri,
                                 isPlaying: state?.isPlaying ?? false,
+                                isLiked:
+                                    likedId != null && liked.contains(likedId),
                                 onTap: () => _play(ref, tracks, index),
+                                onLike: account == null || likedId == null
+                                    ? null
+                                    : () => _toggleLike(
+                                        ref,
+                                        likedId,
+                                        liked.contains(likedId),
+                                      ),
                               );
                             },
                           ),
@@ -298,6 +317,11 @@ class NeteasePlaylistScreen extends ConsumerWidget {
     );
     ref.read(playbackControllerProvider).playQueue(queue, index: index);
   }
+
+  Future<void> _toggleLike(WidgetRef ref, String songId, bool liked) async {
+    await ref.read(neteaseLikeSourceProvider).setLiked(songId, !liked);
+    ref.invalidate(neteaseLikedIdsProvider);
+  }
 }
 
 class _TrackRow extends StatelessWidget {
@@ -305,13 +329,17 @@ class _TrackRow extends StatelessWidget {
     required this.track,
     required this.isCurrent,
     required this.isPlaying,
+    required this.isLiked,
     required this.onTap,
+    this.onLike,
   });
 
   final Track track;
   final bool isCurrent;
   final bool isPlaying;
+  final bool isLiked;
   final VoidCallback onTap;
+  final VoidCallback? onLike;
 
   @override
   Widget build(BuildContext context) {
@@ -329,9 +357,22 @@ class _TrackRow extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: isCurrent && isPlaying
-          ? Icon(AppIcons.graphicEq, color: theme.colorScheme.primary)
-          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCurrent && isPlaying)
+            Icon(AppIcons.graphicEq, color: theme.colorScheme.primary),
+          if (onLike != null)
+            IconButton(
+              tooltip: '',
+              onPressed: onLike,
+              icon: Icon(
+                isLiked ? AppIcons.favoriteActive : AppIcons.favoriteBorder,
+                color: isLiked ? theme.colorScheme.error : null,
+              ),
+            ),
+        ],
+      ),
       onTap: onTap,
     );
   }

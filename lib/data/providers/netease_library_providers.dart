@@ -38,6 +38,15 @@ final neteaseRecommendedPlaylistsProvider =
           .recommendedPlaylists();
     });
 
+/// Track ids the signed-in user has liked; empty when signed out.
+final neteaseLikedIdsProvider = FutureProvider.autoDispose<Set<String>>((
+  ref,
+) async {
+  final account = ref.watch(authAccountProvider('netease'));
+  if (account == null) return <String>{};
+  return ref.watch(neteaseLikeSourceProvider).likedTrackIds(account.userId);
+});
+
 /// Tracks in one NetEase playlist.
 final neteasePlaylistTracksProvider = FutureProvider.autoDispose
     .family<List<Track>, String>((ref, id) async {

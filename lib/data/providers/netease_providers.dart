@@ -79,3 +79,8 @@ final neteaseRemotePlaylistSourceProvider = Provider<RemotePlaylistSource>(
 final neteaseRecommendationSourceProvider = Provider<RecommendationSource>(
   (ref) => ref.watch(neteaseSourceProvider),
 );
+
+/// NetEase like state behind the generic [LikeSource] interface.
+final neteaseLikeSourceProvider = Provider<LikeSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
