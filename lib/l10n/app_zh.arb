@@ -333,5 +333,7 @@
   "noAlbums": "没有找到专辑",
   "noArtists": "没有找到歌手",
   "localLibrary": "本地艺人/专辑",
-  "dailyRecommendations": "每日推荐"
+  "dailyRecommendations": "每日推荐",
+  "lyricOffset": "歌词偏移",
+  "lyricOffsetReset": "重置"
 }

@@ -89,6 +89,7 @@ class AppIcons {
   static const IconData radioButtonChecked = LucideIcons.circleDot;
   static const IconData radioButtonUnchecked = LucideIcons.circle;
   static const IconData refresh = LucideIcons.refreshCw;
+  static const IconData remove = LucideIcons.minus;
   static const IconData repeat = LucideIcons.repeat;
   static const IconData repeatOne = LucideIcons.repeat1;
   static const IconData sdStorage = LucideIcons.hardDrive;

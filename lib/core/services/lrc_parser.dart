@@ -18,7 +18,10 @@ import 'package:flind_player/core/models/lyric.dart';
 export 'package:flind_player/core/models/lyric.dart';
 
 final RegExp _timeTag = RegExp(r'\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]');
-final RegExp _offsetTag = RegExp(r'\[offset:([+-]?\d+)\]', caseSensitive: false);
+final RegExp _offsetTag = RegExp(
+  r'\[offset:([+-]?\d+)\]',
+  caseSensitive: false,
+);
 const String _pureMusicMarker = '纯音乐，请欣赏';
 
 /// Parses an LRC document into a [Lyric], merging an optional translation.
@@ -50,6 +53,109 @@ Lyric? parseLrc(String? original, {String? translation}) {
       )
       .toList(growable: false);
   return Lyric(lines);
+}
+
+final RegExp _yrcLine = RegExp(r'\[(\d+),\s*(\d+)\](.*)$');
+final RegExp _yrcWord = RegExp(r'\((\d+),\s*(\d+),\s*[-\d]+\)([^()\r\n]*)');
+
+/// Parses a NetEase YRC document with optional translated lines.
+///
+/// Format: `[startMs,durationMs](wordStartMs,wordDurationMs,?)text...`.
+/// Relative word timestamps (the common case for NetEase) are promoted to
+/// absolute by adding the line start; a 250 ms tolerance matches the Android /
+/// NeriPlayer normalisation.
+Lyric? parseYrc(String? original, {String? translation}) {
+  if (original == null || original.trim().isEmpty) return null;
+
+  final translations = <int, String>{};
+  if (translation != null) {
+    for (final entry in _parseTimed(translation)) {
+      if (entry.value.isNotEmpty) translations[entry.key] = entry.value;
+    }
+  }
+
+  final lines = <LyricLine>[];
+  for (final rawLine in original.split('\n')) {
+    final match = _yrcLine.firstMatch(rawLine.trim());
+    if (match == null) continue;
+    final lineStart = int.tryParse(match.group(1)!) ?? 0;
+    final rest = match.group(3) ?? '';
+
+    final words = <LyricWord>[];
+    for (final wordMatch in _yrcWord.allMatches(rest)) {
+      final start = int.tryParse(wordMatch.group(1)!) ?? 0;
+      final duration = int.tryParse(wordMatch.group(2)!) ?? 0;
+      final text = wordMatch.group(3) ?? '';
+      if (text.isEmpty) continue;
+      words.add(
+        LyricWord(
+          start: Duration(milliseconds: start),
+          end: Duration(milliseconds: start + duration),
+          text: text,
+        ),
+      );
+    }
+
+    _normaliseYrcSpacing(words);
+    var text = words.isEmpty
+        ? rest.trim()
+        : words.map((word) => word.text).join();
+    if (text.trim().isEmpty) continue;
+
+    final firstStart = words.isEmpty ? null : words.first.start.inMilliseconds;
+    final relative = firstStart != null && firstStart < lineStart - 250;
+    if (relative) {
+      for (var i = 0; i < words.length; i++) {
+        final word = words[i];
+        words[i] = LyricWord(
+          start: Duration(milliseconds: lineStart + word.start.inMilliseconds),
+          end: Duration(milliseconds: lineStart + word.end.inMilliseconds),
+          text: word.text,
+        );
+      }
+    }
+
+    lines.add(
+      LyricLine(
+        timestamp: Duration(milliseconds: lineStart),
+        text: text,
+        translation: translations[lineStart],
+        words: List<LyricWord>.unmodifiable(words),
+      ),
+    );
+  }
+
+  if (lines.isEmpty) return null;
+  final order = List<int>.generate(lines.length, (i) => i);
+  order.sort((a, b) {
+    final byTime = lines[a].timestamp.compareTo(lines[b].timestamp);
+    return byTime != 0 ? byTime : a.compareTo(b);
+  });
+  return Lyric(<LyricLine>[for (final i in order) lines[i]]);
+}
+
+void _normaliseYrcSpacing(List<LyricWord> words) {
+  if (words.length < 2) return;
+  for (var i = 0; i < words.length - 1; i++) {
+    final prevText = words[i].text;
+    final nextText = words[i + 1].text;
+    if (prevText.isEmpty || nextText.isEmpty) continue;
+    final prev = prevText.codeUnitAt(prevText.length - 1);
+    final next = nextText.codeUnitAt(0);
+    if (_isAsciiWordChar(prev) && _isAsciiWordChar(next)) {
+      words[i] = LyricWord(
+        start: words[i].start,
+        end: words[i].end,
+        text: '$prevText ',
+      );
+    }
+  }
+}
+
+bool _isAsciiWordChar(int code) {
+  return (code >= 0x30 && code <= 0x39) ||
+      (code >= 0x41 && code <= 0x5a) ||
+      (code >= 0x61 && code <= 0x7a);
 }
 
 List<MapEntry<int, String>> _parseTimed(String raw) {

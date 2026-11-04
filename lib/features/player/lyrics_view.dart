@@ -56,6 +56,10 @@ class LyricsView extends ConsumerWidget {
     final lyric = track == null
         ? null
         : ref.watch(trackLyricsProvider(track)).value;
+    final offset = track == null
+        ? Duration.zero
+        : (ref.watch(lyricOffsetProvider(track.uri)).value ?? Duration.zero);
+    final adjusted = position - offset;
 
     if (track == null || lyric == null || lyric.lines.isEmpty) {
       return _LyricsPlaceholder(l10n: l10n, track: track, onTap: onTap);
@@ -64,7 +68,8 @@ class LyricsView extends ConsumerWidget {
     return _LyricsScroll(
       key: ValueKey<String>(track.uri),
       lyric: lyric,
-      currentIndex: lyric.indexAt(position) ?? 0,
+      position: adjusted,
+      currentIndex: lyric.indexAt(adjusted) ?? 0,
       onTap: onTap,
     );
   }
@@ -85,6 +90,7 @@ class _LyricsScroll extends StatefulWidget {
   const _LyricsScroll({
     super.key,
     required this.lyric,
+    required this.position,
     required this.currentIndex,
     this.onTap,
     this.compact = false,
@@ -92,6 +98,9 @@ class _LyricsScroll extends StatefulWidget {
   });
 
   final Lyric lyric;
+
+  /// Offset-adjusted playback position.
+  final Duration position;
 
   /// Index of the line covering the playback position.
   final int currentIndex;
@@ -157,6 +166,7 @@ class _LyricsScrollState extends State<_LyricsScroll> {
                 _LyricLineTile(
                   key: index == widget.currentIndex ? _currentLineKey : null,
                   line: widget.lyric.lines[index],
+                  position: widget.position,
                   isCurrent: index == widget.currentIndex,
                   compact: widget.compact,
                   theme: theme,
@@ -174,12 +184,14 @@ class _LyricLineTile extends StatelessWidget {
   const _LyricLineTile({
     super.key,
     required this.line,
+    required this.position,
     required this.isCurrent,
     required this.theme,
     this.compact = false,
   });
 
   final LyricLine line;
+  final Duration position;
   final bool isCurrent;
   final ThemeData theme;
 
@@ -205,22 +217,7 @@ class _LyricLineTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Text(
-            line.text,
-            textAlign: TextAlign.center,
-            style:
-                (compact && !isCurrent
-                        ? theme.textTheme.bodyMedium
-                        : theme.textTheme.titleMedium)
-                    ?.copyWith(
-                      color: isCurrent
-                          ? scheme.primary
-                          : compact
-                          ? scheme.onSurfaceVariant.withValues(alpha: 0.66)
-                          : scheme.onSurfaceVariant,
-                      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
-                    ),
-          ),
+          _lineText(scheme),
           if (showTranslation)
             Text(
               line.translation!,
@@ -233,6 +230,45 @@ class _LyricLineTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _lineText(ColorScheme scheme) {
+    final style =
+        (compact && !isCurrent
+                ? theme.textTheme.bodyMedium
+                : theme.textTheme.titleMedium)
+            ?.copyWith(
+              color: isCurrent
+                  ? scheme.primary
+                  : compact
+                  ? scheme.onSurfaceVariant.withValues(alpha: 0.66)
+                  : scheme.onSurfaceVariant,
+              fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+            );
+
+    if (line.words.isEmpty) {
+      return Text(line.text, textAlign: TextAlign.center, style: style);
+    }
+
+    final active = isCurrent ? line.wordIndexAt(position) : null;
+    return Text.rich(
+      TextSpan(
+        children: [
+          for (var i = 0; i < line.words.length; i++)
+            TextSpan(
+              text: line.words[i].text,
+              style: i == active
+                  ? TextStyle(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w700,
+                    )
+                  : null,
+            ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+      style: style,
     );
   }
 }
@@ -366,6 +402,10 @@ class LyricsPreview extends ConsumerWidget {
     final lyric = track == null
         ? null
         : ref.watch(trackLyricsProvider(track)).value;
+    final offset = track == null
+        ? Duration.zero
+        : (ref.watch(lyricOffsetProvider(track.uri)).value ?? Duration.zero);
+    final adjusted = position - offset;
 
     if (track == null || lyric == null || lyric.lines.isEmpty) {
       return _LyricsPreviewPlaceholder(l10n: l10n, onTap: onTap);
@@ -393,7 +433,8 @@ class LyricsPreview extends ConsumerWidget {
           child: _LyricsScroll(
             key: ValueKey<String>(track.uri),
             lyric: lyric,
-            currentIndex: lyric.indexAt(position) ?? 0,
+            position: adjusted,
+            currentIndex: lyric.indexAt(adjusted) ?? 0,
             compact: true,
             verticalPadding: padding,
             onTap: onTap,

@@ -133,6 +133,7 @@ class NeteaseApi {
         'lv': -1,
         'tv': -1,
         'rv': -1,
+        'yv': -1,
         'kv': -1,
         'csrf_token': '',
       }),

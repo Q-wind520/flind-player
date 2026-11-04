@@ -563,5 +563,7 @@
   "noAlbums": "No albums found",
   "noArtists": "No artists found",
   "localLibrary": "Local artists & albums",
-  "dailyRecommendations": "Daily recommendations"
+  "dailyRecommendations": "Daily recommendations",
+  "lyricOffset": "Lyric offset",
+  "lyricOffsetReset": "Reset"
 }

@@ -190,9 +190,17 @@ class NeteaseUrlDto {
 class NeteaseLyricDto {
   final String? lrc;
   final String? translation;
+  final String? yrc;
+  final String? yrcTranslation;
   final String? roma;
 
-  const NeteaseLyricDto({this.lrc, this.translation, this.roma});
+  const NeteaseLyricDto({
+    this.lrc,
+    this.translation,
+    this.yrc,
+    this.yrcTranslation,
+    this.roma,
+  });
 
   factory NeteaseLyricDto.fromJson(Map<String, dynamic> json) {
     String? text(Object? node) {
@@ -204,6 +212,8 @@ class NeteaseLyricDto {
     return NeteaseLyricDto(
       lrc: text(json['lrc']),
       translation: text(json['tlyric']),
+      yrc: text(json['yrc']),
+      yrcTranslation: text(json['ytlrc']),
       roma: text(json['romalrc']),
     );
   }

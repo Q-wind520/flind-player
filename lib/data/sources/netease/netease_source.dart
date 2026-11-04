@@ -321,6 +321,9 @@ class NeteaseSource
     final id = track.sourceTrackId;
     if (id is! NeteaseTrackId) return null;
     final dto = await _api.songLyric(id.songId);
-    return parseLrc(dto.lrc, translation: dto.translation);
+    // Prefer YRC: it carries word timings and usually the same translated
+    // lines; plain LRC remains the fallback for older/anonymous responses.
+    return parseYrc(dto.yrc, translation: dto.yrcTranslation) ??
+        parseLrc(dto.lrc, translation: dto.translation);
   }
 }

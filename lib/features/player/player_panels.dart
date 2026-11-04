@@ -24,6 +24,7 @@ import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
+import 'package:flind_player/data/providers/lyrics_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/library/widgets/playlist_picker_sheet.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
@@ -276,6 +277,10 @@ class PlayerTunePanel extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final speed = ref.watch(playbackStateProvider).value?.speed ?? 1.0;
     final controller = ref.read(playbackControllerProvider);
+    final track = ref.watch(playbackStateProvider).value?.currentTrack;
+    final offset = track == null
+        ? Duration.zero
+        : (ref.watch(lyricOffsetProvider(track.uri)).value ?? Duration.zero);
     final percent = (speed * 100).round();
 
     return Column(
@@ -334,12 +339,85 @@ class PlayerTunePanel extends ConsumerWidget {
                   ],
                 ),
               ),
+              if (track != null) ...[
+                const Divider(height: 24),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        AppIcons.lyrics,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(l10n.lyricOffset, style: theme.textTheme.titleSmall),
+                      const Spacer(),
+                      Text(
+                        _formatLyricOffset(offset),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        key: const Key('lyric_offset_minus'),
+                        onPressed: () => _setLyricOffset(
+                          ref,
+                          track.uri,
+                          offset - const Duration(milliseconds: 100),
+                        ),
+                        icon: const Icon(AppIcons.remove),
+                      ),
+                      TextButton(
+                        key: const Key('lyric_offset_reset'),
+                        onPressed: () =>
+                            _setLyricOffset(ref, track.uri, Duration.zero),
+                        child: Text(l10n.lyricOffsetReset),
+                      ),
+                      IconButton(
+                        key: const Key('lyric_offset_plus'),
+                        onPressed: () => _setLyricOffset(
+                          ref,
+                          track.uri,
+                          offset + const Duration(milliseconds: 100),
+                        ),
+                        icon: const Icon(AppIcons.add),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ],
     );
   }
+}
+
+void _setLyricOffset(WidgetRef ref, String trackUri, Duration offset) {
+  final clamped = Duration(
+    milliseconds: offset.inMilliseconds.clamp(-30000, 30000),
+  );
+  unawaited(
+    ref
+        .read(lyricOffsetRepositoryProvider)
+        .setOffset(trackUri, clamped)
+        .then((_) => ref.invalidate(lyricOffsetProvider(trackUri))),
+  );
+}
+
+String _formatLyricOffset(Duration offset) {
+  final ms = offset.inMilliseconds;
+  final sign = ms > 0 ? '+' : '';
+  return '$sign${(ms / 1000).toStringAsFixed(1)}s';
 }
 
 /// Formats a playback rate as `1.0×`, `1.5×`, ...
