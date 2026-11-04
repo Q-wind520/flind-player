@@ -45,6 +45,7 @@ class NeteaseSource
         LyricsProvider,
         RemotePlaylistSource,
         RecommendationSource,
+        RemoteSearchSource,
         RemoteAlbumSource,
         RemoteArtistSource,
         LikeSource {
@@ -183,6 +184,18 @@ class NeteaseSource
   Future<List<Track>> recommendedSongs() async {
     final songs = await _api.recommendedSongs();
     return songs.map(neteaseSongToTrack).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteAlbum>> searchAlbums(String query, {int page = 1}) async {
+    final albums = await _api.searchAlbums(query, page: page);
+    return albums.map(_albumToRemote).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteArtist>> searchArtists(String query, {int page = 1}) async {
+    final artists = await _api.searchArtists(query, page: page);
+    return artists.map(_artistToRemote).toList(growable: false);
   }
 
   @override

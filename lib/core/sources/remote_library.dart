@@ -29,6 +29,12 @@ abstract interface class RecommendationSource {
   Future<List<Track>> recommendedSongs();
 }
 
+/// A source that can search albums and artists without going through tracks.
+abstract interface class RemoteSearchSource {
+  Future<List<RemoteAlbum>> searchAlbums(String query, {int page = 1});
+  Future<List<RemoteArtist>> searchArtists(String query, {int page = 1});
+}
+
 /// A source that exposes album pages.
 abstract interface class RemoteAlbumSource {
   Future<RemoteAlbum?> album(String albumId);

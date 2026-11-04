@@ -554,5 +554,12 @@
   "neteasePlaylistEmpty": "This playlist is empty",
   "neteaseLoginRequired": "Sign in to NetEase to use this",
   "continuePlaying": "Continue playing",
-  "discover": "Discover"
+  "discover": "Discover",
+  "searchAlbums": "Search albums",
+  "searchArtists": "Search artists",
+  "albums": "Albums",
+  "artists": "Artists",
+  "hotSongs": "Hot songs",
+  "noAlbums": "No albums found",
+  "noArtists": "No artists found"
 }

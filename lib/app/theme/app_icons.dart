@@ -29,6 +29,7 @@ class AppIcons {
 
   static const IconData accountCircle = LucideIcons.circleUserRound;
   static const IconData add = LucideIcons.plus;
+  static const IconData album = LucideIcons.discAlbum;
   static const IconData analytics = LucideIcons.chartColumn;
   static const IconData arrowBack = LucideIcons.arrowLeft;
   static const IconData brightness6 = LucideIcons.sunMoon;

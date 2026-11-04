@@ -23,6 +23,7 @@ import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/remote_playlist.dart';
+import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -83,6 +84,22 @@ class _BilibiliFavoritesScreenState
 
   /// Guards against a stale response overwriting a newer one.
   int _requestId = 0;
+
+  bool _initialisedAccount = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialisedAccount) return;
+    _initialisedAccount = true;
+    // A signed-in account can see its own private folders; prefill its UID so
+    // the common case needs no manual input. The field stays editable.
+    final account = ref.read(authAccountProvider('bilibili'));
+    if (account != null && account.userId.isNotEmpty) {
+      _uidController.text = account.userId;
+      _loadFolders();
+    }
+  }
 
   @override
   void dispose() {

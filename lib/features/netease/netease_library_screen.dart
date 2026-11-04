@@ -27,6 +27,8 @@ import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/netease_library_providers.dart';
 import 'package:flind_player/data/providers/netease_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/features/netease/netease_explore_screen.dart';
+import 'package:flind_player/features/netease/widgets/netease_track_row.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
 import 'package:flind_player/shared/app_surface.dart';
@@ -63,6 +65,18 @@ class NeteaseLibraryScreen extends ConsumerWidget {
                     icon: const Icon(AppIcons.arrowBack),
                     onPressed: () => Navigator.of(context).maybePop(),
                   ),
+                  actions: [
+                    IconButton(
+                      key: const Key('netease_explore_open'),
+                      tooltip: '',
+                      icon: const Icon(AppIcons.search),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const NeteaseExploreScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 Expanded(
                   child: ListView(
@@ -281,7 +295,7 @@ class NeteasePlaylistScreen extends ConsumerWidget {
                                   track.sourceTrackId is NeteaseTrackId
                                   ? '${(track.sourceTrackId as NeteaseTrackId).songId}'
                                   : null;
-                              return _TrackRow(
+                              return NeteaseTrackRow(
                                 track: track,
                                 isCurrent:
                                     state?.currentTrack?.uri == track.uri,
@@ -321,59 +335,5 @@ class NeteasePlaylistScreen extends ConsumerWidget {
   Future<void> _toggleLike(WidgetRef ref, String songId, bool liked) async {
     await ref.read(neteaseLikeSourceProvider).setLiked(songId, !liked);
     ref.invalidate(neteaseLikedIdsProvider);
-  }
-}
-
-class _TrackRow extends StatelessWidget {
-  const _TrackRow({
-    required this.track,
-    required this.isCurrent,
-    required this.isPlaying,
-    required this.isLiked,
-    required this.onTap,
-    this.onLike,
-  });
-
-  final Track track;
-  final bool isCurrent;
-  final bool isPlaying;
-  final bool isLiked;
-  final VoidCallback onTap;
-  final VoidCallback? onLike;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListTile(
-      leading: CoverImage(path: track.coverPath, url: track.coverUrl, size: 44),
-      title: Text(
-        track.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: isCurrent ? TextStyle(color: theme.colorScheme.primary) : null,
-      ),
-      subtitle: Text(
-        track.artist ?? '',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isCurrent && isPlaying)
-            Icon(AppIcons.graphicEq, color: theme.colorScheme.primary),
-          if (onLike != null)
-            IconButton(
-              tooltip: '',
-              onPressed: onLike,
-              icon: Icon(
-                isLiked ? AppIcons.favoriteActive : AppIcons.favoriteBorder,
-                color: isLiked ? theme.colorScheme.error : null,
-              ),
-            ),
-        ],
-      ),
-      onTap: onTap,
-    );
   }
 }

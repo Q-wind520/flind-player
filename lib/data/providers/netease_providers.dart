@@ -84,3 +84,19 @@ final neteaseRecommendationSourceProvider = Provider<RecommendationSource>(
 final neteaseLikeSourceProvider = Provider<LikeSource>(
   (ref) => ref.watch(neteaseSourceProvider),
 );
+
+/// NetEase album/artist search behind the generic [RemoteSearchSource]
+/// interface.
+final neteaseRemoteSearchSourceProvider = Provider<RemoteSearchSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase album pages behind the generic [RemoteAlbumSource] interface.
+final neteaseRemoteAlbumSourceProvider = Provider<RemoteAlbumSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase artist pages behind the generic [RemoteArtistSource] interface.
+final neteaseRemoteArtistSourceProvider = Provider<RemoteArtistSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);

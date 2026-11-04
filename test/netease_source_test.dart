@@ -67,6 +67,20 @@ class _FakeApi implements NeteaseApi {
       lyric ?? const NeteaseLyricDto();
 
   @override
+  Future<List<NeteaseAlbumDto>> searchAlbums(
+    String query, {
+    int page = 1,
+  }) async => albums;
+
+  @override
+  Future<List<NeteaseArtistDto>> searchArtists(
+    String query, {
+    int page = 1,
+  }) async => artistData == null
+      ? const <NeteaseArtistDto>[]
+      : <NeteaseArtistDto>[artistData!];
+
+  @override
   Future<List<NeteasePlaylistDto>> userPlaylists(
     int userId, {
     int limit = 1000,
@@ -433,6 +447,16 @@ void main() {
     expect((await source.artistSongs('5')).tracks.single.uri, 'netease:42');
     expect((await source.albumTracks('11')).tracks.single.uri, 'netease:42');
     expect((await source.album('11'))?.title, 'Album');
+  });
+
+  test('album and artist search map to remote models', () async {
+    final api = _FakeApi()
+      ..albums = const <NeteaseAlbumDto>[NeteaseAlbumDto(id: 11, name: 'Album')]
+      ..artistData = const NeteaseArtistDto(id: 5, name: 'Artist');
+    final source = NeteaseSource(api: api);
+
+    expect((await source.searchAlbums('x')).single.id, '11');
+    expect((await source.searchArtists('x')).single.name, 'Artist');
   });
 
   test('like state maps ids and forwards setLiked', () async {

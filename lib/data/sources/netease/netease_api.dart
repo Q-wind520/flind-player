@@ -140,6 +140,56 @@ class NeteaseApi {
     return NeteaseLyricDto.fromJson(json);
   }
 
+  /// Album search (`type: 10`).
+  Future<List<NeteaseAlbumDto>> searchAlbums(
+    String query, {
+    int page = 1,
+  }) async {
+    final json = await _rateLimiter.run(
+      () => _client.postWeapi(_searchPath, <String, dynamic>{
+        's': query,
+        'type': 10,
+        'limit': searchPageSize,
+        'offset': (page - 1) * searchPageSize,
+        'total': true,
+        'csrf_token': '',
+      }),
+    );
+    final result = json['result'];
+    final albums = result is Map ? result['albums'] : null;
+    if (albums is! List) return const <NeteaseAlbumDto>[];
+    return albums
+        .whereType<Map>()
+        .map((e) => NeteaseAlbumDto.fromJson(Map<String, dynamic>.from(e)))
+        .where((album) => album.id > 0)
+        .toList(growable: false);
+  }
+
+  /// Artist search (`type: 100`).
+  Future<List<NeteaseArtistDto>> searchArtists(
+    String query, {
+    int page = 1,
+  }) async {
+    final json = await _rateLimiter.run(
+      () => _client.postWeapi(_searchPath, <String, dynamic>{
+        's': query,
+        'type': 100,
+        'limit': searchPageSize,
+        'offset': (page - 1) * searchPageSize,
+        'total': true,
+        'csrf_token': '',
+      }),
+    );
+    final result = json['result'];
+    final artists = result is Map ? result['artists'] : null;
+    if (artists is! List) return const <NeteaseArtistDto>[];
+    return artists
+        .whereType<Map>()
+        .map((e) => NeteaseArtistDto.fromJson(Map<String, dynamic>.from(e)))
+        .where((artist) => artist.id > 0)
+        .toList(growable: false);
+  }
+
   /// The signed-in user's playlists (including subscribed ones).
   Future<List<NeteasePlaylistDto>> userPlaylists(
     int userId, {

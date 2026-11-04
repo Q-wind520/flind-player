@@ -324,5 +324,12 @@
   "neteasePlaylistEmpty": "这个歌单还没有歌曲",
   "neteaseLoginRequired": "登录网易云后可用",
   "continuePlaying": "继续播放",
-  "discover": "发现"
+  "discover": "发现",
+  "searchAlbums": "搜索专辑",
+  "searchArtists": "搜索歌手",
+  "albums": "专辑",
+  "artists": "歌手",
+  "hotSongs": "热门歌曲",
+  "noAlbums": "没有找到专辑",
+  "noArtists": "没有找到歌手"
 }
