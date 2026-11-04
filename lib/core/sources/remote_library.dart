@@ -24,6 +24,9 @@ abstract interface class RecommendationSource {
   /// anonymous users when the source supports one.
   Future<List<RemotePlaylist>> recommendedPlaylists({int limit = 30});
 
+  /// Popular/chart playlists for discovery.
+  Future<List<RemotePlaylist>> popularPlaylists({int limit = 30});
+
   /// Daily recommended songs. Sources that require login return an empty list
   /// or throw a login-required error; the UI treats both as "not available".
   Future<List<Track>> recommendedSongs();

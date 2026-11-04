@@ -30,6 +30,8 @@ class NeteaseApi {
   static const String _userPlaylistsPath = '/weapi/user/playlist?csrf_token=';
   static const String _recommendedPlaylistsPath =
       '/weapi/personalized/playlist?csrf_token=';
+  static const String _highQualityPlaylistsPath =
+      '/weapi/playlist/highquality/list?csrf_token=';
   static const String _recommendedSongsPath =
       '/weapi/v3/discovery/recommend/songs?csrf_token=';
   static const String _likedIdsPath = '/weapi/song/like/get?csrf_token=';
@@ -228,6 +230,29 @@ class NeteaseApi {
     final result = json['result'];
     if (result is! List) return const <NeteasePlaylistDto>[];
     return result
+        .whereType<Map>()
+        .map((e) => NeteasePlaylistDto.fromJson(Map<String, dynamic>.from(e)))
+        .where((playlist) => playlist.id > 0)
+        .toList(growable: false);
+  }
+
+  /// High-quality/popular playlists for a category.
+  Future<List<NeteasePlaylistDto>> highQualityPlaylists({
+    String cat = '全部',
+    int limit = 30,
+  }) async {
+    final json = await _rateLimiter.run(
+      () => _client.postWeapi(_highQualityPlaylistsPath, <String, dynamic>{
+        'cat': cat,
+        'limit': '$limit',
+        'lasttime': 0,
+        'total': true,
+        'csrf_token': '',
+      }),
+    );
+    final playlists = json['playlists'];
+    if (playlists is! List) return const <NeteasePlaylistDto>[];
+    return playlists
         .whereType<Map>()
         .map((e) => NeteasePlaylistDto.fromJson(Map<String, dynamic>.from(e)))
         .where((playlist) => playlist.id > 0)

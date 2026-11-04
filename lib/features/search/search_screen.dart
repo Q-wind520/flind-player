@@ -31,6 +31,7 @@ import 'package:flind_player/data/providers/stats_providers.dart';
 import 'package:flind_player/features/netease/netease_library_screen.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
+import 'package:flind_player/features/settings/account_section.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/app_surface.dart';
@@ -199,10 +200,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final dailyAsync = account == null
         ? const AsyncData<List<Track>>(<Track>[])
         : ref.watch(neteaseRecommendedSongsProvider);
+    final hotAsync = account == null
+        ? const AsyncData<List<RemotePlaylist>>(<RemotePlaylist>[])
+        : ref.watch(neteasePopularPlaylistsProvider);
     final playback = ref.watch(playbackStateProvider).value;
     final current = playback?.currentTrack;
     final daily = dailyAsync.value ?? const <Track>[];
     final recommended = playlistsAsync.value ?? const <RemotePlaylist>[];
+    final hot = hotAsync.value ?? const <RemotePlaylist>[];
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
 
@@ -211,6 +216,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         icon: AppIcons.search,
         title: l10n.searchSourcesTitle,
         message: l10n.searchSourcesHint,
+        action: account == null
+            ? FilledButton.tonalIcon(
+                onPressed: () =>
+                    showAccountLoginSheet(context, sourceId: 'netease'),
+                icon: const Icon(AppIcons.person, size: 18),
+                label: Text(l10n.accountLoginTitle(l10n.sourceNetease)),
+              )
+            : null,
       );
     }
 
@@ -253,7 +266,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
-        if (recommended.isNotEmpty)
+        if (recommended.isNotEmpty) ...[
           _DiscoverySection(
             title: l10n.recommendedPlaylists,
             child: playlistsAsync.when(
@@ -269,6 +282,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               data: (playlists) => _PlaylistCarousel(playlists: playlists),
             ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+        if (hot.isNotEmpty)
+          _DiscoverySection(
+            title: l10n.hotPlaylists,
+            child: _PlaylistCarousel(playlists: hot),
           ),
       ],
     );

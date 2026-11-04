@@ -565,5 +565,6 @@
   "localLibrary": "Local artists & albums",
   "dailyRecommendations": "Daily recommendations",
   "lyricOffset": "Lyric offset",
-  "lyricOffsetReset": "Reset"
+  "lyricOffsetReset": "Reset",
+  "hotPlaylists": "Popular playlists"
 }

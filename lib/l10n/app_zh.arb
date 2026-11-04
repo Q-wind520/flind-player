@@ -335,5 +335,6 @@
   "localLibrary": "本地艺人/专辑",
   "dailyRecommendations": "每日推荐",
   "lyricOffset": "歌词偏移",
-  "lyricOffsetReset": "重置"
+  "lyricOffsetReset": "重置",
+  "hotPlaylists": "热门歌单"
 }

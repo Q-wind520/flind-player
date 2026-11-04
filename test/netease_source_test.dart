@@ -81,6 +81,12 @@ class _FakeApi implements NeteaseApi {
       : <NeteaseArtistDto>[artistData!];
 
   @override
+  Future<List<NeteasePlaylistDto>> highQualityPlaylists({
+    String cat = '全部',
+    int limit = 30,
+  }) async => playlists;
+
+  @override
   Future<List<NeteasePlaylistDto>> userPlaylists(
     int userId, {
     int limit = 1000,
@@ -410,6 +416,7 @@ void main() {
     final source = NeteaseSource(api: api);
 
     expect((await source.recommendedPlaylists()).single.id, '9');
+    expect((await source.popularPlaylists()).single.id, '9');
     expect((await source.recommendedSongs()).single.uri, 'netease:42');
   });
 

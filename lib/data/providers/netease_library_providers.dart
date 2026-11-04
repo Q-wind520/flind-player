@@ -40,6 +40,12 @@ final neteaseRecommendedPlaylistsProvider =
           .recommendedPlaylists();
     });
 
+/// Popular/chart NetEase playlists.
+final neteasePopularPlaylistsProvider =
+    FutureProvider.autoDispose<List<RemotePlaylist>>((ref) {
+      return ref.watch(neteaseRecommendationSourceProvider).popularPlaylists();
+    });
+
 /// Daily recommended NetEase songs (requires a signed-in account).
 final neteaseRecommendedSongsProvider = FutureProvider.autoDispose<List<Track>>(
   (ref) {

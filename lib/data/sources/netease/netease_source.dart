@@ -181,6 +181,12 @@ class NeteaseSource
   }
 
   @override
+  Future<List<RemotePlaylist>> popularPlaylists({int limit = 30}) async {
+    final playlists = await _api.highQualityPlaylists(limit: limit);
+    return playlists.map(_playlistToRemote).toList(growable: false);
+  }
+
+  @override
   Future<List<Track>> recommendedSongs() async {
     final songs = await _api.recommendedSongs();
     return songs.map(neteaseSongToTrack).toList(growable: false);
