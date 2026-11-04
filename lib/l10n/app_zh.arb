@@ -331,5 +331,6 @@
   "artists": "歌手",
   "hotSongs": "热门歌曲",
   "noAlbums": "没有找到专辑",
-  "noArtists": "没有找到歌手"
+  "noArtists": "没有找到歌手",
+  "localLibrary": "本地艺人/专辑"
 }

@@ -37,6 +37,7 @@ import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
 import 'package:flind_player/features/downloads/downloads_screen.dart';
+import 'package:flind_player/features/library/local_browse_screen.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/features/netease/netease_library_screen.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
@@ -168,6 +169,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       MaterialPageRoute<void>(
         builder: (context) => const NeteaseLibraryScreen(),
       ),
+    );
+  }
+
+  Future<void> _openLocalBrowse() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (context) => const LocalBrowseScreen()),
     );
   }
 
@@ -529,6 +536,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             unawaited(_openPlaybackStats());
           },
           child: Text(l10n.playbackStats),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(AppIcons.person),
+          onPressed: () {
+            _menuController.close();
+            unawaited(_openLocalBrowse());
+          },
+          child: Text(l10n.localLibrary),
         ),
         MenuItemButton(
           leadingIcon: const Icon(AppIcons.cloud),
