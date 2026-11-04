@@ -33,6 +33,7 @@ import 'package:flind_player/data/cache/cache_relocator.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/data/providers/download_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
@@ -167,6 +168,15 @@ Future<void> main() async {
       },
     ),
   );
+
+  // Persist download progress and requeue tasks interrupted by the last exit.
+  try {
+    await container.read(downloadCenterServiceProvider).start();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: download centre start failed: $error\n$stackTrace',
+    );
+  }
 
   // Layer 2 (covers for un-cached songs) is session-scoped: wipe it on start.
   final coverCacheStore = container.read(coverCacheStoreProvider);

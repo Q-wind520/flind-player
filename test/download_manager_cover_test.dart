@@ -15,6 +15,7 @@
 
 import 'dart:io';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +45,7 @@ class _StubDownloader extends AudioDownloader {
     required Map<String, String> headers,
     required File target,
     void Function(int received, int? total)? onProgress,
+    CancelToken? cancelToken,
   }) async {
     target.parent.createSync(recursive: true);
     target.writeAsBytesSync(const [1, 2, 3, 4]);

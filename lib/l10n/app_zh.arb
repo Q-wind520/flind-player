@@ -302,5 +302,19 @@
   "statsTracksLabel": "曲目数",
   "statsEmpty": "还没有播放记录",
   "recentEmpty": "还没有最近播放",
-  "menuListening": "收听"
+  "menuListening": "收听",
+  "downloadQueued": "排队中",
+  "downloadDownloading": "下载中",
+  "downloadPaused": "已暂停",
+  "downloadDone": "已完成",
+  "downloadFailed": "下载失败",
+  "downloadCanceled": "已取消",
+  "downloadCancel": "取消下载",
+  "downloadRetry": "重试",
+  "downloadRemove": "删除下载",
+  "downloadsEmpty": "还没有下载",
+  "downloadsActive": "进行中",
+  "downloadsFinished": "已完成",
+  "downloadMissingTrack": "曲目已不在曲库",
+  "downloadClearFinished": "清除已完成"
 }

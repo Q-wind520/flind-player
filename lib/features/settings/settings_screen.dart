@@ -283,7 +283,8 @@ class _PlaybackSection extends ConsumerWidget {
       final phase = next.value?.phase;
       if (phase == DownloadPhase.done ||
           phase == DownloadPhase.skipped ||
-          phase == DownloadPhase.failed) {
+          phase == DownloadPhase.failed ||
+          phase == DownloadPhase.canceled) {
         ref.invalidate(combinedCacheUsageProvider);
         ref.invalidate(coverCacheUsageProvider);
         ref.invalidate(audioCacheUsageProvider);

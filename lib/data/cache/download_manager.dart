@@ -16,6 +16,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter/foundation.dart';
 
 import 'package:flind_player/core/models/track.dart';
@@ -29,7 +30,7 @@ import 'cache_keys.dart';
 export 'cache_keys.dart';
 
 /// Lifecycle of one queued download.
-enum DownloadPhase { queued, downloading, done, failed, skipped }
+enum DownloadPhase { queued, downloading, done, failed, skipped, canceled }
 
 /// Signals that a manual download cannot proceed because the cache has no room.
 ///
@@ -52,11 +53,14 @@ class DownloadProgress {
   const DownloadProgress({
     required this.source,
     required this.sourceTrackId,
+    required this.trackUri,
     required this.title,
     required this.phase,
     this.received = 0,
     this.total = 0,
     this.error,
+    this.qualityId,
+    this.filePath,
   });
 
   /// Source identifier, e.g. `bilibili`.
@@ -64,6 +68,9 @@ class DownloadProgress {
 
   /// Source-specific identity, e.g. `BV...:cid`.
   final String sourceTrackId;
+
+  /// Canonical pool key (`tracks.uri`).
+  final String trackUri;
 
   /// Human-readable track title, for progress UI.
   final String title;
@@ -78,6 +85,12 @@ class DownloadProgress {
 
   /// The failure that produced [DownloadPhase.failed], when applicable.
   final Object? error;
+
+  /// Source-specific quality id, when known.
+  final String? qualityId;
+
+  /// Final file path for a completed download.
+  final String? filePath;
 
   @override
   String toString() =>
@@ -97,6 +110,7 @@ class _QueuedDownload {
   final bool pinned;
   final StreamInfo? knownInfo;
   final Completer<void> completer = Completer<void>();
+  final CancelToken cancelToken = CancelToken();
 }
 
 /// Serialises offline downloads and keeps the cache index in sync.
@@ -167,6 +181,28 @@ class DownloadManager {
     return task.completer.future;
   }
 
+  /// Cancels a queued or active download for [trackUri].
+  ///
+  /// Returns `true` when a task was found. A queued task is removed and emits
+  /// [DownloadPhase.canceled] immediately; an active task is aborted through
+  /// its Dio cancel token and emits the same phase from [_run] after cleanup.
+  bool cancel(String trackUri) {
+    final queuedIndex = _queue.indexWhere((task) => task.track.uri == trackUri);
+    if (queuedIndex >= 0) {
+      final task = _queue.removeAt(queuedIndex);
+      _emit(task, DownloadPhase.canceled);
+      if (!task.completer.isCompleted) task.completer.complete();
+      return true;
+    }
+
+    final active = _active;
+    if (active != null && active.track.uri == trackUri) {
+      active.cancelToken.cancel('canceled');
+      return true;
+    }
+    return false;
+  }
+
   /// Whether [track] is indexed and its file still exists on disk.
   Future<bool> isCached(Track track) async {
     try {
@@ -187,6 +223,7 @@ class DownloadManager {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _active?.cancelToken.cancel('dispose');
     for (final task in _queue) {
       if (!task.completer.isCompleted) task.completer.complete();
     }
@@ -223,6 +260,10 @@ class DownloadManager {
 
   Future<void> _run(_QueuedDownload task) async {
     final track = task.track;
+    if (task.cancelToken.isCancelled) {
+      _emit(task, DownloadPhase.canceled);
+      return;
+    }
 
     CachedAudio? cachedEntry;
     try {
@@ -239,9 +280,19 @@ class DownloadManager {
       // pinning is what exempts it from LRU eviction.
       if (task.pinned && !cachedEntry.pinned) {
         await _store.setPinned(cachedEntry.id, true);
-        _emit(task, DownloadPhase.done);
+        _emit(
+          task,
+          DownloadPhase.done,
+          filePath: cachedEntry.filePath,
+          qualityId: cachedEntry.qualityId,
+        );
       } else {
-        _emit(task, DownloadPhase.skipped);
+        _emit(
+          task,
+          DownloadPhase.skipped,
+          filePath: cachedEntry.filePath,
+          qualityId: cachedEntry.qualityId,
+        );
       }
       return;
     }
@@ -256,17 +307,18 @@ class DownloadManager {
       }
     }
 
+    if (task.cancelToken.isCancelled) {
+      _emit(task, DownloadPhase.canceled);
+      return;
+    }
+
     // Content-Length is only known once the download response arrives, so the
     // pre-flight check uses the best available estimate (0 when unknown).
     // `ensureSpace` still evicts non-pinned LRU entries whenever the cache is
     // already over the configured limit, and never touches pinned rows.
     final eviction = await _store.ensureSpace(_estimateBytes(info));
     if (!eviction.hasSpace) {
-      _emit(
-        task,
-        DownloadPhase.failed,
-        error: const CacheCapacityException(),
-      );
+      _emit(task, DownloadPhase.failed, error: const CacheCapacityException());
       return;
     }
 
@@ -282,7 +334,7 @@ class DownloadManager {
     final int bytes;
     try {
       bytes = await _downloadWithExpiryRetry(
-        track: track,
+        task: task,
         info: info,
         target: target,
         onProgress: (received, total) => _emit(
@@ -292,10 +344,19 @@ class DownloadManager {
           total: total ?? 0,
         ),
       );
+    } on DownloadCanceledException {
+      _deletePart(target);
+      _emit(task, DownloadPhase.canceled);
+      return;
     } on StreamExpiredException catch (error) {
       _emit(task, DownloadPhase.failed, error: error);
       return;
     } catch (error) {
+      if (task.cancelToken.isCancelled) {
+        _deletePart(target);
+        _emit(task, DownloadPhase.canceled);
+        return;
+      }
       _emit(task, DownloadPhase.failed, error: error);
       return;
     }
@@ -346,12 +407,19 @@ class DownloadManager {
       }
     }
 
-    _emit(task, DownloadPhase.done, received: bytes, total: bytes);
+    _emit(
+      task,
+      DownloadPhase.done,
+      received: bytes,
+      total: bytes,
+      qualityId: info.qualityId,
+      filePath: target.path,
+    );
   }
 
   /// Downloads [info]'s URL, re-resolving once when the URL has expired.
   Future<int> _downloadWithExpiryRetry({
-    required Track track,
+    required _QueuedDownload task,
     required StreamInfo info,
     required File target,
     required void Function(int received, int? total) onProgress,
@@ -362,16 +430,18 @@ class DownloadManager {
         headers: info.headers,
         target: target,
         onProgress: onProgress,
+        cancelToken: task.cancelToken,
       );
     } on StreamExpiredException {
       // The cached URL expired (~120 min, docs/bilibili-source.md §7.3):
       // resolve a fresh one exactly once and retry.
-      final fresh = await _resolver.resolve(track);
+      final fresh = await _resolver.resolve(task.track);
       return _downloader.download(
         url: fresh.url,
         headers: fresh.headers,
         target: target,
         onProgress: onProgress,
+        cancelToken: task.cancelToken,
       );
     }
   }
@@ -409,18 +479,32 @@ class DownloadManager {
     int received = 0,
     int total = 0,
     Object? error,
+    String? qualityId,
+    String? filePath,
   }) {
     if (_disposed || _progress.isClosed) return;
     _progress.add(
       DownloadProgress(
         source: task.track.source,
         sourceTrackId: cacheSourceTrackId(task.track),
+        trackUri: task.track.uri,
         title: task.track.title,
         phase: phase,
         received: received,
         total: total,
         error: error,
+        qualityId: qualityId,
+        filePath: filePath,
       ),
     );
+  }
+
+  void _deletePart(File target) {
+    try {
+      final part = File('${target.path}.part');
+      if (part.existsSync()) part.deleteSync();
+    } catch (error) {
+      debugPrint('DownloadManager: failed to delete partial file: $error');
+    }
   }
 }

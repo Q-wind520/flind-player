@@ -532,5 +532,19 @@
   "statsTracksLabel": "Tracks",
   "statsEmpty": "No listening history yet",
   "recentEmpty": "Nothing played yet",
-  "menuListening": "Listening"
+  "menuListening": "Listening",
+  "downloadQueued": "Queued",
+  "downloadDownloading": "Downloading",
+  "downloadPaused": "Paused",
+  "downloadDone": "Downloaded",
+  "downloadFailed": "Download failed",
+  "downloadCanceled": "Canceled",
+  "downloadCancel": "Cancel download",
+  "downloadRetry": "Retry",
+  "downloadRemove": "Remove download",
+  "downloadsEmpty": "No downloads yet",
+  "downloadsActive": "In progress",
+  "downloadsFinished": "Downloaded",
+  "downloadMissingTrack": "Track is no longer in the library",
+  "downloadClearFinished": "Clear completed"
 }

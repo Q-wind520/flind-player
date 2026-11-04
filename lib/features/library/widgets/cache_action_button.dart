@@ -82,6 +82,7 @@ class CacheActionButton extends ConsumerWidget {
         case DownloadPhase.done:
         case DownloadPhase.skipped:
         case DownloadPhase.failed:
+        case DownloadPhase.canceled:
           ref.invalidate(audioCacheEntryProvider(track));
           ref.invalidate(audioCacheUsageProvider);
         case DownloadPhase.queued:

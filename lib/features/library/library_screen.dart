@@ -36,6 +36,7 @@ import 'package:flind_player/features/library/library_view_provider.dart';
 import 'package:flind_player/features/library/track_sorting.dart';
 import 'package:flind_player/features/library/widgets/playlist_editor_dialog.dart';
 import 'package:flind_player/features/library/widgets/playlists_section.dart';
+import 'package:flind_player/features/downloads/downloads_screen.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
 import 'package:flind_player/features/stats/playback_stats_screen.dart';
@@ -152,6 +153,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       MaterialPageRoute<void>(
         builder: (context) => const PlaybackStatsScreen(),
       ),
+    );
+  }
+
+  Future<void> _openDownloads() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (context) => const DownloadsScreen()),
     );
   }
 
@@ -497,6 +504,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             unawaited(_openRecentPlays());
           },
           child: Text(l10n.recentPlays),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(AppIcons.download),
+          onPressed: () {
+            _menuController.close();
+            unawaited(_openDownloads());
+          },
+          child: Text(l10n.downloads),
         ),
         MenuItemButton(
           leadingIcon: const Icon(AppIcons.analytics),
