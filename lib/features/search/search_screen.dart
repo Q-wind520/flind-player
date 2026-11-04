@@ -415,7 +415,9 @@ class _TrackCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 176,
+      // 136 cover + 6 gap + two text lines; 176 clipped the second line on
+      // Linux (7 px overflow). Keep the same height as the playlist carousel.
+      height: 200,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: tracks.length,

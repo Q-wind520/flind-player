@@ -30,6 +30,7 @@ import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/online_source_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/data/providers/stats_providers.dart';
 import 'package:flind_player/data/sources/netease/netease_client.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/search/search_screen.dart';
@@ -123,6 +124,7 @@ class _InMemoryFavoritesRepository implements FavoritesRepository {
 Widget _app({
   required FutureOr<List<Track>> Function(Ref ref, String query) search,
   ThemeData? theme,
+  List<Track> recentTracks = const <Track>[],
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   return ProviderScope(
@@ -134,6 +136,7 @@ Widget _app({
       playbackStateProvider.overrideWith(
         (ref) => Stream.value(PlaybackState.idle),
       ),
+      recentTracksProvider.overrideWithValue(recentTracks),
       downloadProgressProvider.overrideWith(
         (ref) => const Stream<DownloadProgress>.empty(),
       ),
@@ -170,6 +173,28 @@ void main() {
       (border! as OutlineInputBorder).borderRadius,
       BorderRadius.circular(AppRadius.md),
     );
+  });
+
+  testWidgets('discovery track cards do not overflow their carousel', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _app(
+        search: (ref, query) async => <Track>[],
+        recentTracks: <Track>[
+          _track('Alpha', artist: 'Artist A'),
+          _track('Beta', artist: 'Artist B'),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
   });
 
   testWidgets('renders search results after submitting a query', (
