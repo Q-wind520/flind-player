@@ -50,8 +50,7 @@ class TrackView extends StatelessWidget {
     final horizontal = compact ? 16.0 : 28.0;
     return switch (view) {
       LibraryView.list => _list(bottomInset, horizontal),
-      LibraryView.showcase => _grid(bottomInset, horizontal),
-      LibraryView.waterfall => _waterfall(bottomInset, horizontal),
+      LibraryView.cards => _cards(bottomInset, horizontal),
     };
   }
 
@@ -115,44 +114,7 @@ class TrackView extends StatelessWidget {
     );
   }
 
-  Widget _grid(double bottomInset, double horizontal) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final ratio = libraryCardAspectRatio(
-          constraints.maxWidth - horizontal * 2,
-        );
-        return GridView.builder(
-          padding: EdgeInsets.fromLTRB(
-            horizontal,
-            AppSpacing.sm,
-            horizontal,
-            AppSpacing.md + bottomInset,
-          ),
-          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: libraryCardMaxWidth,
-            childAspectRatio: ratio,
-            crossAxisSpacing: libraryCardSpacing,
-            mainAxisSpacing: libraryCardSpacing,
-          ),
-          itemCount: tracks.length,
-          itemBuilder: (context, index) {
-            final track = tracks[index];
-            final isCurrent = currentUri != null && track.uri == currentUri;
-            return TrackCard(
-              track: track,
-              isPlaying: isCurrent && isPlaying,
-              unavailable: track.id == null,
-              playlistId: playlistId,
-              showDeleteTrack: showDeleteTrack,
-              onTap: () => onPlay(index),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _waterfall(double bottomInset, double horizontal) {
+  Widget _cards(double bottomInset, double horizontal) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = (constraints.maxWidth / 240).round().clamp(2, 5);

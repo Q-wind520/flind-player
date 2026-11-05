@@ -30,23 +30,6 @@ const double libraryCardMaxWidth = 260;
 /// Gap between grid cards, horizontally and vertically.
 const double libraryCardSpacing = 16;
 
-/// The cell ratio that keeps a grid card's cover square.
-///
-/// A card is a square cover, a [libraryCardTitleHeight] title, a 20 px
-/// artist/source row, an 8 px mat and a 1 px border; [crossAxisExtent] is the
-/// grid's content width before the page padding. Solving for the cover's
-/// square makes the cell height `width + 78`, independent of the mat.
-double libraryCardAspectRatio(double crossAxisExtent) {
-  const textBlock = 78.0;
-  if (crossAxisExtent <= 0) return 0.78;
-  final columns = (crossAxisExtent / (libraryCardMaxWidth + libraryCardSpacing))
-      .ceil()
-      .clamp(1, 12);
-  final width =
-      (crossAxisExtent - libraryCardSpacing * (columns - 1)) / columns;
-  return width / (width + textBlock);
-}
-
 /// The tonal surface shared by every cover card in the library.
 ///
 /// A card is a framed panel rather than a bare cover floating on the page:
@@ -61,6 +44,7 @@ class LibraryCardShell extends StatefulWidget {
     required this.onTap,
     this.enabled = true,
     this.isPlaying = false,
+    this.padding = const EdgeInsets.all(AppSpacing.sm),
   });
 
   /// Card content, laid out inside the shell's mat.
@@ -73,6 +57,9 @@ class LibraryCardShell extends StatefulWidget {
 
   /// Tints the surface and border with the accent for the current track.
   final bool isPlaying;
+
+  /// Mat around [child]. Full-bleed artwork cards pass [EdgeInsets.zero].
+  final EdgeInsetsGeometry padding;
 
   @override
   State<LibraryCardShell> createState() => _LibraryCardShellState();
@@ -116,8 +103,12 @@ class _LibraryCardShellState extends State<LibraryCardShell> {
       decoration: BoxDecoration(
         color: background,
         borderRadius: radius,
-        border: Border.all(color: border),
         boxShadow: highlighted ? _hoverShadow(context) : const [],
+      ),
+      // Draw the border above the child so a full-bleed cover cannot hide it.
+      foregroundDecoration: BoxDecoration(
+        borderRadius: radius,
+        border: Border.all(color: border),
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -131,10 +122,7 @@ class _LibraryCardShellState extends State<LibraryCardShell> {
             if (_focused != value) setState(() => _focused = value);
           },
           borderRadius: radius,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            child: widget.child,
-          ),
+          child: Padding(padding: widget.padding, child: widget.child),
         ),
       ),
     );
@@ -152,19 +140,13 @@ class _LibraryCardShellState extends State<LibraryCardShell> {
   }
 }
 
-/// The "now playing" pill overlaid on a card cover.
-///
-/// The label (rather than an icon alone) makes the state obvious in a dense
-/// grid, where a tiny equalizer mark is easy to miss.
+/// The equalizer mark overlaid on a playing cover.
 class NowPlayingBadge extends StatelessWidget {
-  const NowPlayingBadge({super.key, required this.label});
-
-  final String label;
+  const NowPlayingBadge({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.primary,
@@ -178,24 +160,8 @@ class NowPlayingBadge extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: 3,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(AppIcons.graphicEq, size: 13, color: scheme.onPrimary),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        child: Icon(AppIcons.graphicEq, size: 12, color: scheme.onPrimary),
       ),
     );
   }

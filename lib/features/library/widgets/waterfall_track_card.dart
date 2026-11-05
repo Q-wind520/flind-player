@@ -16,7 +16,7 @@ import 'package:flind_player/features/library/widgets/track_actions_button.dart'
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
-/// A masonry card whose cover keeps its intrinsic aspect ratio.
+/// A cards-view track tile whose cover keeps its intrinsic aspect ratio.
 class WaterfallTrackCard extends ConsumerWidget {
   const WaterfallTrackCard({
     required this.track,
@@ -69,23 +69,17 @@ class WaterfallTrackCard extends ConsumerWidget {
                   ),
                 ),
                 if (isPlaying)
-                  Positioned(
+                  const Positioned(
                     bottom: AppSpacing.sm,
                     left: AppSpacing.sm,
-                    child: NowPlayingBadge(label: l10n.nowPlaying),
+                    child: NowPlayingBadge(),
                   ),
                 Positioned(
                   top: AppSpacing.sm,
                   right: AppSpacing.sm,
-                  child: ClipOval(
-                    child: ColoredBox(
-                      color: scheme.surface.withValues(alpha: 0.68),
-                      child: TrackActionsButton(
-                        track: track,
-                        playlistId: playlistId,
-                        showDeleteTrack: showDeleteTrack,
-                      ),
-                    ),
+                  child: SourceBadge(
+                    source: track.source,
+                    style: SourceBadgeStyle.overlay,
                   ),
                 ),
               ],
@@ -121,8 +115,13 @@ class WaterfallTrackCard extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      SourceBadge(source: track.source, chip: true),
+                      const SizedBox(width: AppSpacing.xs),
+                      TrackActionsButton(
+                        track: track,
+                        playlistId: playlistId,
+                        showDeleteTrack: showDeleteTrack,
+                        compact: true,
+                      ),
                     ],
                   ),
                 ],

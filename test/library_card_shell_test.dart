@@ -22,7 +22,10 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
+import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
+import 'package:flind_player/features/library/widgets/waterfall_track_card.dart';
 
 import 'support/l10n.dart';
 
@@ -42,7 +45,9 @@ Widget _app({required Widget child}) => ProviderScope(
   ],
   child: localizedApp(
     Scaffold(
-      body: Center(child: SizedBox(width: 240, height: 320, child: child)),
+      body: SingleChildScrollView(
+        child: Center(child: SizedBox(width: 240, child: child)),
+      ),
     ),
   ),
 );
@@ -52,22 +57,31 @@ BoxDecoration _surface(WidgetTester tester) =>
         as BoxDecoration;
 
 void main() {
-  testWidgets('a playing card shows the now-playing pill', (tester) async {
+  testWidgets('a playing card shows only the equalizer badge', (tester) async {
     await tester.pumpWidget(
       _app(
-        child: TrackCard(track: _track(), isPlaying: true, onTap: () {}),
+        child: WaterfallTrackCard(
+          track: _track(),
+          isPlaying: true,
+          onTap: () {},
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('正在播放'), findsOneWidget);
+    expect(find.byType(NowPlayingBadge), findsOneWidget);
+    expect(find.text('正在播放'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('hover lifts the card surface', (tester) async {
     await tester.pumpWidget(
       _app(
-        child: TrackCard(track: _track(), isPlaying: false, onTap: () {}),
+        child: WaterfallTrackCard(
+          track: _track(),
+          isPlaying: false,
+          onTap: () {},
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -77,7 +91,7 @@ void main() {
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
 
-    await gesture.moveTo(tester.getCenter(find.byType(TrackCard)));
+    await gesture.moveTo(tester.getCenter(find.byType(WaterfallTrackCard)));
     await tester.pumpAndSettle();
 
     expect(_surface(tester).color, isNot(before));
@@ -87,7 +101,7 @@ void main() {
     var taps = 0;
     await tester.pumpWidget(
       _app(
-        child: TrackCard(
+        child: WaterfallTrackCard(
           track: _track(),
           isPlaying: false,
           unavailable: true,
@@ -97,7 +111,32 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(TrackCard));
+    await tester.tap(find.byType(WaterfallTrackCard));
     expect(taps, 0);
+  });
+
+  testWidgets('source sits on the cover and actions use a compact row slot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        child: WaterfallTrackCard(
+          track: _track(),
+          isPlaying: false,
+          onTap: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final source = tester.getRect(find.byType(SourceBadge));
+    final title = tester.getRect(find.text('Alpha'));
+    final actions = tester.getRect(find.byType(TrackActionsButton));
+
+    expect(source.bottom, lessThan(title.top));
+    expect(actions.top, greaterThan(title.top));
+    expect(actions.width, lessThanOrEqualTo(32));
+    expect(actions.height, lessThanOrEqualTo(32));
+    expect(find.text('本地'), findsOneWidget);
   });
 }

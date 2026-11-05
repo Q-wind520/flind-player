@@ -132,7 +132,13 @@ class PrefsSettingsRepository implements SettingsRepository {
       for (final scope in LibraryViewScope.values) {
         final name = prefs.getString(_libraryViewKey(scope));
         if (name == null) continue;
-        final parsed = LibraryView.values.asNameMap()[name];
+        // Migrate the pre-0.9 names: both card layouts are now "cards".
+        final stored = LibraryView.values.asNameMap()[name];
+        final parsed =
+            stored ??
+            ((name == 'showcase' || name == 'waterfall')
+                ? LibraryView.cards
+                : null);
         if (parsed == null) continue;
         views[scope] = scope.sanitize(parsed);
       }

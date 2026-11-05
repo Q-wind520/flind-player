@@ -234,11 +234,11 @@ void main() {
     expect(find.text('曲库还是空的'), findsNothing);
   });
 
-  testWidgets('全部 can render the waterfall view', (tester) async {
+  testWidgets('全部 can render the cards view', (tester) async {
     await tester.pumpWidget(
       _app(
         tracks: [_track('Alpha', id: 1), _track('Beta', id: 2)],
-        view: LibraryView.waterfall,
+        view: LibraryView.cards,
       ),
     );
     await tester.pumpAndSettle();
@@ -685,18 +685,28 @@ void main() {
     expect(find.text('按艺术家'), findsOneWidget);
     expect(find.text('按专辑'), findsOneWidget);
     expect(find.text('最近添加'), findsOneWidget);
+
+    // The current sort's check is the trailing child, after the label.
+    final selected = tester.widget<PopupMenuItem<TrackSort>>(
+      find.ancestor(
+        of: find.text('按标题'),
+        matching: find.byType(PopupMenuItem<TrackSort>),
+      ),
+    );
+    expect((selected.child! as Row).children.last, isA<Icon>());
   });
 
-  testWidgets('the view menu on 全部 offers all three views', (tester) async {
+  testWidgets('the view menu on 全部 offers cards and list', (tester) async {
     await tester.pumpWidget(_app(tracks: [_track('Alpha', id: 1)]));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('library_view_menu')));
     await tester.pumpAndSettle();
 
-    expect(find.text('展柜视图'), findsOneWidget);
+    expect(find.text('卡片视图'), findsOneWidget);
     expect(find.text('列表视图'), findsOneWidget);
-    expect(find.text('瀑布流视图'), findsOneWidget);
+    expect(find.text('展柜视图'), findsNothing);
+    expect(find.text('瀑布流视图'), findsNothing);
   });
 
   testWidgets('header actions do not overflow at 400 px', (tester) async {

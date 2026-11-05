@@ -44,13 +44,9 @@ class LibrarySortMenuButton extends ConsumerWidget {
             value: sort,
             child: Row(
               children: [
-                SizedBox(
-                  width: 24,
-                  child: sort == current
-                      ? const Icon(AppIcons.check, size: 18)
-                      : null,
-                ),
-                Text(librarySortLabel(l10n, sort)),
+                Expanded(child: Text(librarySortLabel(l10n, sort))),
+                if (sort == current)
+                  const Icon(AppIcons.check, size: 18),
               ],
             ),
           ),

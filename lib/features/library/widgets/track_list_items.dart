@@ -134,9 +134,25 @@ class TrackListRow extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Opacity(
-                    opacity: unavailable ? 0.55 : 1,
-                    child: TrackCover(track: track, size: 48),
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Opacity(
+                            opacity: unavailable ? 0.55 : 1,
+                            child: TrackCover(track: track, size: 48),
+                          ),
+                        ),
+                        if (isPlaying)
+                          const Positioned(
+                            left: 3,
+                            bottom: 3,
+                            child: NowPlayingBadge(),
+                          ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -177,10 +193,6 @@ class TrackListRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (isPlaying) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Icon(AppIcons.graphicEq, size: 18, color: scheme.primary),
-                  ],
                   const SizedBox(width: AppSpacing.sm),
                   Text(
                     formatTrackDuration(track.duration),
@@ -202,146 +214,32 @@ class TrackListRow extends StatelessWidget {
   }
 }
 
-/// A card tile for the showcase (展柜) grid view.
-///
-/// Shows a square cover, title, artist, source badge, playing indicator, and
-/// a trailing actions button overlaid in the top-right corner.
-class TrackCard extends StatelessWidget {
-  const TrackCard({
-    required this.track,
-    required this.isPlaying,
-    required this.onTap,
-    this.playlistId,
-    this.showDeleteTrack = false,
-    this.unavailable = false,
+/// How a [SourceBadge] is painted.
+enum SourceBadgeStyle {
+  /// Bare dot + label, for a row's subtitle line.
+  inline,
+
+  /// Dark translucent pill for the top of a cover.
+  overlay,
+}
+
+/// Small chip naming the track's source.
+class SourceBadge extends StatelessWidget {
+  const SourceBadge({
+    required this.source,
+    this.style = SourceBadgeStyle.inline,
     super.key,
   });
 
-  final Track track;
-  final bool isPlaying;
-  final VoidCallback onTap;
-
-  /// The playlist this card is rendered inside, when non-null. Forwarded to
-  /// [TrackActionsButton] so its menu can offer "remove from playlist".
-  final int? playlistId;
-
-  /// Whether to show the "删除歌曲" menu item.
-  final bool showDeleteTrack;
-
-  /// Whether [track] could not be resolved to a playable row. Unresolvable
-  /// rows stay visible but are dimmed and announce
-  /// [AppLocalizations.trackUnavailable] instead of the artist.
-  final bool unavailable;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final l10n = AppLocalizations.of(context);
-
-    return LibraryCardShell(
-      onTap: onTap,
-      enabled: !unavailable,
-      isPlaying: isPlaying,
-      child: Opacity(
-        opacity: unavailable ? 0.55 : 1,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  TrackCover(
-                    track: track,
-                    size: double.infinity,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
-                  if (isPlaying)
-                    Positioned(
-                      bottom: AppSpacing.sm,
-                      left: AppSpacing.sm,
-                      child: NowPlayingBadge(label: l10n.nowPlaying),
-                    ),
-                  Positioned(
-                    top: AppSpacing.sm,
-                    right: AppSpacing.sm,
-                    child: ClipOval(
-                      child: ColoredBox(
-                        color: scheme.surface.withValues(alpha: 0.68),
-                        child: TrackActionsButton(
-                          track: track,
-                          playlistId: playlistId,
-                          showDeleteTrack: showDeleteTrack,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(0, AppSpacing.sm, 0, 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    height: libraryCardTitleHeight,
-                    child: Text(
-                      track.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          unavailable
-                              ? l10n.trackUnavailable
-                              : track.artist ?? l10n.unknownArtist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      SourceBadge(source: track.source, chip: true),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Small tonal chip naming the track's source.
-///
-/// Rows use the bare dot + label; cards pass [chip] so the source reads as a
-/// self-contained tag on the card surface instead of loose text.
-class SourceBadge extends StatelessWidget {
-  const SourceBadge({required this.source, this.chip = false, super.key});
-
   final String source;
-
-  /// Whether to draw the pill background. Cards enable this; rows do not.
-  final bool chip;
+  final SourceBadgeStyle style;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
+    final overlay = style == SourceBadgeStyle.overlay;
     final label = switch (source) {
       'local' => l10n.sourceLocal,
       'bilibili' => l10n.sourceBilibili,
@@ -352,14 +250,11 @@ class SourceBadge extends StatelessWidget {
     final marker = switch (source) {
       'bilibili' => const Color(0xFFFB7299),
       'netease' => const Color(0xFFE0463D),
-      _ => scheme.onSurfaceVariant.withValues(alpha: 0.55),
+      _ => overlay
+          ? Colors.white.withValues(alpha: 0.7)
+          : scheme.onSurfaceVariant.withValues(alpha: 0.55),
     };
 
-    final text = Text(
-      label,
-      style: (chip ? theme.textTheme.labelSmall : theme.textTheme.labelMedium)
-          ?.copyWith(color: scheme.onSurfaceVariant),
-    );
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -369,16 +264,28 @@ class SourceBadge extends StatelessWidget {
           decoration: BoxDecoration(color: marker, shape: BoxShape.circle),
         ),
         const SizedBox(width: AppSpacing.xs),
-        text,
+        Text(
+          label,
+          style: (overlay
+                  ? theme.textTheme.labelSmall
+                  : theme.textTheme.labelMedium)
+              ?.copyWith(
+                color: overlay
+                    ? Colors.white.withValues(alpha: 0.94)
+                    : scheme.onSurfaceVariant,
+                fontWeight: overlay ? FontWeight.w500 : null,
+              ),
+        ),
       ],
     );
-    if (!chip) return content;
+    if (!overlay) return content;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
+        color: Colors.black.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: content,
     );
@@ -397,10 +304,10 @@ class TrackCover extends StatelessWidget {
   final Track track;
 
   /// Fixed size in pixels, or `double.infinity` when the cover should fill its
-  /// parent (used inside the grid card's [Expanded] wrapper).
+  /// parent (used inside a card's [AspectRatio] cover slot).
   final double size;
 
-  /// Overrides the compact 8 px row radius; grid cards use 16.
+  /// Overrides the compact 8 px radius used by list thumbnails.
   final BorderRadius? borderRadius;
 
   @override

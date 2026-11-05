@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
@@ -69,9 +70,13 @@ class TrackActionsButton extends ConsumerWidget {
     this.onSaveToLibrary,
     this.playlistId,
     this.showDeleteTrack = false,
+    this.compact = false,
   });
 
   final Track track;
+
+  /// Renders a 28 px icon-only button for cover-card metadata rows.
+  final bool compact;
 
   /// Whether to show the "存入曲库" menu item (search rows only).
   final bool showSaveToLibrary;
@@ -101,6 +106,17 @@ class TrackActionsButton extends ConsumerWidget {
     return PopupMenuButton<_TrackAction>(
       // Empty message suppresses PopupMenuButton's default "Show menu" bubble.
       tooltip: '',
+      padding: compact ? EdgeInsets.zero : const EdgeInsets.all(AppSpacing.sm),
+      borderRadius: compact ? BorderRadius.circular(AppRadius.pill) : null,
+      // The child form skips PopupMenuButton's 40 px IconButton wrapper, so a
+      // card can use a compact 28 px action without growing its metadata row.
+      child: compact
+          ? const SizedBox(
+              width: 28,
+              height: 28,
+              child: Icon(AppIcons.moreVert, size: 18),
+            )
+          : null,
       onSelected: (action) => _onSelected(context, ref, action),
       itemBuilder: (context) => [
         PopupMenuItem<_TrackAction>(

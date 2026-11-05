@@ -9,14 +9,14 @@ import 'package:flutter/foundation.dart';
 
 /// How a list of tracks (or playlists) is laid out.
 enum LibraryView {
-  /// Card grid.
-  showcase,
+  /// Cover cards.
+  ///
+  /// Tracks use a masonry of intrinsic-ratio covers; playlists use square
+  /// full-bleed covers with the name and count overlaid on the artwork.
+  cards,
 
   /// Single-column rows.
   list,
-
-  /// Variable-height masonry, cover aspect ratio preserved.
-  waterfall,
 }
 
 /// A page whose view is chosen independently and persisted.
@@ -28,24 +28,16 @@ enum LibraryViewScope {
 
   /// The view shown when nothing valid is stored for this scope.
   LibraryView get defaultView => switch (this) {
-    LibraryViewScope.all => LibraryView.waterfall,
-    LibraryViewScope.favorites => LibraryView.showcase,
-    LibraryViewScope.playlists => LibraryView.showcase,
     LibraryViewScope.playlistDetail => LibraryView.list,
+    _ => LibraryView.cards,
   };
 
-  /// The views this scope offers. The playlists list has no song-cover ratio,
-  /// so it has no waterfall.
-  Set<LibraryView> get allowedViews => switch (this) {
-    LibraryViewScope.playlists => const {
-      LibraryView.showcase,
-      LibraryView.list,
-    },
-    _ => const {
-      LibraryView.showcase,
-      LibraryView.list,
-      LibraryView.waterfall,
-    },
+  /// The views this scope offers.
+  ///
+  /// Every scope now offers the same two: cards and list.
+  Set<LibraryView> get allowedViews => const {
+    LibraryView.cards,
+    LibraryView.list,
   };
 
   /// [view] when allowed, otherwise [defaultView].

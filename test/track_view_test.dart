@@ -8,17 +8,20 @@ import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/library/widgets/track_view.dart';
+import 'package:flind_player/features/library/widgets/waterfall_track_card.dart';
 
 import 'support/l10n.dart';
 
-Track _track(int i) => Track(
+Track _track(int i, {Duration? duration}) => Track(
   id: i,
   source: 'local',
   sourceTrackId: LocalTrackId('/music/$i.mp3'),
   uri: 'local:/music/$i.mp3',
   title: 'Song $i',
+  duration: duration,
 );
 
 /// Rows/cards embed `TrackActionsButton`, which watches favourites + cache.
@@ -63,16 +66,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(TrackTile), findsNWidgets(2));
-    expect(find.byType(TrackCard), findsNothing);
     expect(find.byType(MasonryGridView), findsNothing);
+    expect(find.byType(WaterfallTrackCard), findsNothing);
   });
 
-  testWidgets('showcase view renders TrackCard grid', (tester) async {
+  testWidgets('cards view renders masonry track cards', (tester) async {
     await tester.pumpWidget(
       _wrap(
         TrackView(
           tracks: [_track(1), _track(2)],
-          view: LibraryView.showcase,
+          view: LibraryView.cards,
           currentUri: null,
           isPlaying: false,
           onPlay: (_) {},
@@ -81,11 +84,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(TrackCard), findsNWidgets(2));
+    expect(find.byType(WaterfallTrackCard), findsNWidgets(2));
     expect(find.byType(TrackTile), findsNothing);
   });
 
-  testWidgets('showcase cards do not overflow at 400 px', (tester) async {
+  testWidgets('cards do not overflow at 400 px', (tester) async {
     await tester.binding.setSurfaceSize(const Size(400, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -93,7 +96,7 @@ void main() {
       _wrap(
         TrackView(
           tracks: <Track>[_track(1), _track(2), _track(3), _track(4)],
-          view: LibraryView.showcase,
+          view: LibraryView.cards,
           currentUri: null,
           isPlaying: false,
           onPlay: (_) {},
@@ -103,23 +106,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('waterfall view renders a MasonryGridView', (tester) async {
-    await tester.pumpWidget(
-      _wrap(
-        TrackView(
-          tracks: [_track(1), _track(2)],
-          view: LibraryView.waterfall,
-          currentUri: null,
-          isPlaying: false,
-          onPlay: (_) {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MasonryGridView), findsOneWidget);
   });
 
   testWidgets('onPlay reports the tapped index', (tester) async {
@@ -159,52 +145,37 @@ void main() {
     expect(find.byType(Divider), findsOneWidget);
   });
 
-  testWidgets('grid and waterfall views render their own layouts', (
+  testWidgets('list playing badge sits on the cover, clear of the duration', (
     tester,
   ) async {
+    final track = _track(1, duration: const Duration(minutes: 4));
     await tester.pumpWidget(
       _wrap(
         TrackView(
-          tracks: [_track(1)],
-          view: LibraryView.showcase,
-          currentUri: null,
-          isPlaying: false,
+          tracks: [track],
+          view: LibraryView.list,
+          currentUri: track.uri,
+          isPlaying: true,
           onPlay: (_) {},
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(GridView), findsOneWidget);
+    final badge = tester.getRect(find.byType(NowPlayingBadge));
+    final cover = tester.getRect(find.byType(TrackCover));
+    final duration = tester.getRect(find.text('4:00'));
+
+    expect(cover.contains(badge.center), isTrue);
+    expect(badge.overlaps(duration), isFalse);
   });
 
-  testWidgets('showcase grid reserves the injected bottom inset', (
-    tester,
-  ) async {
+  testWidgets('cards reserves the injected bottom inset', (tester) async {
     await tester.pumpWidget(
       _wrapWithBottomInset(
         TrackView(
           tracks: [_track(1)],
-          view: LibraryView.showcase,
-          currentUri: null,
-          isPlaying: false,
-          onPlay: (_) {},
-        ),
-        72,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final grid = tester.widget<GridView>(find.byType(GridView));
-    expect((grid.padding! as EdgeInsets).bottom, 12 + 72);
-  });
-
-  testWidgets('waterfall reserves the injected bottom inset', (tester) async {
-    await tester.pumpWidget(
-      _wrapWithBottomInset(
-        TrackView(
-          tracks: [_track(1)],
-          view: LibraryView.waterfall,
+          view: LibraryView.cards,
           currentUri: null,
           isPlaying: false,
           onPlay: (_) {},

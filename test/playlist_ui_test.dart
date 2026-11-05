@@ -811,7 +811,7 @@ void main() {
   });
 
   group('playlists view', () {
-    testWidgets('歌单列表默认展柜，可切换为列表', (tester) async {
+    testWidgets('歌单列表默认卡片，可切换为列表', (tester) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [
@@ -824,14 +824,19 @@ void main() {
       await tester.pumpAndSettle();
       await _openPlaylists(tester);
 
-      // Default for the playlists scope is showcase: 2 custom cards.
+      // Default for the playlists scope is cards: 2 custom cards.
       expect(find.byType(PlaylistCard), findsNWidgets(2));
       expect(find.byType(ListTile), findsNothing);
 
       await tester.tap(find.byKey(const Key('library_view_menu')));
       await tester.pumpAndSettle();
-      // The playlists scope offers no waterfall.
-      expect(find.text(testL10n().viewWaterfall), findsNothing);
+
+      // The selected cards item carries its check at the trailing edge.
+      final cardsItem = tester.widget<MenuItemButton>(
+        find.widgetWithText(MenuItemButton, testL10n().viewCards),
+      );
+      expect(cardsItem.trailingIcon, isNotNull);
+      expect(cardsItem.leadingIcon, isNull);
       await tester.tap(find.text(testL10n().viewList));
       await tester.pumpAndSettle();
 
@@ -840,7 +845,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('歌单详情页提供视图菜单并可切换为瀑布流', (tester) async {
+    testWidgets('歌单详情页提供视图菜单并可切换为卡片', (tester) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [_playlist(2, 'Road Trip', PlaylistKind.custom)],
@@ -853,7 +858,7 @@ void main() {
       await tester.pumpAndSettle();
       await _openPlaylists(tester);
 
-      // Default showcase: tap the playlist card to push its detail screen.
+      // Default cards: tap the playlist card to push its detail screen.
       await tester.tap(find.text('Road Trip'));
       await tester.pumpAndSettle();
 
@@ -863,7 +868,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('library_view_menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(testL10n().viewWaterfall));
+      await tester.tap(find.text(testL10n().viewCards));
       await tester.pumpAndSettle();
 
       expect(find.byType(MasonryGridView), findsOneWidget);

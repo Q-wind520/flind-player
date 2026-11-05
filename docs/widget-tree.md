@@ -518,22 +518,23 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | `lib/shared/app_surface.dart` | 统一页面底色 + `colorOf` |
 | `lib/features/discover/discover_screen.dart` | 发现页(搜索 + 每日推荐/最近播放/歌单) |
 | `lib/features/library/library_screen.dart` | 曲库页(页头/三段 Tab/搜索/收藏/歌单/来源) |
-| `lib/core/models/library_view.dart` | 视图模型:`LibraryView`(展柜网格/列表/瀑布流) + `LibraryViewScope`(按段作用域) |
+| `lib/core/models/library_view.dart` | 视图模型:`LibraryView`(卡片/列表) + `LibraryViewScope`(按段作用域) |
 | `lib/features/library/library_view_provider.dart` | `LibraryViewsNotifier` — 按段持久化的多视图(存设置仓) |
 | `lib/features/library/library_sort_provider.dart` | 曲库排序(标题/艺术家/专辑/最近添加) |
 | `lib/features/library/track_sorting.dart` | 排序比较器与本地化键 |
-| `lib/features/library/cover_aspect_ratio_provider.dart` | 封面宽高比设置(瀑布流用) |
+| `lib/features/library/cover_aspect_ratio_provider.dart` | 封面宽高比设置(卡片视图用) |
 | `lib/features/library/playlist_detail_screen.dart` | 歌单详情页(内容内返回/操作栏 + 头部 + 成员列表) |
 | `lib/features/library/widgets/library_view_menu_button.dart` | 曲库页头视图切换菜单 |
 | `lib/features/library/widgets/library_sort_menu_button.dart` | 曲库页头排序菜单 |
 | `lib/features/library/widgets/library_sources.dart` | 歌单页顶部来源卡片(离线缓存 / B站 / 网易云 / 本地) |
 | `lib/features/library/widgets/playlists_section.dart` | 歌单区(仅自建歌单; 收藏已独立 Tab) |
-| `lib/features/library/widgets/playlist_card.dart` | 歌单卡片(封面 + 计数) |
+| `lib/features/library/widgets/playlist_card.dart` | 歌单卡片(封面 + 覆盖文字) |
+| `lib/features/library/widgets/library_card_shell.dart` | 曲库卡片底板(悬停/播放态) + 播放徽标 + 封面占位 |
 | `lib/features/library/widgets/playlist_editor_dialog.dart` | 歌单创建/编辑对话框 |
 | `lib/features/library/widgets/playlist_picker_sheet.dart` | 加入歌单底部选择器 |
-| `lib/features/library/widgets/track_view.dart` | 共享曲目渲染(展柜网格 / 列表 / 瀑布流三态) |
-| `lib/features/library/widgets/waterfall_track_card.dart` | 瀑布流曲目卡片 |
-| `lib/features/library/widgets/track_list_items.dart` | 共享曲目行/卡片/来源徽标/封面 |
+| `lib/features/library/widgets/track_view.dart` | 共享曲目渲染(卡片 / 列表二态) |
+| `lib/features/library/widgets/waterfall_track_card.dart` | 卡片视图的曲目卡片 |
+| `lib/features/library/widgets/track_list_items.dart` | 共享曲目行/来源徽标/封面 |
 | `lib/features/library/widgets/track_actions_button.dart` | 轨道操作弹出菜单(收藏/缓存/存入曲库/加入歌单/移出歌单) |
 | `lib/features/library/widgets/cache_action_button.dart` | 缓存按钮(未挂载) |
 | `lib/data/services/track_deletion_service.dart` | `TrackDeletionService` — 删除曲目的缓存/歌单/曲库三步编排 |
