@@ -11,6 +11,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/features/library/widgets/waterfall_track_card.dart';
 
@@ -115,30 +116,37 @@ class TrackView extends StatelessWidget {
   }
 
   Widget _grid(double bottomInset, double horizontal) {
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(
-        horizontal,
-        AppSpacing.sm,
-        horizontal,
-        AppSpacing.md + bottomInset,
-      ),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 260,
-        childAspectRatio: 0.82,
-        crossAxisSpacing: 24,
-        mainAxisSpacing: 28,
-      ),
-      itemCount: tracks.length,
-      itemBuilder: (context, index) {
-        final track = tracks[index];
-        final isCurrent = currentUri != null && track.uri == currentUri;
-        return TrackCard(
-          track: track,
-          isPlaying: isCurrent && isPlaying,
-          unavailable: track.id == null,
-          playlistId: playlistId,
-          showDeleteTrack: showDeleteTrack,
-          onTap: () => onPlay(index),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final ratio = libraryCardAspectRatio(
+          constraints.maxWidth - horizontal * 2,
+        );
+        return GridView.builder(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            AppSpacing.sm,
+            horizontal,
+            AppSpacing.md + bottomInset,
+          ),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: libraryCardMaxWidth,
+            childAspectRatio: ratio,
+            crossAxisSpacing: libraryCardSpacing,
+            mainAxisSpacing: libraryCardSpacing,
+          ),
+          itemCount: tracks.length,
+          itemBuilder: (context, index) {
+            final track = tracks[index];
+            final isCurrent = currentUri != null && track.uri == currentUri;
+            return TrackCard(
+              track: track,
+              isPlaying: isCurrent && isPlaying,
+              unavailable: track.id == null,
+              playlistId: playlistId,
+              showDeleteTrack: showDeleteTrack,
+              onTap: () => onPlay(index),
+            );
+          },
         );
       },
     );
@@ -156,8 +164,8 @@ class TrackView extends StatelessWidget {
             AppSpacing.md + bottomInset,
           ),
           crossAxisCount: columns,
-          mainAxisSpacing: 24,
-          crossAxisSpacing: 20,
+          mainAxisSpacing: 20,
+          crossAxisSpacing: libraryCardSpacing,
           itemCount: tracks.length,
           itemBuilder: (context, index) {
             final track = tracks[index];

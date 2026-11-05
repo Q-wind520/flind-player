@@ -22,6 +22,7 @@ import 'package:flind_player/core/models/library_view.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
 import 'package:flind_player/features/library/playlist_detail_screen.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
 import 'package:flind_player/features/library/widgets/playlist_card.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -69,27 +70,32 @@ class PlaylistsSection extends ConsumerWidget {
               horizontal,
               AppSpacing.md + bottomInset,
             ),
-            sliver: SliverGrid(
-              gridDelegate:
-                  const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 260,
-                    childAspectRatio: 0.82,
-                    crossAxisSpacing: 24,
-                    mainAxisSpacing: 28,
-                  ),
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final playlist = custom[index];
-                return PlaylistCard(
-                  playlistId: playlist.id,
-                  name: playlist.name,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) =>
-                          PlaylistDetailScreen(playlistId: playlist.id),
+            sliver: SliverLayoutBuilder(
+              builder: (context, constraints) {
+                return SliverGrid(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: libraryCardMaxWidth,
+                    childAspectRatio: libraryCardAspectRatio(
+                      constraints.crossAxisExtent,
                     ),
+                    crossAxisSpacing: libraryCardSpacing,
+                    mainAxisSpacing: libraryCardSpacing,
                   ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final playlist = custom[index];
+                    return PlaylistCard(
+                      playlistId: playlist.id,
+                      name: playlist.name,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) =>
+                              PlaylistDetailScreen(playlistId: playlist.id),
+                        ),
+                      ),
+                    );
+                  }, childCount: custom.length),
                 );
-              }, childCount: custom.length),
+              },
             ),
           ),
         ],

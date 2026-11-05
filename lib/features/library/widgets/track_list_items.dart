@@ -19,6 +19,7 @@ import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
@@ -238,104 +239,86 @@ class TrackCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
 
-    final radius = BorderRadius.circular(AppRadius.md);
-    return Material(
-      type: MaterialType.transparency,
-      borderRadius: radius,
-      child: InkWell(
-        onTap: unavailable ? null : onTap,
-        borderRadius: radius,
-        child: Opacity(
-          opacity: unavailable ? 0.55 : 1,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    TrackCover(
-                      track: track,
-                      size: double.infinity,
-                      borderRadius: radius,
-                    ),
-                    if (isPlaying)
-                      Positioned(
-                        bottom: AppSpacing.sm,
-                        left: AppSpacing.sm,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: scheme.primary,
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          child: Icon(
-                            AppIcons.graphicEq,
-                            size: 12,
-                            color: scheme.onPrimary,
-                          ),
-                        ),
-                      ),
+    return LibraryCardShell(
+      onTap: onTap,
+      enabled: !unavailable,
+      isPlaying: isPlaying,
+      child: Opacity(
+        opacity: unavailable ? 0.55 : 1,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  TrackCover(
+                    track: track,
+                    size: double.infinity,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  if (isPlaying)
                     Positioned(
-                      top: AppSpacing.sm,
-                      right: AppSpacing.sm,
-                      child: ClipOval(
-                        child: ColoredBox(
-                          color: scheme.surface.withValues(alpha: 0.82),
-                          child: TrackActionsButton(
-                            track: track,
-                            playlistId: playlistId,
-                            showDeleteTrack: showDeleteTrack,
-                          ),
+                      bottom: AppSpacing.sm,
+                      left: AppSpacing.sm,
+                      child: NowPlayingBadge(label: l10n.nowPlaying),
+                    ),
+                  Positioned(
+                    top: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    child: ClipOval(
+                      child: ColoredBox(
+                        color: scheme.surface.withValues(alpha: 0.68),
+                        child: TrackActionsButton(
+                          track: track,
+                          playlistId: playlistId,
+                          showDeleteTrack: showDeleteTrack,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(2, AppSpacing.sm, 2, 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 40,
-                      child: Text(
-                        track.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, AppSpacing.sm, 0, 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: libraryCardTitleHeight,
+                    child: Text(
+                      track.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            unavailable
-                                ? l10n.trackUnavailable
-                                : track.artist ?? l10n.unknownArtist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          unavailable
+                              ? l10n.trackUnavailable
+                              : track.artist ?? l10n.unknownArtist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        SourceBadge(source: track.source),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      SourceBadge(source: track.source, chip: true),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -343,10 +326,16 @@ class TrackCard extends StatelessWidget {
 }
 
 /// Small tonal chip naming the track's source.
+///
+/// Rows use the bare dot + label; cards pass [chip] so the source reads as a
+/// self-contained tag on the card surface instead of loose text.
 class SourceBadge extends StatelessWidget {
-  const SourceBadge({required this.source, super.key});
+  const SourceBadge({required this.source, this.chip = false, super.key});
 
   final String source;
+
+  /// Whether to draw the pill background. Cards enable this; rows do not.
+  final bool chip;
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +355,12 @@ class SourceBadge extends StatelessWidget {
       _ => scheme.onSurfaceVariant.withValues(alpha: 0.55),
     };
 
-    return Row(
+    final text = Text(
+      label,
+      style: (chip ? theme.textTheme.labelSmall : theme.textTheme.labelMedium)
+          ?.copyWith(color: scheme.onSurfaceVariant),
+    );
+    final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
@@ -375,13 +369,18 @@ class SourceBadge extends StatelessWidget {
           decoration: BoxDecoration(color: marker, shape: BoxShape.circle),
         ),
         const SizedBox(width: AppSpacing.xs),
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
+        text,
       ],
+    );
+    if (!chip) return content;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: content,
     );
   }
 }
@@ -415,7 +414,7 @@ class TrackCover extends StatelessWidget {
     final useFixedSize = !size.isInfinite;
     final radius = borderRadius ?? BorderRadius.circular(AppRadius.sm);
 
-    Widget child = Container(
+    final child = Container(
       width: useFixedSize ? size : null,
       height: useFixedSize ? size : null,
       color: scheme.surfaceContainerHighest,
@@ -424,20 +423,28 @@ class TrackCover extends StatelessWidget {
               path: coverPath,
               url: coverUrl,
               size: size,
-              errorBuilder: (context, error, stackTrace) =>
-                  _placeholder(scheme),
+              errorBuilder: (context, error, stackTrace) => _placeholder(),
             )
-          : _placeholder(scheme),
+          : _placeholder(),
     );
 
-    return ClipRRect(borderRadius: radius, child: child);
+    return Container(
+      // A hairline keeps dark artwork from bleeding into the card mat. Compact
+      // row thumbnails already sit inside a row, so they skip it.
+      foregroundDecoration: useFixedSize
+          ? null
+          : BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.35),
+              ),
+            ),
+      child: ClipRRect(borderRadius: radius, child: child),
+    );
   }
 
-  Widget _placeholder(ColorScheme scheme) => Center(
-    child: Icon(
-      AppIcons.musicNote,
-      size: size.isInfinite ? 40 : size * 0.5,
-      color: scheme.onSurfaceVariant,
-    ),
+  Widget _placeholder() => LibraryCoverPlaceholder(
+    icon: AppIcons.musicNote,
+    iconSize: size.isInfinite ? 40 : size * 0.5,
   );
 }

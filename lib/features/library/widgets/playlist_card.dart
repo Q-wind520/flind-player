@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
 
@@ -41,60 +42,67 @@ class PlaylistCard extends ConsumerWidget {
     final hasCover =
         (path != null && path.isNotEmpty) || (url != null && url.isNotEmpty);
 
-    final radius = BorderRadius.circular(AppRadius.md);
-    return Material(
-      type: MaterialType.transparency,
-      borderRadius: radius,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: radius,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: radius,
-                child: ColoredBox(
-                  color: scheme.surfaceContainerHighest,
-                  child: hasCover
-                      ? CoverImage(
-                          path: path,
-                          url: url,
-                          size: double.infinity,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(fallbackIcon, size: 40),
-                        )
-                      : Icon(fallbackIcon, size: 40),
+    final coverRadius = BorderRadius.circular(AppRadius.sm);
+    final placeholder = LibraryCoverPlaceholder(
+      icon: fallbackIcon,
+      iconSize: 40,
+    );
+    return LibraryCardShell(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Container(
+              foregroundDecoration: BoxDecoration(
+                borderRadius: coverRadius,
+                border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.35),
                 ),
               ),
+              child: ClipRRect(
+                borderRadius: coverRadius,
+                child: hasCover
+                    ? CoverImage(
+                        path: path,
+                        url: url,
+                        size: double.infinity,
+                        errorBuilder: (context, error, stackTrace) =>
+                            placeholder,
+                      )
+                    : placeholder,
+              ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(2, AppSpacing.sm, 2, 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, AppSpacing.sm, 0, 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: libraryCardTitleHeight,
+                  child: Text(
                     name,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    count == null ? '' : l10n.playlistTrackCount(count),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  count == null ? '' : l10n.playlistTrackCount(count),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

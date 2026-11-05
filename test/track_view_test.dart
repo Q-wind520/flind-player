@@ -85,6 +85,26 @@ void main() {
     expect(find.byType(TrackTile), findsNothing);
   });
 
+  testWidgets('showcase cards do not overflow at 400 px', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _wrap(
+        TrackView(
+          tracks: <Track>[_track(1), _track(2), _track(3), _track(4)],
+          view: LibraryView.showcase,
+          currentUri: null,
+          isPlaying: false,
+          onPlay: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('waterfall view renders a MasonryGridView', (tester) async {
     await tester.pumpWidget(
       _wrap(
