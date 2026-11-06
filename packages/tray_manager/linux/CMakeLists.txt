@@ -12,6 +12,13 @@ add_library(${PLUGIN_NAME} SHARED
   "tray_manager_plugin.cc"
 )
 apply_standard_settings(${PLUGIN_NAME})
+
+# libappindicator's public API is deprecated as a whole, but the vendored
+# plugin still uses it. Flutter's APPLY_STANDARD_SETTINGS adds -Werror, which
+# turns the deprecation notice into a hard failure on newer clang toolchains
+# (as seen in the GitHub Linux release job).
+target_compile_options(
+  ${PLUGIN_NAME} PRIVATE -Wno-error=deprecated-declarations)
 set_target_properties(${PLUGIN_NAME} PROPERTIES
   CXX_VISIBILITY_PRESET hidden)
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
