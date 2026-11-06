@@ -23,6 +23,7 @@ import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/playback_queue.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/sources/remote_playlist.dart';
+import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/bilibili_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -30,7 +31,7 @@ import 'package:flind_player/features/library/widgets/track_actions_button.dart'
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/app_page_header.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/empty_state.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -83,6 +84,22 @@ class _BilibiliFavoritesScreenState
 
   /// Guards against a stale response overwriting a newer one.
   int _requestId = 0;
+
+  bool _initialisedAccount = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialisedAccount) return;
+    _initialisedAccount = true;
+    // A signed-in account can see its own private folders; prefill its UID so
+    // the common case needs no manual input. The field stays editable.
+    final account = ref.read(authAccountProvider('bilibili'));
+    if (account != null && account.userId.isNotEmpty) {
+      _uidController.text = account.userId;
+      _loadFolders();
+    }
+  }
 
   @override
   void dispose() {
@@ -249,35 +266,24 @@ class _BilibiliFavoritesScreenState
     final folder = _openFolder;
     final compact = MediaQuery.sizeOf(context).width < AppBreakpoints.compact;
     final horizontal = compact ? 16.0 : 28.0;
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppPageHeader(
-                  leading: IconButton(
-                    icon: const Icon(AppIcons.arrowBack),
-                    tooltip: '',
-                    onPressed: folder == null
-                        ? () => Navigator.of(context).maybePop()
-                        : _backToFolders,
-                  ),
-                  title: folder == null
-                      ? l10n.browseBiliFavorites
-                      : folder.title,
-                ),
-                if (folder == null) _buildUidBar(horizontal),
-                Expanded(child: _buildBody(horizontal)),
-              ],
+    return AppPageScaffold(
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppPageHeader(
+            leading: IconButton(
+              icon: const Icon(AppIcons.arrowBack),
+              tooltip: '',
+              onPressed: folder == null
+                  ? () => Navigator.of(context).maybePop()
+                  : _backToFolders,
             ),
+            title: folder == null ? l10n.browseBiliFavorites : folder.title,
           ),
-        ),
+          if (folder == null) _buildUidBar(horizontal),
+        ],
       ),
+      body: _buildBody(horizontal),
     );
   }
 

@@ -8,15 +8,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/features/library/cover_aspect_ratio_provider.dart';
+import 'package:flind_player/features/library/widgets/library_card_shell.dart';
 import 'package:flind_player/features/library/widgets/track_actions_button.dart';
 import 'package:flind_player/features/library/widgets/track_list_items.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 
-/// A masonry card whose cover keeps its intrinsic aspect ratio.
+/// A cards-view track tile whose cover keeps its intrinsic aspect ratio.
 class WaterfallTrackCard extends ConsumerWidget {
   const WaterfallTrackCard({
     required this.track,
@@ -48,71 +48,50 @@ class WaterfallTrackCard extends ConsumerWidget {
         ? 1.0
         : (ref.watch(coverAspectRatioProvider(coverKey)).value ?? 1.0);
 
-    final radius = BorderRadius.circular(AppRadius.md);
-    return Material(
-      type: MaterialType.transparency,
-      borderRadius: radius,
-      child: InkWell(
-        onTap: unavailable ? null : onTap,
-        borderRadius: radius,
-        child: Opacity(
-          opacity: unavailable ? 0.55 : 1,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Stack(
-                alignment: Alignment.center,
+    return LibraryCardShell(
+      onTap: onTap,
+      enabled: !unavailable,
+      isPlaying: isPlaying,
+      child: Opacity(
+        opacity: unavailable ? 0.55 : 1,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                AspectRatio(
+                  aspectRatio: ratio,
+                  child: TrackCover(
+                    track: track,
+                    size: double.infinity,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                ),
+                if (isPlaying)
+                  const Positioned(
+                    bottom: AppSpacing.sm,
+                    left: AppSpacing.sm,
+                    child: NowPlayingBadge(),
+                  ),
+                Positioned(
+                  top: AppSpacing.sm,
+                  right: AppSpacing.sm,
+                  child: SourceBadge(
+                    source: track.source,
+                    style: SourceBadgeStyle.overlay,
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, AppSpacing.sm, 0, 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AspectRatio(
-                    aspectRatio: ratio,
-                    child: TrackCover(
-                      track: track,
-                      size: double.infinity,
-                      borderRadius: radius,
-                    ),
-                  ),
-                  if (isPlaying)
-                    Positioned(
-                      bottom: AppSpacing.sm,
-                      left: AppSpacing.sm,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: scheme.primary,
-                          borderRadius: BorderRadius.circular(AppRadius.pill),
-                        ),
-                        child: Icon(
-                          AppIcons.graphicEq,
-                          size: 12,
-                          color: scheme.onPrimary,
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    top: AppSpacing.sm,
-                    right: AppSpacing.sm,
-                    child: ClipOval(
-                      child: ColoredBox(
-                        color: scheme.surface.withValues(alpha: 0.82),
-                        child: TrackActionsButton(
-                          track: track,
-                          playlistId: playlistId,
-                          showDeleteTrack: showDeleteTrack,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(2, AppSpacing.sm, 2, 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+                  SizedBox(
+                    height: libraryCardTitleHeight,
+                    child: Text(
                       track.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -120,24 +99,35 @@ class WaterfallTrackCard extends ConsumerWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      unavailable
-                          ? l10n.trackUnavailable
-                          : track.artist ?? l10n.unknownArtist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          unavailable
+                              ? l10n.trackUnavailable
+                              : track.artist ?? l10n.unknownArtist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    SourceBadge(source: track.source),
-                  ],
-                ),
+                      const SizedBox(width: AppSpacing.xs),
+                      TrackActionsButton(
+                        track: track,
+                        playlistId: playlistId,
+                        showDeleteTrack: showDeleteTrack,
+                        compact: true,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

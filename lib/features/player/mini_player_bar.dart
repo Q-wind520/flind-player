@@ -74,17 +74,21 @@ class MiniPlayerBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(playbackStateProvider).value;
-    final track = state?.currentTrack;
-    if (state == null || track == null) {
+    // Position ticks only drive the 2 px progress line below; selecting the
+    // transport fields keeps the cover/title strip out of that rebuild.
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          track: state.value?.currentTrack,
+          isPlaying: state.value?.isPlaying ?? false,
+          hasNext: state.value?.hasNext ?? false,
+        ),
+      ),
+    );
+    final track = playback.track;
+    if (track == null) {
       return const SizedBox.shrink();
     }
-
-    final durationMs = state.duration?.inMilliseconds ?? 0;
-    final positionMs = state.position.inMilliseconds;
-    final progress = durationMs > 0
-        ? (positionMs / durationMs).clamp(0.0, 1.0)
-        : 0.0;
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -101,11 +105,13 @@ class MiniPlayerBar extends ConsumerWidget {
               IconButton(
                 onPressed: () =>
                     ref.read(playbackControllerProvider).togglePlayPause(),
-                icon: Icon(state.isPlaying ? AppIcons.pause : AppIcons.playArrow),
+                icon: Icon(
+                  playback.isPlaying ? AppIcons.pause : AppIcons.playArrow,
+                ),
               ),
               // Next.
               IconButton(
-                onPressed: state.hasNext
+                onPressed: playback.hasNext
                     ? () => ref.read(playbackControllerProvider).next()
                     : null,
                 icon: const Icon(AppIcons.skipNext),
@@ -114,8 +120,7 @@ class MiniPlayerBar extends ConsumerWidget {
           ),
         ),
         // Thin progress line at the very bottom, clipped by the capsule.
-        if (durationMs > 0)
-          LinearProgressIndicator(value: progress, minHeight: 2),
+        const _MiniProgress(),
       ],
     );
 
@@ -136,6 +141,30 @@ class MiniPlayerBar extends ConsumerWidget {
         child: content,
       ),
     );
+  }
+}
+
+/// The thin progress line, isolated so position ticks do not rebuild the bar.
+class _MiniProgress extends ConsumerWidget {
+  const _MiniProgress();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          position: state.value?.position ?? Duration.zero,
+          duration: state.value?.duration,
+        ),
+      ),
+    );
+    final durationMs = playback.duration?.inMilliseconds ?? 0;
+    if (durationMs <= 0) return const SizedBox.shrink();
+    final progress = (playback.position.inMilliseconds / durationMs).clamp(
+      0.0,
+      1.0,
+    );
+    return LinearProgressIndicator(value: progress, minHeight: 2);
   }
 }
 

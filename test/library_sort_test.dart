@@ -17,6 +17,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:flind_player/core/models/library_view.dart';
@@ -28,9 +29,11 @@ import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/services/library_sync_service.dart';
@@ -142,6 +145,10 @@ Widget _app({
       favoritesProvider.overrideWith((ref) => favRepo.watchFavorites()),
       librarySortProvider.overrideWith(() => _FakeLibrarySortNotifier(sort)),
       libraryViewsProvider.overrideWith(() => _FakeLibraryViews(view)),
+      offlineCacheEntriesProvider.overrideWith(
+        (ref) async => const <CachedAudio>[],
+      ),
+      offlineCacheUsageProvider.overrideWith((ref) async => 0),
     ],
     child: localizedApp(const LibraryScreen()),
   );
@@ -154,9 +161,7 @@ void main() {
       await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('library_more_menu')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('排序'));
+      await tester.tap(find.byKey(const Key('library_sort_menu')));
       await tester.pumpAndSettle();
 
       expect(find.text('按标题'), findsOneWidget);
@@ -170,9 +175,7 @@ void main() {
       await tester.pumpWidget(_app(tracks: [_track('Alpha'), _track('Beta')]));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('library_more_menu')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('排序'));
+      await tester.tap(find.byKey(const Key('library_sort_menu')));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('按艺术家'));
@@ -266,7 +269,7 @@ void main() {
     });
   });
 
-  group('Wide-screen grid', () {
+  group('Wide-screen cards', () {
     testWidgets('at 400 px the list layout renders', (tester) async {
       _setSize(tester, 400, 800);
 
@@ -277,27 +280,28 @@ void main() {
 
       expect(find.byType(ListView), findsOneWidget);
       expect(find.byType(GridView), findsNothing);
+      expect(find.byType(MasonryGridView), findsNothing);
     });
 
-    testWidgets('showcase view renders the grid layout', (tester) async {
+    testWidgets('cards view renders the masonry layout', (tester) async {
       _setSize(tester, 1000, 800);
 
       await tester.pumpWidget(
         _app(
           tracks: [_track('Alpha'), _track('Beta')],
-          view: LibraryView.showcase,
+          view: LibraryView.cards,
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(MasonryGridView), findsOneWidget);
       expect(find.byType(ListView), findsNothing);
 
       expect(find.text('Alpha'), findsOneWidget);
       expect(find.text('Beta'), findsOneWidget);
     });
 
-    testWidgets('tapping a card in the grid plays the right track', (
+    testWidgets('tapping a card in the masonry plays the right track', (
       tester,
     ) async {
       _setSize(tester, 1000, 800);
@@ -333,7 +337,7 @@ void main() {
               () => _FakeLibrarySortNotifier(TrackSort.title),
             ),
             libraryViewsProvider.overrideWith(
-              () => _FakeLibraryViews(LibraryView.showcase),
+              () => _FakeLibraryViews(LibraryView.cards),
             ),
             playbackControllerProvider.overrideWith((ref) {
               return _FakePlaybackController(
@@ -349,7 +353,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(MasonryGridView), findsOneWidget);
 
       await tester.tap(find.text('Alpha'));
       await tester.pumpAndSettle();
@@ -391,12 +395,12 @@ void main() {
             _track('Gamma', artist: 'Artist C'),
             _track('Delta', artist: 'Artist D'),
           ],
-          view: LibraryView.showcase,
+          view: LibraryView.cards,
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(MasonryGridView), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -412,12 +416,12 @@ void main() {
         _app(
           tracks: [alpha, beta],
           favourites: [alpha],
-          view: LibraryView.showcase,
+          view: LibraryView.cards,
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(GridView), findsOneWidget);
+      expect(find.byType(MasonryGridView), findsOneWidget);
       expect(find.text('Alpha'), findsOneWidget);
       expect(find.text('Beta'), findsOneWidget);
 

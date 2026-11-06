@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
+import 'package:drift/drift.dart' show Value, Variable, driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -117,10 +117,7 @@ void main() {
     });
 
     test('a blank name is rejected', () async {
-      expect(
-        () => repository.createPlaylist(name: '   '),
-        throwsArgumentError,
-      );
+      expect(() => repository.createPlaylist(name: '   '), throwsArgumentError);
     });
 
     test('an unknown id reads back as null', () async {
@@ -246,8 +243,7 @@ void main() {
       );
     });
 
-    test('adding the same uri twice does not duplicate nor refresh the pool',
-        () async {
+    test('adding the same uri twice does not duplicate nor refresh the pool', () async {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(playlist.id, localTrack());
       await repository.addTrack(playlist.id, localTrack(title: 'Renamed'));
@@ -277,17 +273,17 @@ void main() {
       final playlist = await repository.createPlaylist(name: 'P');
       await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
       await repository.addTrack(playlist.id, localTrack(path: '/m/b.flac'));
-      expect(
-        (await repository.playlistTracks(playlist.id)).map((t) => t.uri),
-        ['local:/m/b.flac', 'local:/m/a.flac'],
-      );
+      expect((await repository.playlistTracks(playlist.id)).map((t) => t.uri), [
+        'local:/m/b.flac',
+        'local:/m/a.flac',
+      ]);
 
       await Future<void>.delayed(const Duration(milliseconds: 5));
       await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
-      expect(
-        (await repository.playlistTracks(playlist.id)).map((t) => t.uri),
-        ['local:/m/b.flac', 'local:/m/a.flac'],
-      );
+      expect((await repository.playlistTracks(playlist.id)).map((t) => t.uri), [
+        'local:/m/b.flac',
+        'local:/m/a.flac',
+      ]);
     });
 
     test('removing an absent member is a no-op', () async {
@@ -313,32 +309,101 @@ void main() {
   });
 
   group('watchPlaylists', () {
-    test('emits favourites first, then custom playlists newest first',
-        () async {
-      final emissions = <List<Playlist>>[];
-      final subscription = repository.watchPlaylists().listen(emissions.add);
-      addTearDown(subscription.cancel);
+    test(
+      'emits favourites first, then custom playlists newest first',
+      () async {
+        final emissions = <List<Playlist>>[];
+        final subscription = repository.watchPlaylists().listen(emissions.add);
+        addTearDown(subscription.cancel);
 
-      await _waitFor(() => emissions.isNotEmpty);
-      expect(emissions.last.map((p) => p.name), ['Favorites']);
+        await _waitFor(() => emissions.isNotEmpty);
+        expect(emissions.last.map((p) => p.name), ['Favorites']);
 
-      final older = await repository.createPlaylist(name: 'Older');
-      await _waitFor(() => emissions.isNotEmpty && emissions.last.length == 2);
-      await repository.createPlaylist(name: 'Newer');
-      await _waitFor(() => emissions.isNotEmpty && emissions.last.length == 3);
+        final older = await repository.createPlaylist(name: 'Older');
+        await _waitFor(
+          () => emissions.isNotEmpty && emissions.last.length == 2,
+        );
+        await repository.createPlaylist(name: 'Newer');
+        await _waitFor(
+          () => emissions.isNotEmpty && emissions.last.length == 3,
+        );
 
-      expect(emissions.last.map((p) => p.name), [
-        'Favorites',
-        'Newer',
-        'Older',
-      ]);
-      expect(emissions.last.first.kind, PlaylistKind.favorites);
-      expect(emissions.last.skip(1).every((p) => p.kind == PlaylistKind.custom),
-          isTrue);
+        expect(emissions.last.map((p) => p.name), [
+          'Favorites',
+          'Newer',
+          'Older',
+        ]);
+        expect(emissions.last.first.kind, PlaylistKind.favorites);
+        expect(
+          emissions.last.skip(1).every((p) => p.kind == PlaylistKind.custom),
+          isTrue,
+        );
 
-      await repository.deletePlaylist(older.id);
-      await _waitFor(() => emissions.isNotEmpty && emissions.last.length == 2);
-      expect(emissions.last.map((p) => p.name), ['Favorites', 'Newer']);
+        await repository.deletePlaylist(older.id);
+        await _waitFor(
+          () => emissions.isNotEmpty && emissions.last.length == 2,
+        );
+        expect(emissions.last.map((p) => p.name), ['Favorites', 'Newer']);
+      },
+    );
+  });
+
+  group('reorderTrack', () {
+    test(
+      'moves a member to the requested index and persists the order',
+      () async {
+        final playlist = await repository.createPlaylist(name: 'Order');
+        final a = localTrack(path: '/music/a.flac', title: 'A');
+        final b = localTrack(path: '/music/b.flac', title: 'B');
+        final c = localTrack(path: '/music/c.flac', title: 'C');
+
+        await repository.addTrack(playlist.id, a);
+        await repository.addTrack(playlist.id, b);
+        await repository.addTrack(playlist.id, c);
+
+        // Newest-first remains the default before any manual reorder.
+        expect(
+          (await repository.playlistTracks(playlist.id)).map((t) => t.title),
+          ['C', 'B', 'A'],
+        );
+
+        await repository.reorderTrack(playlist.id, a.uri, 0);
+
+        expect(
+          (await repository.playlistTracks(playlist.id)).map((t) => t.title),
+          ['A', 'C', 'B'],
+        );
+
+        final positions = await db
+            .customSelect(
+              'SELECT position FROM playlist_tracks WHERE playlist_id = ?1 '
+              'ORDER BY position',
+              variables: [Variable<int>(playlist.id)],
+            )
+            .get();
+        expect(positions.map((r) => r.data['position']), [0, 1, 2]);
+
+        // A fresh repository over the same database sees the same order.
+        final reopened = DriftPlaylistRepository(db);
+        expect(
+          (await reopened.playlistTracks(playlist.id)).map((t) => t.title),
+          ['A', 'C', 'B'],
+        );
+      },
+    );
+
+    test('a missing member or index is a no-op', () async {
+      final playlist = await repository.createPlaylist(name: 'Noop');
+      final a = localTrack(path: '/music/a.flac', title: 'A');
+      await repository.addTrack(playlist.id, a);
+
+      await repository.reorderTrack(playlist.id, 'local:/missing.flac', 0);
+      await repository.reorderTrack(playlist.id, a.uri, 99);
+
+      expect(
+        (await repository.playlistTracks(playlist.id)).map((t) => t.title),
+        ['A'],
+      );
     });
   });
 
@@ -404,9 +469,8 @@ void main() {
       await repository.addTrack(playlist.id, localTrack(path: '/m/a.flac'));
       // A non-empty seen set marks the member's pool row missing without
       // deleting it, so the member must still resolve but as unavailable.
-      await DriftMusicLibraryRepository(db).markMissingExcept('local', const {
-        'local:/m/other.flac',
-      });
+      await DriftMusicLibraryRepository(db)
+          .markMissingExcept('local', const {'local:/m/other.flac'});
       final member = (await repository.playlistTracks(playlist.id)).single;
       expect(member.id, isNull);
     });
@@ -469,9 +533,7 @@ void main() {
       // the member has no snapshot of its own to shadow it.
       await (db.update(db.tracks)
             ..where((t) => t.uri.equals('local:/music/song.flac')))
-          .write(
-        const TracksCompanion(coverPath: Value('/covers/pool.webp')),
-      );
+          .write(const TracksCompanion(coverPath: Value('/covers/pool.webp')));
 
       final cover = await repository.watchPlaylistCover(playlist.id).first;
       expect(cover!.coverPath, '/covers/pool.webp');

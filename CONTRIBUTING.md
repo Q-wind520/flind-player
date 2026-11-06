@@ -140,7 +140,7 @@ flutter build ios --release --no-codesign
 | 命令 | 范围 | 门禁 |
 | --- | --- | --- |
 | `flutter analyze` | 静态分析 | 必须 0 issue |
-| `flutter test` | 单元 / 组件测试（当前 **984** 通过 + 1 平台跳过，共 985） | CI 门禁 |
+| `flutter test` | 单元 / 组件测试（当前 **1020** 通过 + 1 平台跳过，共 1021） | CI 门禁 |
 | `flutter test integration_test` | 真机 / 桌面冒烟（12 用例） | **不在 CI**，需手动运行 |
 
 - 手工回归以 `flutter test integration_test` 为入口；1.0 的逐项回归清单已随里程碑归档（见 git 历史）。

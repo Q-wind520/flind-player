@@ -24,11 +24,18 @@ import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
+import 'package:flind_player/data/providers/cache_providers.dart';
+import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/data/providers/lyrics_providers.dart';
+import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
+import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/library/widgets/playlist_picker_sheet.dart';
+import 'package:flind_player/features/player/cover_viewer_screen.dart';
 import 'package:flind_player/features/player/sleep_timer.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/shared/cover_image.dart';
+import 'package:flind_player/shared/error_snack_bar.dart';
 
 /// Opens a player panel adapted to the window orientation.
 ///
@@ -222,43 +229,205 @@ class _PanelHeader extends StatelessWidget {
   }
 }
 
-/// A panel with no content yet: a muted icon and the "暂无内容" placeholder.
-///
-/// Used for the 更多 and 调节 panels until their features land.
-class EmptyPanel extends StatelessWidget {
-  const EmptyPanel({super.key, required this.icon, required this.title});
+/// The player overflow panel: track information plus the actions that are
+/// useful while listening but do not fit in the transport row.
+class PlayerMorePanel extends ConsumerWidget {
+  const PlayerMorePanel({super.key});
 
-  /// Icon echoed from the MiniSettings button that opened the panel.
-  final IconData icon;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final track = ref.watch(playbackStateProvider).value?.currentTrack;
+    if (track == null) {
+      return Column(
+        children: [
+          _PanelHeader(title: l10n.playerMore, icon: AppIcons.moreVert),
+          const Expanded(
+            child: Center(child: Text('—')),
+          ),
+        ],
+      );
+    }
 
-  /// Header title (the l10n label of the opening button).
-  final String title;
+    final isFavourite = ref.watch(isFavoriteProvider(track.uri)).value ?? false;
+    final cacheEntry = ref.watch(audioCacheEntryProvider(track)).value;
+    final cached = cacheEntry?.pinned == true;
+    final isLocal = track.source == 'local';
+
+    return Column(
+      children: [
+        _PanelHeader(title: l10n.playerMore, icon: AppIcons.moreVert),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            children: [
+              _SongInfo(track: track),
+              const Divider(height: 1),
+              _ActionTile(
+                icon: isFavourite
+                    ? AppIcons.favoriteActive
+                    : AppIcons.favoriteBorder,
+                label: isFavourite ? l10n.unfavorite : l10n.favorite,
+                onTap: () => _toggleFavourite(context, ref, track),
+              ),
+              if (!isLocal)
+                _ActionTile(
+                  icon: cached
+                      ? AppIcons.downloadDone
+                      : AppIcons.download,
+                  label: cached ? l10n.cached : l10n.cacheOffline,
+                  onTap: cached
+                      ? null
+                      : () => _cacheTrack(context, ref, track),
+                ),
+              _ActionTile(
+                icon: AppIcons.playlistAdd,
+                label: l10n.addToPlaylist,
+                onTap: () => showPlaylistPickerSheet(context, track: track),
+              ),
+              _ActionTile(
+                icon: AppIcons.image,
+                label: l10n.viewCover,
+                onTap: () => Navigator.of(context).push(coverViewerRoute(track)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _toggleFavourite(
+    BuildContext context,
+    WidgetRef ref,
+    Track track,
+  ) async {
+    final isNowFavourite = await ref
+        .read(favoritesRepositoryProvider)
+        .toggleFavorite(track);
+    if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(isNowFavourite ? l10n.favorited : l10n.unfavorited),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+  }
+
+  Future<void> _cacheTrack(
+    BuildContext context,
+    WidgetRef ref,
+    Track track,
+  ) async {
+    try {
+      final repository = ref.read(musicLibraryRepositoryProvider);
+      final existing = await repository.findByUri(track.uri);
+      if (existing == null) {
+        await repository.upsertTrack(track);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).savedToLibrary(track.title),
+                ),
+              ),
+            );
+        }
+      }
+      await ref.read(downloadManagerProvider).cacheTrack(track, pinned: true);
+      ref.invalidate(audioCacheEntryProvider(track));
+      ref.invalidate(audioCacheUsageProvider);
+    } catch (error) {
+      if (context.mounted) showErrorSnackBar(context, error);
+    }
+  }
+}
+
+class _SongInfo extends StatelessWidget {
+  const _SongInfo({required this.track});
+
+  final Track track;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        _PanelHeader(title: title, icon: icon),
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.playerPanelEmpty,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+    final subtitle = [
+      track.artist ?? l10n.unknownArtist,
+      if (track.album != null && track.album!.isNotEmpty) track.album!,
+    ].join(' · ');
+    final source = switch (track.source) {
+      'local' => l10n.sourceLocal,
+      'bilibili' => l10n.sourceBilibili,
+      'netease' => l10n.sourceNetease,
+      _ => track.source,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            track.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            source,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, size: 20),
+      title: Text(label),
+      enabled: onTap != null,
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
     );
   }
 }
@@ -267,8 +436,8 @@ class EmptyPanel extends StatelessWidget {
 ///
 /// Watches [playbackStateProvider] so the slider and the percentage label
 /// reflect the applied speed, and drives [PlaybackController.setSpeed] live.
-class PlayerTunePanel extends ConsumerWidget {
-  const PlayerTunePanel({super.key});
+class PlaybackSpeedPanel extends ConsumerWidget {
+  const PlaybackSpeedPanel({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -276,11 +445,15 @@ class PlayerTunePanel extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final speed = ref.watch(playbackStateProvider).value?.speed ?? 1.0;
     final controller = ref.read(playbackControllerProvider);
+    final track = ref.watch(playbackStateProvider).value?.currentTrack;
+    final offset = track == null
+        ? Duration.zero
+        : (ref.watch(lyricOffsetProvider(track.uri)).value ?? Duration.zero);
     final percent = (speed * 100).round();
 
     return Column(
       children: [
-        _PanelHeader(title: l10n.playerTune, icon: AppIcons.tune),
+        _PanelHeader(title: l10n.playerSpeed, icon: AppIcons.speed),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -293,8 +466,6 @@ class PlayerTunePanel extends ConsumerWidget {
                       AppIcons.speed,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(width: 12),
-                    Text(l10n.playerSpeed, style: theme.textTheme.titleSmall),
                     const Spacer(),
                     Text(
                       l10n.volumePercent(percent),
@@ -334,12 +505,85 @@ class PlayerTunePanel extends ConsumerWidget {
                   ],
                 ),
               ),
+              if (track != null) ...[
+                const Divider(height: 24),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        AppIcons.lyrics,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(l10n.lyricOffset, style: theme.textTheme.titleSmall),
+                      const Spacer(),
+                      Text(
+                        _formatLyricOffset(offset),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        key: const Key('lyric_offset_minus'),
+                        onPressed: () => _setLyricOffset(
+                          ref,
+                          track.uri,
+                          offset - const Duration(milliseconds: 100),
+                        ),
+                        icon: const Icon(AppIcons.remove),
+                      ),
+                      TextButton(
+                        key: const Key('lyric_offset_reset'),
+                        onPressed: () =>
+                            _setLyricOffset(ref, track.uri, Duration.zero),
+                        child: Text(l10n.lyricOffsetReset),
+                      ),
+                      IconButton(
+                        key: const Key('lyric_offset_plus'),
+                        onPressed: () => _setLyricOffset(
+                          ref,
+                          track.uri,
+                          offset + const Duration(milliseconds: 100),
+                        ),
+                        icon: const Icon(AppIcons.add),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ],
     );
   }
+}
+
+void _setLyricOffset(WidgetRef ref, String trackUri, Duration offset) {
+  final clamped = Duration(
+    milliseconds: offset.inMilliseconds.clamp(-30000, 30000),
+  );
+  unawaited(
+    ref
+        .read(lyricOffsetRepositoryProvider)
+        .setOffset(trackUri, clamped)
+        .then((_) => ref.invalidate(lyricOffsetProvider(trackUri))),
+  );
+}
+
+String _formatLyricOffset(Duration offset) {
+  final ms = offset.inMilliseconds;
+  final sign = ms > 0 ? '+' : '';
+  return '$sign${(ms / 1000).toStringAsFixed(1)}s';
 }
 
 /// Formats a playback rate as `1.0×`, `1.5×`, ...

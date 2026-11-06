@@ -62,8 +62,22 @@ Widget _app() => ProviderScope(
 );
 
 /// The lyrics pane is off-screen right when collapsed and at x≈0 when shown.
+///
+/// The collapsed pane is offstage (not painted), so the finder must not skip
+/// offstage widgets when reading its slide position.
 double _lyricsLeft(WidgetTester tester) =>
-    tester.getTopLeft(find.byType(LyricsView)).dx;
+    tester.getTopLeft(find.byType(LyricsView, skipOffstage: false)).dx;
+
+bool _lyricsOffstage(WidgetTester tester) => tester
+    .widget<Offstage>(
+      find
+          .ancestor(
+            of: find.byType(LyricsView, skipOffstage: false),
+            matching: find.byType(Offstage),
+          )
+          .first,
+    )
+    .offstage;
 
 void _portrait(WidgetTester tester) {
   tester.view.physicalSize = const Size(400, 800);
@@ -81,6 +95,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_lyricsLeft(tester), greaterThan(0)); // collapsed: off to the right
+    expect(_lyricsOffstage(tester), isTrue);
 
     await tester.timedDrag(
       find.byType(PlayerScreen),
@@ -90,6 +105,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_lyricsLeft(tester), lessThan(1)); // shown: flush left
+    expect(_lyricsOffstage(tester), isFalse);
   });
 
   testWidgets('a short left-swipe settles back to the cover', (tester) async {

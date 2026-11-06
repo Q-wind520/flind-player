@@ -20,6 +20,7 @@ import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/music_library_repository.dart';
 import 'package:flind_player/data/codec/source_track_id_codec.dart';
 import 'package:flind_player/data/database/app_database.dart';
+import 'package:flind_player/data/repositories/track_row_mapping.dart';
 import 'package:flind_player/data/sources/local/local_library_scanner.dart';
 
 /// Drift-backed [MusicLibraryRepository].
@@ -386,33 +387,7 @@ class DriftMusicLibraryRepository implements MusicLibraryRepository {
     };
   }
 
-  Track _toDomain(TrackRow row) {
-    return Track(
-      id: row.id,
-      source: row.source,
-      sourceTrackId: decodeSourceTrackId(
-        row.source,
-        row.sourceTrackId,
-        row.uri,
-      ),
-      uri: row.uri,
-      title: row.title,
-      artist: row.artist,
-      album: row.album,
-      albumArtist: row.albumArtist,
-      trackNo: row.trackNo,
-      discNo: row.discNo,
-      year: row.year,
-      duration: row.durationMs == null
-          ? null
-          : Duration(milliseconds: row.durationMs!),
-      bitrate: row.bitrate,
-      sampleRate: row.sampleRate,
-      genre: row.genre,
-      coverPath: row.coverPath,
-      coverUrl: row.coverUrl,
-    );
-  }
+  Track _toDomain(TrackRow row) => trackFromRow(row);
 
   TracksCompanion _toCompanion(
     Track track, {

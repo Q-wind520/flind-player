@@ -30,10 +30,10 @@ void main() {
 
   test('parses hundredths and thousandths fractions', () {
     final lyric = parseLrc('[00:00.05]A\n[00:00.005]B')!;
-    expect(
-      lyric.lines.map((l) => l.timestamp),
-      <Duration>[const Duration(milliseconds: 5), const Duration(milliseconds: 50)],
-    );
+    expect(lyric.lines.map((l) => l.timestamp), <Duration>[
+      const Duration(milliseconds: 5),
+      const Duration(milliseconds: 50),
+    ]);
     expect(lyric.lines.map((l) => l.text), <String>['B', 'A']);
   });
 
@@ -73,6 +73,61 @@ void main() {
     expect(parseLrc(null), isNull);
     expect(parseLrc(''), isNull);
     expect(parseLrc('[00:01.00]\n'), isNull);
+  });
+
+  group('parseYrc', () {
+    test('parses absolute word timings and translation', () {
+      final lyric = parseYrc(
+        '[10000,2000](10000,500,0)你(10500,500,0)好',
+        translation: '[00:10.00]Hello',
+      )!;
+      expect(lyric.lines.single.text, '你好');
+      expect(lyric.lines.single.translation, 'Hello');
+      expect(lyric.lines.single.words, hasLength(2));
+      expect(lyric.lines.single.words[0].start, const Duration(seconds: 10));
+      expect(
+        lyric.lines.single.words[1].start,
+        const Duration(milliseconds: 10500),
+      );
+    });
+
+    test('promotes relative word timings to the line start', () {
+      final lyric = parseYrc('[10000,2000](0,500,0)你(500,500,0)好')!;
+      expect(lyric.lines.single.words.map((w) => w.start), <Duration>[
+        const Duration(seconds: 10),
+        const Duration(milliseconds: 10500),
+      ]);
+    });
+
+    test('adds a missing space between adjacent ASCII words', () {
+      final lyric = parseYrc('[0,1000](0,300,0)in(300,300,0)the')!;
+      expect(lyric.lines.single.text, 'in the');
+    });
+
+    test('keeps text-only lines and returns null for blank input', () {
+      final lyric = parseYrc('[12000,3000]世界')!;
+      expect(lyric.lines.single.text, '世界');
+      expect(lyric.lines.single.words, isEmpty);
+      expect(parseYrc(null), isNull);
+      expect(parseYrc(''), isNull);
+    });
+
+    test('wordIndexAt finds the current word', () {
+      final line = LyricLine(
+        timestamp: Duration.zero,
+        text: 'ab',
+        words: const <LyricWord>[
+          LyricWord(start: Duration.zero, end: Duration(seconds: 1), text: 'a'),
+          LyricWord(
+            start: Duration(seconds: 1),
+            end: Duration(seconds: 2),
+            text: 'b',
+          ),
+        ],
+      );
+      expect(line.wordIndexAt(const Duration(milliseconds: 500)), 0);
+      expect(line.wordIndexAt(const Duration(milliseconds: 1500)), 1);
+    });
   });
 
   group('Lyric.indexAt', () {

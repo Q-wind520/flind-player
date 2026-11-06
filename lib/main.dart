@@ -33,6 +33,7 @@ import 'package:flind_player/data/cache/cache_relocator.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
 import 'package:flind_player/data/providers/database_providers.dart';
+import 'package:flind_player/data/providers/download_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/platform/audio_handler.dart';
@@ -122,6 +123,28 @@ Future<void> main() async {
     );
   }
 
+  // Volume is a user preference, not part of the queue snapshot. Restore it
+  // before the UI mounts, then keep it in sync with the player slider.
+  final volumePersistence = container.read(
+    playbackVolumePersistenceServiceProvider,
+  );
+  try {
+    await volumePersistence.restore();
+    volumePersistence.start();
+  } catch (error, stackTrace) {
+    debugPrint('Flind Player: volume persistence failed: $error\n$stackTrace');
+  }
+
+  // Record real playback sessions once the restored queue is in place. A
+  // failure here must never block startup or playback.
+  try {
+    container.read(playbackStatsTrackerProvider).start();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: playback stats tracker start failed: $error\n$stackTrace',
+    );
+  }
+
   // One-time move of pre-v10 cache files into the unified cache/ root. Best-
   // effort startup healing: a failed relocation keeps the legacy path working
   // (`file_path` is authoritative) and retries on the next start.
@@ -157,6 +180,15 @@ Future<void> main() async {
       },
     ),
   );
+
+  // Persist download progress and requeue tasks interrupted by the last exit.
+  try {
+    await container.read(downloadCenterServiceProvider).start();
+  } catch (error, stackTrace) {
+    debugPrint(
+      'Flind Player: download centre start failed: $error\n$stackTrace',
+    );
+  }
 
   // Layer 2 (covers for un-cached songs) is session-scoped: wipe it on start.
   final coverCacheStore = container.read(coverCacheStoreProvider);

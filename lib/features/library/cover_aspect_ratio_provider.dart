@@ -16,7 +16,7 @@ import 'package:flind_player/data/cache/cover_headers.dart';
 /// Resolves the width/height ratio of a cover (`path` or `http` URL).
 ///
 /// Reuses Flutter's image cache through the matching [ImageProvider], so the
-/// waterfall card's own image load is not duplicated. Falls back to `1.0` for
+/// cards-view tile's own image load is not duplicated. Falls back to `1.0` for
 /// a missing or undecodable image and caches the resolved value per key.
 final coverAspectRatioProvider = FutureProvider.family<double, String>((
   ref,

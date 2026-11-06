@@ -28,10 +28,12 @@ import 'package:flind_player/core/models/track_sort.dart';
 import 'package:flind_player/core/repositories/favorites_repository.dart';
 import 'package:flind_player/core/repositories/playlist_repository.dart';
 import 'package:flind_player/core/sources/source_track_id.dart';
+import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/database/playlist_defaults.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/library_providers.dart';
+import 'package:flind_player/data/providers/offline_cache_providers.dart';
 import 'package:flind_player/data/providers/persistence_providers.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/data/providers/playlist_providers.dart';
@@ -298,6 +300,20 @@ class _FakePlaylistRepository implements PlaylistRepository {
       List.unmodifiable(_tracks[id] ?? const <Track>[]);
 
   @override
+  Future<void> reorderTrack(int playlistId, String uri, int newIndex) async {
+    final members = _tracks[playlistId];
+    if (members == null) return;
+    final current = members.indexWhere((member) => member.uri == uri);
+    if (current < 0) return;
+    final target = newIndex.clamp(0, members.length - 1);
+    if (current == target) return;
+    final moved = members.removeAt(current);
+    members.insert(target, moved);
+    _trackController(playlistId).add(List.unmodifiable(members));
+    _coverController(playlistId).add(_deriveCover(playlistId));
+  }
+
+  @override
   Future<void> addTrack(int playlistId, Track track) async {
     final members = _tracks.putIfAbsent(playlistId, () => <Track>[]);
     members.removeWhere((member) => member.uri == track.uri);
@@ -405,6 +421,10 @@ Widget _app({
       ),
       libraryViewsProvider.overrideWith(_FakeLibraryViewsNotifier.new),
       playlistRepositoryProvider.overrideWithValue(repo),
+      offlineCacheEntriesProvider.overrideWith(
+        (ref) async => const <CachedAudio>[],
+      ),
+      offlineCacheUsageProvider.overrideWith((ref) async => 0),
     ],
     child: localizedApp(
       MediaQuery(
@@ -426,40 +446,24 @@ Future<void> _openPlaylists(WidgetTester tester) async {
 
 void main() {
   group('playlists section', () {
-    testWidgets('the playlists grid reserves the injected bottom inset', (
+    testWidgets('playlists page shows source shortcuts and the empty state', (
       tester,
     ) async {
       _setSize(tester, 400, 800);
-      final repo = _FakePlaylistRepository(
-        playlists: [_playlist(2, 'Road Trip', PlaylistKind.custom)],
-      );
 
-      await tester.pumpWidget(_app(playlistRepo: repo, bottomPadding: 72));
+      await tester.pumpWidget(_app(bottomPadding: 72));
       await tester.pumpAndSettle();
       await _openPlaylists(tester);
 
-      final grid = tester.widget<GridView>(find.byType(GridView));
-      expect((grid.padding! as EdgeInsets).bottom, 12 + 72);
-    });
-
-    testWidgets('switching to 歌单 shows the pinned favourites row and the '
-        'empty state', (tester) async {
-      _setSize(tester, 400, 800);
-
-      await tester.pumpWidget(_app());
-      await tester.pumpAndSettle();
-
-      await _openPlaylists(tester);
-
-      // The pinned favourites row (with its member count) stays visible.
-      expect(find.text(testL10n().tabFavorites), findsNWidgets(2));
-      expect(find.text(testL10n().playlistTrackCount(0)), findsOneWidget);
+      expect(find.text('离线缓存'), findsOneWidget);
+      expect(find.text('B 站收藏夹'), findsOneWidget);
+      expect(find.text('网易云音乐'), findsOneWidget);
+      expect(find.text('本地曲库'), findsOneWidget);
       expect(find.text(testL10n().noPlaylists), findsOneWidget);
-      expect(find.text(testL10n().noPlaylistsHint), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('lists the pinned favourites row and every custom playlist', (
+    testWidgets('lists every custom playlist and no pinned favourites row', (
       tester,
     ) async {
       _setSize(tester, 400, 800);
@@ -481,7 +485,8 @@ void main() {
 
       expect(find.text('Road Trip'), findsOneWidget);
       expect(find.text('Workout'), findsOneWidget);
-      expect(find.text(testL10n().playlistTrackCount(1)), findsOneWidget);
+      // The favourites count row is gone: favourites own their own tab.
+      expect(find.text(testL10n().playlistTrackCount(1)), findsNothing);
       expect(find.text(testL10n().noPlaylists), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -613,10 +618,11 @@ void main() {
 
         // There is no bare AppBar pinning the back button to the window edge.
         expect(find.byType(AppBar), findsNothing);
-        // 1280 wide -> the 1120 content column starts at x=80; the top bar's
-        // 20 px padding and 48 px button put the back button centre at x=124.
+        // 1280 is below the unified 1600 page frame, so the content column is
+        // full-width; the top bar's 20 px padding and 48 px button put the
+        // back button centre at x=44.
         final back = tester.getCenter(find.byIcon(AppIcons.arrowBack));
-        expect(back.dx, closeTo(124, 1));
+        expect(back.dx, closeTo(44, 1));
         expect(tester.takeException(), isNull);
       },
     );
@@ -784,180 +790,28 @@ void main() {
     });
   });
 
-  group('section selector ring', () {
-    testWidgets('selected section sits in the middle with wrapped candidates', (
-      tester,
-    ) async {
-      _setSize(tester, 400, 800);
-      await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+  testWidgets('tabs and header actions work without overflow', (tester) async {
+    for (final size in const [Size(400, 800), Size(1280, 800)]) {
+      _setSize(tester, size.width, size.height);
+      await tester.pumpWidget(_app(tracks: [_track('Alpha')], size: size));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(testL10n().tabAll));
       await tester.pumpAndSettle();
 
-      // 全部 selected: left 收藏 (next — arrives on a rightward swipe), right 歌单.
-      _expectRing(
-        tester,
-        left: testL10n().tabFavorites,
-        middle: testL10n().tabAll,
-        right: testL10n().tabPlaylists,
-      );
-      expect(find.text('Alpha'), findsOneWidget);
-
-      // 收藏 selected: left 歌单, right 全部.
-      await tester.tap(_ringLabel(testL10n().tabFavorites));
-      await tester.pumpAndSettle();
-      _expectRing(
-        tester,
-        left: testL10n().tabPlaylists,
-        middle: testL10n().tabFavorites,
-        right: testL10n().tabAll,
-      );
-      expect(find.text(testL10n().noFavorites), findsOneWidget);
-
-      // 歌单 selected: left 全部, right 收藏.
-      await tester.tap(_ringLabel(testL10n().tabPlaylists));
-      await tester.pumpAndSettle();
-      _expectRing(
-        tester,
-        left: testL10n().tabAll,
-        middle: testL10n().tabPlaylists,
-        right: testL10n().tabFavorites,
-      );
-      expect(find.text(testL10n().noPlaylists), findsOneWidget);
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byKey(const Key('library_sort_menu')), findsOneWidget);
+      expect(find.byKey(const Key('library_view_menu')), findsOneWidget);
       expect(tester.takeException(), isNull);
-    });
 
-    testWidgets(
-      'tapping a candidate selects that section and renders its body',
-      (tester) async {
-        _setSize(tester, 400, 800);
-        await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
-        await tester.pumpAndSettle();
-
-        // From 全部 the right candidate 歌单 retreats (wrap backwards).
-        await tester.tap(_ringLabel(testL10n().tabPlaylists));
-        await tester.pumpAndSettle();
-        expect(find.text(testL10n().noPlaylists), findsOneWidget);
-        expect(find.text('Alpha'), findsNothing);
-
-        // From 歌单 the left candidate 全部 advances back.
-        await tester.tap(_ringLabel(testL10n().tabAll));
-        await tester.pumpAndSettle();
-        expect(find.text('Alpha'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      },
-    );
-  });
-
-  group('cyclic section swipe', () {
-    testWidgets('rightward swipes cycle 全部 → 收藏 → 歌单 → 全部 seamlessly', (
-      tester,
-    ) async {
-      _setSize(tester, 400, 800);
-      await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
+      await tester.tap(find.text(testL10n().tabPlaylists));
       await tester.pumpAndSettle();
-
-      final page = find.byType(PageView);
-
-      // 全部 → 收藏.
-      await tester.fling(page, const Offset(300, 0), 800);
-      await tester.pumpAndSettle();
-      expect(find.text(testL10n().noFavorites), findsOneWidget);
-      _expectRing(
-        tester,
-        left: testL10n().tabPlaylists,
-        middle: testL10n().tabFavorites,
-        right: testL10n().tabAll,
-      );
-
-      // 收藏 → 歌单.
-      await tester.fling(page, const Offset(300, 0), 800);
-      await tester.pumpAndSettle();
-      expect(find.text(testL10n().noPlaylists), findsOneWidget);
-      _expectRing(
-        tester,
-        left: testL10n().tabAll,
-        middle: testL10n().tabPlaylists,
-        right: testL10n().tabFavorites,
-      );
-
-      // 歌单 → 全部: the wrap-around lands back on 全部 with no dead end.
-      await tester.fling(page, const Offset(300, 0), 800);
-      await tester.pumpAndSettle();
-      expect(find.text('Alpha'), findsOneWidget);
-      _expectRing(
-        tester,
-        left: testL10n().tabFavorites,
-        middle: testL10n().tabAll,
-        right: testL10n().tabPlaylists,
-      );
+      expect(find.byKey(const Key('library_add_playlist')), findsOneWidget);
       expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('a leftward swipe from 全部 wraps back to 歌单', (tester) async {
-      _setSize(tester, 400, 800);
-      await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
-      await tester.pumpAndSettle();
-
-      await tester.fling(find.byType(PageView), const Offset(-300, 0), 800);
-      await tester.pumpAndSettle();
-
-      expect(find.text(testL10n().noPlaylists), findsOneWidget);
-      expect(find.text('Alpha'), findsNothing);
-      _expectRing(
-        tester,
-        left: testL10n().tabAll,
-        middle: testL10n().tabPlaylists,
-        right: testL10n().tabFavorites,
-      );
-      expect(tester.takeException(), isNull);
-    });
-  });
-
-  group('header layout', () {
-    testWidgets('selector sits left, utilities sit right', (tester) async {
-      _setSize(tester, 400, 800);
-      await tester.pumpWidget(_app(tracks: [_track('Alpha')]));
-      await tester.pumpAndSettle();
-
-      final more = find.byKey(const Key('library_more_menu'));
-      final selector = find.byKey(const Key('library_filter_selector'));
-
-      final moreX = tester.getCenter(more).dx;
-      final selectorX = tester.getCenter(selector).dx;
-
-      // The section ring anchors the content edge; utilities stay far right.
-      expect(selectorX, lessThan(200));
-      expect(moreX, greaterThan(selectorX));
-
-      // The search toggle is gone, and ＋ is hidden outside 歌单.
-      expect(find.byKey(const Key('library_search_button')), findsNothing);
-      expect(find.byKey(const Key('library_add_playlist')), findsNothing);
-
-      // ＋ appears on the 歌单 page, to the right of the selector.
-      await tester.tap(_ringLabel(testL10n().tabPlaylists));
-      await tester.pumpAndSettle();
-      final add = find.byKey(const Key('library_add_playlist'));
-      expect(add, findsOneWidget);
-      expect(tester.getCenter(add).dx, greaterThan(selectorX));
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('no overflow at 400×800 and 1280×800', (tester) async {
-      for (final size in const [Size(400, 800), Size(1280, 800)]) {
-        _setSize(tester, size.width, size.height);
-        await tester.pumpWidget(_app(tracks: [_track('Alpha')], size: size));
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-
-        // Exercise the widest ring state (歌单) and the pager too.
-        await tester.tap(_ringLabel(testL10n().tabPlaylists));
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-      }
-    });
+    }
   });
 
   group('playlists view', () {
-    testWidgets('歌单列表默认展柜，可切换为列表', (tester) async {
+    testWidgets('歌单列表默认卡片，可切换为列表', (tester) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [
@@ -970,16 +824,19 @@ void main() {
       await tester.pumpAndSettle();
       await _openPlaylists(tester);
 
-      // Default for the playlists scope is showcase: favourites + 2 cards.
-      expect(find.byType(PlaylistCard), findsNWidgets(3));
+      // Default for the playlists scope is cards: 2 custom cards.
+      expect(find.byType(PlaylistCard), findsNWidgets(2));
       expect(find.byType(ListTile), findsNothing);
 
-      await tester.tap(find.byKey(const Key('library_more_menu')));
+      await tester.tap(find.byKey(const Key('library_view_menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(testL10n().menuView));
-      await tester.pumpAndSettle();
-      // The playlists scope offers no waterfall.
-      expect(find.text(testL10n().viewWaterfall), findsNothing);
+
+      // The selected cards item carries its check at the trailing edge.
+      final cardsItem = tester.widget<MenuItemButton>(
+        find.widgetWithText(MenuItemButton, testL10n().viewCards),
+      );
+      expect(cardsItem.trailingIcon, isNotNull);
+      expect(cardsItem.leadingIcon, isNull);
       await tester.tap(find.text(testL10n().viewList));
       await tester.pumpAndSettle();
 
@@ -988,7 +845,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('歌单详情页提供视图菜单并可切换为瀑布流', (tester) async {
+    testWidgets('歌单详情页提供视图菜单并可切换为卡片', (tester) async {
       _setSize(tester, 400, 800);
       final repo = _FakePlaylistRepository(
         playlists: [_playlist(2, 'Road Trip', PlaylistKind.custom)],
@@ -1001,7 +858,7 @@ void main() {
       await tester.pumpAndSettle();
       await _openPlaylists(tester);
 
-      // Default showcase: tap the playlist card to push its detail screen.
+      // Default cards: tap the playlist card to push its detail screen.
       await tester.tap(find.text('Road Trip'));
       await tester.pumpAndSettle();
 
@@ -1011,56 +868,11 @@ void main() {
 
       await tester.tap(find.byKey(const Key('library_view_menu')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(testL10n().viewWaterfall));
+      await tester.tap(find.text(testL10n().viewCards));
       await tester.pumpAndSettle();
 
       expect(find.byType(MasonryGridView), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
-}
-
-/// The section selector's own label finder.
-///
-/// Scoped to `library_filter_selector` so it never collides with the same
-/// text rendered by a section body (e.g. the pinned 「收藏」 row on the 歌单
-/// page).
-Finder _ringLabel(String label) => find.descendant(
-  of: find.byKey(const Key('library_filter_selector')),
-  matching: find.text(label),
-);
-
-/// Asserts the ring renders [left] / [middle] / [right] left-to-right and
-/// that the middle (selected) label is emphasised over the candidates.
-void _expectRing(
-  WidgetTester tester, {
-  required String left,
-  required String middle,
-  required String right,
-}) {
-  expect(_ringLabel(left), findsOneWidget);
-  expect(_ringLabel(middle), findsOneWidget);
-  expect(_ringLabel(right), findsOneWidget);
-
-  final lx = tester.getCenter(_ringLabel(left)).dx;
-  final mx = tester.getCenter(_ringLabel(middle)).dx;
-  final rx = tester.getCenter(_ringLabel(right)).dx;
-  expect(lx < mx, isTrue, reason: 'left candidate must sit left of the middle');
-  expect(
-    mx < rx,
-    isTrue,
-    reason: 'right candidate must sit right of the middle',
-  );
-
-  double fontSize(String label) {
-    final rich = find.descendant(
-      of: _ringLabel(label),
-      matching: find.byType(RichText),
-    );
-    return tester.widget<RichText>(rich.first).text.style!.fontSize!;
-  }
-
-  final middleSize = fontSize(middle);
-  expect(middleSize, greaterThan(fontSize(left)));
-  expect(middleSize, greaterThan(fontSize(right)));
 }

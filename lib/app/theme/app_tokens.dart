@@ -15,6 +15,19 @@
 
 import 'package:flutter/material.dart';
 
+/// The single maximum content width shared by every full page.
+///
+/// Previously each screen picked its own 760/960/1120 column, which left
+/// uneven margins on wide windows. Pages now use one 1600px frame; narrow
+/// reading columns (forms, search fields) are constrained *inside* that frame
+/// instead of shrinking the whole page.
+@immutable
+class AppContentWidth {
+  const AppContentWidth._();
+
+  static const double page = 1600;
+}
+
 /// Spacing scale in logical pixels, on a 4pt base.
 @immutable
 class AppSpacing {

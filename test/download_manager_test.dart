@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -88,6 +89,7 @@ class _FakeDownloader extends AudioDownloader {
     required Map<String, String> headers,
     required File target,
     void Function(int received, int? total)? onProgress,
+    CancelToken? cancelToken,
   }) {
     calls++;
     urls.add(url);
@@ -286,24 +288,27 @@ void main() {
     expect(await manager.isCached(secondTrack), isTrue);
   });
 
-  test('pinned rows are exempt, so an online download is not blocked', () async {
-    settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
-    await addPinned('pinnedA', 800);
-    await addPinned('pinnedB', 800);
+  test(
+    'pinned rows are exempt, so an online download is not blocked',
+    () async {
+      settings.current = CacheSettings.defaults.copyWith(limitBytes: 1000);
+      await addPinned('pinnedA', 800);
+      await addPinned('pinnedB', 800);
 
-    final events = <DownloadProgress>[];
-    final subscription = manager.progress.listen(events.add);
-    addTearDown(subscription.cancel);
+      final events = <DownloadProgress>[];
+      final subscription = manager.progress.listen(events.add);
+      addTearDown(subscription.cancel);
 
-    await manager.cacheTrack(biliTrack);
+      await manager.cacheTrack(biliTrack);
 
-    // Pinned bytes do not fill the quota, so the download proceeds.
-    expect(events.last.phase, DownloadPhase.done);
-    expect(await manager.isCached(biliTrack), isTrue);
-    // The pinned rows are untouched.
-    expect(await store.lookup('bilibili', 'pinnedA'), isNotNull);
-    expect(await store.lookup('bilibili', 'pinnedB'), isNotNull);
-  });
+      // Pinned bytes do not fill the quota, so the download proceeds.
+      expect(events.last.phase, DownloadPhase.done);
+      expect(await manager.isCached(biliTrack), isTrue);
+      // The pinned rows are untouched.
+      expect(await store.lookup('bilibili', 'pinnedA'), isNotNull);
+      expect(await store.lookup('bilibili', 'pinnedB'), isNotNull);
+    },
+  );
 
   test(
     'StreamExpiredException triggers exactly one re-resolve then succeeds',

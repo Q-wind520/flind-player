@@ -19,6 +19,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flind_player/core/sources/remote_library.dart';
+import 'package:flind_player/core/sources/remote_playlist.dart';
 import 'package:flind_player/data/providers/auth_core_providers.dart';
 import 'package:flind_player/data/sources/bilibili/rate_limiter.dart';
 import 'package:flind_player/data/sources/netease/netease_api.dart';
@@ -64,4 +66,37 @@ final neteaseSourceProvider = Provider<NeteaseSource>(
     api: ref.watch(neteaseApiProvider),
     cookieJar: ref.watch(authCookieJarProvider),
   ),
+);
+
+/// NetEase's account playlists and playlist tracks behind the generic
+/// [RemotePlaylistSource] interface.
+final neteaseRemotePlaylistSourceProvider = Provider<RemotePlaylistSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase recommendations behind the generic [RecommendationSource]
+/// interface.
+final neteaseRecommendationSourceProvider = Provider<RecommendationSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase like state behind the generic [LikeSource] interface.
+final neteaseLikeSourceProvider = Provider<LikeSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase album/artist search behind the generic [RemoteSearchSource]
+/// interface.
+final neteaseRemoteSearchSourceProvider = Provider<RemoteSearchSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase album pages behind the generic [RemoteAlbumSource] interface.
+final neteaseRemoteAlbumSourceProvider = Provider<RemoteAlbumSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
+);
+
+/// NetEase artist pages behind the generic [RemoteArtistSource] interface.
+final neteaseRemoteArtistSourceProvider = Provider<RemoteArtistSource>(
+  (ref) => ref.watch(neteaseSourceProvider),
 );

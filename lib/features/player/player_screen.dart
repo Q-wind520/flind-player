@@ -25,7 +25,6 @@ import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/system_ui_overlay.dart';
 import 'package:flind_player/app/theme/app_theme.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
-import 'package:flind_player/core/models/playback_state.dart';
 import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/services/playback_controller.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
@@ -65,7 +64,11 @@ class PlayerScreen extends StatelessWidget {
           // dismiss drawer takes over the background.
           backgroundColor: Colors.transparent,
           body: BlockSemantics(
-            child: _PlayerDismissWrapper(child: const PlayerView()),
+            // Keep the player raster cached while the route fade and the
+            // dismiss drag composite it.
+            child: RepaintBoundary(
+              child: _PlayerDismissWrapper(child: const PlayerView()),
+            ),
           ),
         ),
       ),
@@ -215,8 +218,11 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(playbackStateProvider).value;
-    final track = state?.currentTrack;
+    // Position ticks must not rebuild the whole player (cover, backdrop and
+    // the page pager). The progress and transport rows watch what they need.
+    final track = ref.watch(
+      playbackStateProvider.select((state) => state.value?.currentTrack),
+    );
     final l10n = AppLocalizations.of(context);
     final title = track?.title ?? '';
     final artist = track == null ? '' : (track.artist ?? l10n.unknownArtist);
@@ -224,7 +230,7 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final landscape = constraints.maxWidth > constraints.maxHeight;
-        final hasTrack = state != null && track != null;
+        final hasTrack = track != null;
 
         // The settings slot is hidden while the portrait lyrics page is
         // expanded and whenever nothing is playing.
@@ -259,14 +265,12 @@ class _PlayerViewState extends ConsumerState<PlayerView> {
           );
         } else if (landscape) {
           body = _LandscapeBody(
-            state: state,
             track: track,
             showSettings: !volumeOpen,
             onVolumeTap: () => setState(() => _volumeOpen = true),
           );
         } else {
           body = _PortraitBody(
-            state: state,
             track: track,
             lyricsExpanded: _lyricsExpanded,
             onLyricsTap: () => setState(() => _lyricsExpanded = true),
@@ -531,14 +535,12 @@ class _HeaderRow extends StatelessWidget {
 /// [LyricsView] while progress and transport stay pinned at the bottom.
 class _PortraitBody extends StatelessWidget {
   const _PortraitBody({
-    required this.state,
     required this.track,
     required this.lyricsExpanded,
     required this.onLyricsTap,
     required this.onLyricsCollapse,
   });
 
-  final PlaybackState state;
   final Track track;
   final bool lyricsExpanded;
   final VoidCallback onLyricsTap;
@@ -563,9 +565,9 @@ class _PortraitBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        _ProgressBar(state: state),
+        const _ProgressBar(),
         const SizedBox(height: AppSpacing.xs),
-        _TransportControls(state: state),
+        const _TransportControls(),
         // A larger gap before the docked MiniSettings so the controls and the
         // settings bar read as two separated rows; the expanded lyrics page
         // keeps the transport clear of the very bottom instead.
@@ -649,21 +651,34 @@ class _PortraitPagerState extends State<_PortraitPager>
             child: AnimatedBuilder(
               animation: _c,
               builder: (context, child) {
+                // A pure slide: the two full-page panes meet edge to edge, so
+                // an opacity cross-fade would add two saveLayers per frame for
+                // no visual gain. Offstage the pane that is fully out of view
+                // so it does not paint while the other side is resting.
+                final collapsed = _c.value <= 0.001;
+                final expanded = _c.value >= 0.999;
                 return Stack(
                   children: [
                     Positioned.fill(
-                      child: Transform.translate(
-                        offset: Offset(-_c.value * width, 0),
-                        child: Opacity(
-                          opacity: 1 - _c.value,
-                          child: widget.normal,
+                      child: Offstage(
+                        offstage: expanded,
+                        child: RepaintBoundary(
+                          child: Transform.translate(
+                            offset: Offset(-_c.value * width, 0),
+                            child: widget.normal,
+                          ),
                         ),
                       ),
                     ),
                     Positioned.fill(
-                      child: Transform.translate(
-                        offset: Offset((1 - _c.value) * width, 0),
-                        child: widget.lyrics,
+                      child: Offstage(
+                        offstage: collapsed,
+                        child: RepaintBoundary(
+                          child: Transform.translate(
+                            offset: Offset((1 - _c.value) * width, 0),
+                            child: widget.lyrics,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -732,13 +747,11 @@ double _portraitCoverEdge(BoxConstraints constraints) {
 /// backdrop.
 class _LandscapeBody extends StatelessWidget {
   const _LandscapeBody({
-    required this.state,
     required this.track,
     required this.showSettings,
     required this.onVolumeTap,
   });
 
-  final PlaybackState state;
   final Track track;
   final bool showSettings;
   final VoidCallback onVolumeTap;
@@ -749,7 +762,6 @@ class _LandscapeBody extends StatelessWidget {
       children: [
         Expanded(
           child: MiniMain(
-            state: state,
             track: track,
             showSettings: showSettings,
             onVolumeTap: onVolumeTap,
@@ -782,13 +794,11 @@ double _coverSizeFor(BoxConstraints constraints) {
 class MiniMain extends StatelessWidget {
   const MiniMain({
     super.key,
-    required this.state,
     required this.track,
     required this.showSettings,
     required this.onVolumeTap,
   });
 
-  final PlaybackState state;
   final Track track;
   final bool showSettings;
   final VoidCallback onVolumeTap;
@@ -810,9 +820,9 @@ class MiniMain extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        _ProgressBar(state: state),
+        const _ProgressBar(),
         const SizedBox(height: AppSpacing.xs),
-        _TransportControls(state: state),
+        const _TransportControls(),
         // Same gap as portrait: keep the controls and the settings bar apart.
         const SizedBox(height: 20),
         Visibility(
@@ -900,9 +910,7 @@ class _PlayerCover extends StatelessWidget {
 /// buffering dot animation; this widget keeps the drag position local so the
 /// thumb follows the finger and issues the seek once on release.
 class _ProgressBar extends ConsumerStatefulWidget {
-  const _ProgressBar({required this.state});
-
-  final PlaybackState state;
+  const _ProgressBar();
 
   @override
   ConsumerState<_ProgressBar> createState() => _ProgressBarState();
@@ -915,16 +923,27 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final state = widget.state;
-    final durationMs = state.duration?.inMilliseconds ?? 0;
+    // Position is needed here and nowhere above; selecting it keeps the rest
+    // of the player (pager, cover, backdrop) out of the 200 ms tick.
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          position: state.value?.position ?? Duration.zero,
+          duration: state.value?.duration,
+          isPlaying: state.value?.isPlaying ?? false,
+          isBuffering: state.value?.isBuffering ?? false,
+        ),
+      ),
+    );
+    final durationMs = playback.duration?.inMilliseconds ?? 0;
     final enabled = durationMs > 0;
     final maxValue = enabled ? durationMs.toDouble() : 1.0;
     final positionValue = enabled
-        ? state.position.inMilliseconds.clamp(0, durationMs).toDouble()
+        ? playback.position.inMilliseconds.clamp(0, durationMs).toDouble()
         : 0.0;
     final dragMs = _dragMs;
     final shownPosition = dragMs == null
-        ? state.position
+        ? playback.position
         : Duration(milliseconds: dragMs.round());
 
     return Padding(
@@ -942,8 +961,8 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
               value: enabled
                   ? ((dragMs ?? positionValue) / maxValue).clamp(0.0, 1.0)
                   : 0,
-              isPlaying: state.isPlaying,
-              isBuffering: state.isBuffering,
+              isPlaying: playback.isPlaying,
+              isBuffering: playback.isBuffering,
               enabled: enabled,
               morphDuration: PlaybackController.fadeDuration,
               onChanged: enabled
@@ -962,7 +981,7 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
             ),
           ),
           Text(
-            formatTrackDuration(state.duration),
+            formatTrackDuration(playback.duration),
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -981,14 +1000,24 @@ class _ProgressBarState extends ConsumerState<_ProgressBar> {
 /// (44 px). Narrow panes drop to an all-44 layout so the row cannot overflow;
 /// the play-mode cycler lives in [MiniSettings] below.
 class _TransportControls extends ConsumerWidget {
-  const _TransportControls({required this.state});
-
-  final PlaybackState state;
+  const _TransportControls();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(playbackControllerProvider);
-    final track = state.currentTrack;
+    // Only the transport-visible fields: position ticks must not rebuild the
+    // control row.
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          track: state.value?.currentTrack,
+          isPlaying: state.value?.isPlaying ?? false,
+          hasPrevious: state.value?.hasPrevious ?? false,
+          hasNext: state.value?.hasNext ?? false,
+        ),
+      ),
+    );
+    final track = playback.track;
     final scheme = Theme.of(context).colorScheme;
     // The M3 default padded tap target would force every button to at least
     // 48 px and blow the compact 236 px row; shrink it so the tight sizes
@@ -1033,7 +1062,7 @@ class _TransportControls extends ConsumerWidget {
               ),
             SizedBox(width: outerGap),
             IconButton(
-              onPressed: state.hasPrevious ? controller.previous : null,
+              onPressed: playback.hasPrevious ? controller.previous : null,
               icon: const Icon(AppIcons.skipPrevious),
               iconSize: skipIcon,
               style: tapTargetStyle,
@@ -1046,7 +1075,9 @@ class _TransportControls extends ConsumerWidget {
             SizedBox(width: innerGap),
             IconButton.filled(
               onPressed: controller.togglePlayPause,
-              icon: Icon(state.isPlaying ? AppIcons.pause : AppIcons.playArrow),
+              icon: Icon(
+                playback.isPlaying ? AppIcons.pause : AppIcons.playArrow,
+              ),
               iconSize: playIcon,
               style: primaryTransportStyle,
               padding: EdgeInsets.zero,
@@ -1057,7 +1088,7 @@ class _TransportControls extends ConsumerWidget {
             ),
             SizedBox(width: innerGap),
             IconButton(
-              onPressed: state.hasNext ? controller.next : null,
+              onPressed: playback.hasNext ? controller.next : null,
               icon: const Icon(AppIcons.skipNext),
               iconSize: skipIcon,
               style: tapTargetStyle,

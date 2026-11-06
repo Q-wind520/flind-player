@@ -25,6 +25,12 @@ library;
 /// Row id of the built-in favourites playlist.
 const int favoritesPlaylistId = 1;
 
+/// Stable public id of the built-in favourites playlist.
+///
+/// Kept as a readable constant rather than a generated UUID so exports and
+/// future sync can recognise the built-in playlist without a lookup.
+const String favoritesPlaylistPublicId = 'favorites';
+
 /// Neutral stored name of the built-in favourites playlist.
 const String favoritesPlaylistStoredName = 'Favorites';
 

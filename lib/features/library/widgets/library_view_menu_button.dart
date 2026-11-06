@@ -44,7 +44,10 @@ class _LibraryViewMenuButtonState extends ConsumerState<LibraryViewMenuButton> {
       menuChildren: <Widget>[
         for (final view in widget.scope.allowedViews)
           MenuItemButton(
-            leadingIcon: view == current ? const Icon(AppIcons.check) : null,
+            // Selection sits at the end of the row, matching the sort menu.
+            trailingIcon: view == current
+                ? const Icon(AppIcons.check, size: 18)
+                : null,
             onPressed: () {
               _controller.close();
               ref
@@ -67,7 +70,6 @@ class _LibraryViewMenuButtonState extends ConsumerState<LibraryViewMenuButton> {
 
 /// The display label for a [LibraryView] option.
 String _viewLabel(AppLocalizations l10n, LibraryView view) => switch (view) {
-  LibraryView.showcase => l10n.viewShowcase,
+  LibraryView.cards => l10n.viewCards,
   LibraryView.list => l10n.viewList,
-  LibraryView.waterfall => l10n.viewWaterfall,
 };

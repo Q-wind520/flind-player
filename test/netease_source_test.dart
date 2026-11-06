@@ -32,6 +32,16 @@ class _FakeApi implements NeteaseApi {
   String? requestedLevel;
   String? failingLevel;
 
+  List<NeteasePlaylistDto> playlists = const <NeteasePlaylistDto>[];
+  NeteasePlaylistDetailDto? playlist;
+  List<NeteaseSongDto> recommended = const <NeteaseSongDto>[];
+  Set<int> likedIds = <int>{};
+  int? likedSongId;
+  bool? likedValue;
+  NeteaseArtistDto? artistData;
+  List<NeteaseAlbumDto> albums = const <NeteaseAlbumDto>[];
+  NeteaseAlbumDetailDto? albumData;
+
   @override
   Future<List<NeteaseSongDto>> searchSongs(
     String query, {
@@ -55,6 +65,74 @@ class _FakeApi implements NeteaseApi {
   @override
   Future<NeteaseLyricDto> songLyric(int songId) async =>
       lyric ?? const NeteaseLyricDto();
+
+  @override
+  Future<List<NeteaseAlbumDto>> searchAlbums(
+    String query, {
+    int page = 1,
+  }) async => albums;
+
+  @override
+  Future<List<NeteaseArtistDto>> searchArtists(
+    String query, {
+    int page = 1,
+  }) async => artistData == null
+      ? const <NeteaseArtistDto>[]
+      : <NeteaseArtistDto>[artistData!];
+
+  @override
+  Future<List<NeteasePlaylistDto>> highQualityPlaylists({
+    String cat = '全部',
+    int limit = 30,
+  }) async => playlists;
+
+  @override
+  Future<List<NeteasePlaylistDto>> userPlaylists(
+    int userId, {
+    int limit = 1000,
+    int offset = 0,
+  }) async => playlists;
+
+  @override
+  Future<List<NeteasePlaylistDto>> recommendedPlaylists({
+    int limit = 30,
+  }) async => playlists;
+
+  @override
+  Future<List<NeteaseSongDto>> recommendedSongs() async => recommended;
+
+  @override
+  Future<NeteasePlaylistDetailDto?> playlistDetail(int playlistId) async =>
+      playlist;
+
+  @override
+  Future<Set<int>> likedSongIds(int userId) async => likedIds;
+
+  @override
+  Future<void> setLiked(int songId, bool liked) async {
+    likedSongId = songId;
+    likedValue = liked;
+  }
+
+  @override
+  Future<NeteaseArtistDto?> artistDetail(int artistId) async => artistData;
+
+  @override
+  Future<List<NeteaseAlbumDto>> artistAlbums(
+    int artistId, {
+    int limit = 50,
+    int offset = 0,
+  }) async => albums;
+
+  @override
+  Future<List<NeteaseSongDto>> artistSongs(
+    int artistId, {
+    int limit = 100,
+    int offset = 0,
+  }) async => songs;
+
+  @override
+  Future<NeteaseAlbumDetailDto?> albumDetail(int albumId) async => albumData;
 }
 
 const _song = NeteaseSongDto(
@@ -301,5 +379,100 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  test('playlists and playlist tracks map to generic remote models', () async {
+    final api = _FakeApi()
+      ..playlists = const <NeteasePlaylistDto>[
+        NeteasePlaylistDto(
+          id: 7,
+          name: 'Mix',
+          coverUrl: 'https://x/c.jpg',
+          trackCount: 2,
+        ),
+      ]
+      ..playlist = const NeteasePlaylistDetailDto(
+        playlist: NeteasePlaylistDto(id: 7, name: 'Mix'),
+        songs: <NeteaseSongDto>[_song],
+      );
+    final source = NeteaseSource(api: api);
+
+    final playlists = await source.playlistsForUser('42');
+    expect(playlists.single.id, '7');
+    expect(playlists.single.title, 'Mix');
+    expect(playlists.single.trackCount, 2);
+
+    final page = await source.playlistTracks('7');
+    expect(page.tracks.single.uri, 'netease:42');
+    expect(page.hasMore, isFalse);
+  });
+
+  test('recommendations map playlists and songs', () async {
+    final api = _FakeApi()
+      ..playlists = const <NeteasePlaylistDto>[
+        NeteasePlaylistDto(id: 9, name: 'Daily'),
+      ]
+      ..recommended = const <NeteaseSongDto>[_song];
+    final source = NeteaseSource(api: api);
+
+    expect((await source.recommendedPlaylists()).single.id, '9');
+    expect((await source.popularPlaylists()).single.id, '9');
+    expect((await source.recommendedSongs()).single.uri, 'netease:42');
+  });
+
+  test('artist and album pages map metadata and tracks', () async {
+    final api = _FakeApi(songs: const <NeteaseSongDto>[_song])
+      ..artistData = const NeteaseArtistDto(
+        id: 5,
+        name: 'Artist',
+        avatarUrl: 'https://x/a.jpg',
+        albumCount: 3,
+      )
+      ..albums = const <NeteaseAlbumDto>[
+        NeteaseAlbumDto(
+          id: 11,
+          name: 'Album',
+          artist: 'Artist',
+          trackCount: 1,
+          publishTime: 1700000000000,
+        ),
+      ]
+      ..albumData = const NeteaseAlbumDetailDto(
+        album: NeteaseAlbumDto(id: 11, name: 'Album'),
+        songs: <NeteaseSongDto>[_song],
+      );
+    final source = NeteaseSource(api: api);
+
+    final artist = await source.artist('5');
+    expect(artist?.name, 'Artist');
+    expect(artist?.albumCount, 3);
+
+    final albums = await source.artistAlbums('5');
+    expect(albums.single.id, '11');
+    expect(albums.single.artist, 'Artist');
+
+    expect((await source.artistSongs('5')).tracks.single.uri, 'netease:42');
+    expect((await source.albumTracks('11')).tracks.single.uri, 'netease:42');
+    expect((await source.album('11'))?.title, 'Album');
+  });
+
+  test('album and artist search map to remote models', () async {
+    final api = _FakeApi()
+      ..albums = const <NeteaseAlbumDto>[NeteaseAlbumDto(id: 11, name: 'Album')]
+      ..artistData = const NeteaseArtistDto(id: 5, name: 'Artist');
+    final source = NeteaseSource(api: api);
+
+    expect((await source.searchAlbums('x')).single.id, '11');
+    expect((await source.searchArtists('x')).single.name, 'Artist');
+  });
+
+  test('like state maps ids and forwards setLiked', () async {
+    final api = _FakeApi()..likedIds = <int>{42, 43};
+    final source = NeteaseSource(api: api);
+
+    expect(await source.likedTrackIds('7'), {'42', '43'});
+    await source.setLiked('42', true);
+    expect(api.likedSongId, 42);
+    expect(api.likedValue, isTrue);
   });
 }

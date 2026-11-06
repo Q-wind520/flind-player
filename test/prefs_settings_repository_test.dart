@@ -61,6 +61,26 @@ void main() {
     expect(await repository.cacheSettings(), updated);
   });
 
+  test('playback volume defaults to 1.0 and round-trips', () async {
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.playbackVolume(), 1.0);
+
+    await repository.setPlaybackVolume(0.42);
+    expect(await repository.playbackVolume(), 0.42);
+  });
+
+  test('playback volume clamps out-of-range stored values', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'player.volume': 9.0,
+    });
+    final repository = PrefsSettingsRepository();
+    addTearDown(repository.dispose);
+
+    expect(await repository.playbackVolume(), 1.4);
+  });
+
   test('falls back to defaults for a corrupt stored limit', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'cache.limitBytes': -5,
@@ -177,7 +197,7 @@ void main() {
       addTearDown(repository.dispose);
 
       final views = await repository.libraryViews();
-      expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
+      expect(views.viewOf(LibraryViewScope.all), LibraryView.cards);
       expect(views.viewOf(LibraryViewScope.playlistDetail), LibraryView.list);
     },
   );
@@ -200,22 +220,29 @@ void main() {
     addTearDown(repository.dispose);
 
     final views = await repository.libraryViews();
-    expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
+    expect(views.viewOf(LibraryViewScope.all), LibraryView.cards);
   });
 
-  test(
-    'libraryViews sanitizes a waterfall stored for the playlists scope',
-    () async {
+  test('libraryViews maps legacy card views to cards', () async {
+    for (final legacy in <String>['waterfall', 'showcase']) {
       SharedPreferences.setMockInitialValues(<String, Object>{
-        'library.view.playlists': 'waterfall',
+        'library.view.all': legacy,
+        'library.view.playlists': legacy,
+        'library.view.playlistDetail': legacy,
       });
       final repository = PrefsSettingsRepository();
       addTearDown(repository.dispose);
 
       final views = await repository.libraryViews();
-      expect(views.viewOf(LibraryViewScope.playlists), LibraryView.showcase);
-    },
-  );
+      expect(
+        views.viewOf(LibraryViewScope.all),
+        LibraryView.cards,
+        reason: 'legacy $legacy should land on the new cards view',
+      );
+      expect(views.viewOf(LibraryViewScope.playlists), LibraryView.cards);
+      expect(views.viewOf(LibraryViewScope.playlistDetail), LibraryView.cards);
+    }
+  });
 
   test('librarySort defaults to recentlyAdded', () async {
     final repository = PrefsSettingsRepository();

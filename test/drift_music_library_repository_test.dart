@@ -160,11 +160,10 @@ void main() {
 
   /// Inserts a row straight into the `tracks` pool, bypassing the repository,
   /// so a test can arrange pre-existing state (e.g. a soft-deleted row).
-  Future<int> insertPoolTrack({
-    required String uri,
-    required String title,
-  }) {
-    final path = uri.startsWith('local:') ? uri.substring('local:'.length) : uri;
+  Future<int> insertPoolTrack({required String uri, required String title}) {
+    final path = uri.startsWith('local:')
+        ? uri.substring('local:'.length)
+        : uri;
     final now = DateTime.now().millisecondsSinceEpoch;
     return db
         .into(db.tracks)
@@ -903,8 +902,7 @@ void main() {
   });
 
   group('pool cover write-through', () {
-    test('updateTrackCover on the pool carries into the playlist member',
-        () async {
+    test('updateTrackCover on the pool carries into the playlist member', () async {
       // Promote a track into the pool and add it to a playlist, then write a
       // cover directly to the pool row. The member must resolve the fresh pool
       // cover and keep its ordering unchanged.
@@ -921,13 +919,17 @@ void main() {
           .map((t) => t.uri)
           .toList();
 
-      await repository.updateTrackCover('local:/m/a.flac', coverPath: '/c/x.webp');
+      await repository.updateTrackCover(
+        'local:/m/a.flac',
+        coverPath: '/c/x.webp',
+      );
 
       final member = (await playlistRepository.playlistTracks(playlist.id))
           .firstWhere((t) => t.uri == 'local:/m/a.flac');
       expect(member.coverPath, '/c/x.webp');
       expect(
-        (await playlistRepository.playlistTracks(playlist.id)).map((t) => t.uri),
+        (await playlistRepository.playlistTracks(playlist.id))
+            .map((t) => t.uri),
         orderBefore,
       );
     });
@@ -1191,124 +1193,128 @@ void main() {
       expect(cover.data['url_hash'], 'h');
     });
 
-    test('v7 -> v8 converts legacy favourites into the built-in playlist',
-        () async {
-      final dir = Directory.systemTemp.createTempSync('flind_migration_v8');
-      addTearDown(() {
-        if (dir.existsSync()) dir.deleteSync(recursive: true);
-      });
-      final file = File('${dir.path}/library.sqlite');
+    test(
+      'v7 -> v8 converts legacy favourites into the built-in playlist',
+      () async {
+        final dir = Directory.systemTemp.createTempSync('flind_migration_v8');
+        addTearDown(() {
+          if (dir.existsSync()) dir.deleteSync(recursive: true);
+        });
+        final file = File('${dir.path}/library.sqlite');
 
-      // Build a current-schema file, then roll it back to a v7 shape: no
-      // playlists, and the standalone `favorites` table (with the v7 `cover_url`
-      // column) carrying two rows.
-      final before = AppDatabase(NativeDatabase(file));
-      await before.customStatement(
-        'INSERT INTO tracks '
-        '(source, source_track_id, uri, title, cover_path, created_at, '
-        'updated_at) '
-        "VALUES ('bilibili', 'BV1:1', 'bilibili:BV1:1', 'Song', NULL, 1, 1)",
-      );
-      await before.customStatement('DROP TABLE IF EXISTS playlists');
-      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
-      await before.customStatement(
-        'CREATE TABLE IF NOT EXISTS favorites ('
-        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
-        'uri TEXT NOT NULL UNIQUE, '
-        'source TEXT NOT NULL, '
-        'source_track_id TEXT NOT NULL, '
-        'title TEXT NOT NULL, '
-        'artist TEXT, '
-        'album TEXT, '
-        'duration_ms INTEGER, '
-        'cover_path TEXT, '
-        'cover_url TEXT, '
-        'favorited_at INTEGER NOT NULL)',
-      );
-      await before.customStatement(
-        'INSERT INTO favorites '
-        '(uri, source, source_track_id, title, favorited_at) '
-        "VALUES ('bilibili:BV1:1', 'bilibili', 'BV1:1', 'Song', 10)",
-      );
-      await before.customStatement(
-        'INSERT INTO favorites '
-        '(uri, source, source_track_id, title, favorited_at) '
-        "VALUES ('bilibili:BV1:2', 'bilibili', 'BV1:2', 'Song 2', 20)",
-      );
-      await before.customStatement('PRAGMA user_version = 7');
-      await before.close();
+        // Build a current-schema file, then roll it back to a v7 shape: no
+        // playlists, and the standalone `favorites` table (with the v7 `cover_url`
+        // column) carrying two rows.
+        final before = AppDatabase(NativeDatabase(file));
+        await before.customStatement(
+          'INSERT INTO tracks '
+          '(source, source_track_id, uri, title, cover_path, created_at, '
+          'updated_at) '
+          "VALUES ('bilibili', 'BV1:1', 'bilibili:BV1:1', 'Song', NULL, 1, 1)",
+        );
+        await before.customStatement('DROP TABLE IF EXISTS playlists');
+        await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
+        await before.customStatement(
+          'CREATE TABLE IF NOT EXISTS favorites ('
+          'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+          'uri TEXT NOT NULL UNIQUE, '
+          'source TEXT NOT NULL, '
+          'source_track_id TEXT NOT NULL, '
+          'title TEXT NOT NULL, '
+          'artist TEXT, '
+          'album TEXT, '
+          'duration_ms INTEGER, '
+          'cover_path TEXT, '
+          'cover_url TEXT, '
+          'favorited_at INTEGER NOT NULL)',
+        );
+        await before.customStatement(
+          'INSERT INTO favorites '
+          '(uri, source, source_track_id, title, favorited_at) '
+          "VALUES ('bilibili:BV1:1', 'bilibili', 'BV1:1', 'Song', 10)",
+        );
+        await before.customStatement(
+          'INSERT INTO favorites '
+          '(uri, source, source_track_id, title, favorited_at) '
+          "VALUES ('bilibili:BV1:2', 'bilibili', 'BV1:2', 'Song 2', 20)",
+        );
+        await before.customStatement('PRAGMA user_version = 7');
+        await before.close();
 
-      final after = AppDatabase(NativeDatabase(file));
-      addTearDown(after.close);
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
 
-      // The built-in favourites playlist is seeded with the pinned id.
-      final playlist = await after
-          .customSelect(
-            "SELECT id, name, kind FROM playlists WHERE id = 1",
-          )
-          .getSingle();
-      expect(playlist.data['name'], 'Favorites');
-      expect(playlist.data['kind'], 'favorites');
+        // The built-in favourites playlist is seeded with the pinned id.
+        final playlist = await after
+            .customSelect("SELECT id, name, kind FROM playlists WHERE id = 1")
+            .getSingle();
+        expect(playlist.data['name'], 'Favorites');
+        expect(playlist.data['kind'], 'favorites');
 
-      // Legacy rows became members; `favorited_at` became `added_at`.
-      final members = await after.customSelect(
-        'SELECT uri, added_at FROM playlist_tracks '
-        'ORDER BY added_at DESC',
-      ).get();
-      expect(members.map((r) => r.data['uri']), [
-        'bilibili:BV1:2',
-        'bilibili:BV1:1',
-      ]);
-      expect(members[0].data['added_at'], 20);
-      expect(members[1].data['added_at'], 10);
+        // Legacy rows became members; `favorited_at` became `added_at`.
+        final members = await after
+            .customSelect(
+              'SELECT uri, added_at FROM playlist_tracks '
+              'ORDER BY added_at DESC',
+            )
+            .get();
+        expect(members.map((r) => r.data['uri']), [
+          'bilibili:BV1:2',
+          'bilibili:BV1:1',
+        ]);
+        expect(members[0].data['added_at'], 20);
+        expect(members[1].data['added_at'], 10);
 
-      // The legacy table is gone.
-      final legacy = await after.customSelect(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='favorites'",
-      ).get();
-      expect(legacy, isEmpty);
+        // The legacy table is gone.
+        final legacy = await after
+            .customSelect(
+              "SELECT 1 FROM sqlite_master WHERE type='table' AND name='favorites'",
+            )
+            .get();
+        expect(legacy, isEmpty);
 
-      // The short-lived v8 `content_hash` column is gone again in v9.
-      final columns = await after.customSelect(
-        'PRAGMA table_info(tracks)',
-      ).get();
-      expect(
-        columns.map((r) => r.data['name']),
-        isNot(contains('content_hash')),
-      );
-    });
+        // The short-lived v8 `content_hash` column is gone again in v9.
+        final columns = await after
+            .customSelect('PRAGMA table_info(tracks)')
+            .get();
+        expect(
+          columns.map((r) => r.data['name']),
+          isNot(contains('content_hash')),
+        );
+      },
+    );
 
-    test('v7 -> v8 without a legacy favourites table still seeds the playlist',
-        () async {
-      final dir = Directory.systemTemp.createTempSync('flind_migration_v8b');
-      addTearDown(() {
-        if (dir.existsSync()) dir.deleteSync(recursive: true);
-      });
-      final file = File('${dir.path}/library.sqlite');
+    test(
+      'v7 -> v8 without a legacy favourites table still seeds the playlist',
+      () async {
+        final dir = Directory.systemTemp.createTempSync('flind_migration_v8b');
+        addTearDown(() {
+          if (dir.existsSync()) dir.deleteSync(recursive: true);
+        });
+        final file = File('${dir.path}/library.sqlite');
 
-      // A v7 file that never had the `favorites` table (e.g. a user who never
-      // favourited anything).
-      final before = AppDatabase(NativeDatabase(file));
-      await before.customStatement('DROP TABLE IF EXISTS playlists');
-      await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
-      await before.customStatement('PRAGMA user_version = 7');
-      await before.close();
+        // A v7 file that never had the `favorites` table (e.g. a user who never
+        // favourited anything).
+        final before = AppDatabase(NativeDatabase(file));
+        await before.customStatement('DROP TABLE IF EXISTS playlists');
+        await before.customStatement('DROP TABLE IF EXISTS playlist_tracks');
+        await before.customStatement('PRAGMA user_version = 7');
+        await before.close();
 
-      final after = AppDatabase(NativeDatabase(file));
-      addTearDown(after.close);
+        final after = AppDatabase(NativeDatabase(file));
+        addTearDown(after.close);
 
-      final playlist = await after
-          .customSelect(
-            "SELECT id, name, kind FROM playlists WHERE id = 1",
-          )
-          .getSingle();
-      expect(playlist.data['name'], 'Favorites');
-      expect(playlist.data['kind'], 'favorites');
-      final members = await after
-          .customSelect('SELECT COUNT(*) AS n FROM playlist_tracks')
-          .getSingle();
-      expect(members.data['n'], 0);
-    });
+        final playlist = await after
+            .customSelect("SELECT id, name, kind FROM playlists WHERE id = 1")
+            .getSingle();
+        expect(playlist.data['name'], 'Favorites');
+        expect(playlist.data['kind'], 'favorites');
+        final members = await after
+            .customSelect('SELECT COUNT(*) AS n FROM playlist_tracks')
+            .getSingle();
+        expect(members.data['n'], 0);
+      },
+    );
 
     test('v7 -> v8 is idempotent when re-run over an upgraded file', () async {
       final dir = Directory.systemTemp.createTempSync('flind_migration_v8c');
@@ -1357,18 +1363,19 @@ void main() {
       expect(members.data['n'], 1);
     });
 
-    test('a fresh v9 database seeds the built-in favourites playlist', () async {
-      final db = AppDatabase(NativeDatabase.memory());
-      addTearDown(db.close);
+    test(
+      'a fresh v9 database seeds the built-in favourites playlist',
+      () async {
+        final db = AppDatabase(NativeDatabase.memory());
+        addTearDown(db.close);
 
-      final playlist = await db
-          .customSelect(
-            "SELECT id, name, kind FROM playlists WHERE id = 1",
-          )
-          .getSingle();
-      expect(playlist.data['name'], 'Favorites');
-      expect(playlist.data['kind'], 'favorites');
-    });
+        final playlist = await db
+            .customSelect("SELECT id, name, kind FROM playlists WHERE id = 1")
+            .getSingle();
+        expect(playlist.data['name'], 'Favorites');
+        expect(playlist.data['kind'], 'favorites');
+      },
+    );
 
     test('v8 -> v9 backfills the pool and rebuilds playlist_tracks', () async {
       final dir = Directory.systemTemp.createTempSync('flind_migration_v9');
@@ -1446,6 +1453,9 @@ CREATE TABLE playlist_tracks (
         'playlist_id',
         'uri',
         'added_at',
+        'position',
+        'updated_at',
+        'deleted_at',
       });
 
       // The raw member row kept its identity: same autoincrement id and the
@@ -1538,6 +1548,179 @@ CREATE TABLE playlist_tracks (
           .getSingle();
       expect(rerun, isNotNull);
       expect(rerun.data['n'], 1);
+    });
+
+    test('v10 -> v11 adds stable ids, ordering, downloads and stats tables', () async {
+      final dir = Directory.systemTemp.createTempSync('flind_migration_v11');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      final file = File('${dir.path}/library.sqlite');
+
+      // Build a current-schema file with representative v10 data, then roll it
+      // back to the v10 shape by dropping everything v11 adds.
+      final before = AppDatabase(NativeDatabase(file));
+      await before.customStatement(
+        "INSERT INTO tracks (source, source_track_id, uri, title, created_at, "
+        "updated_at) VALUES ('bilibili', 'BV1:1', 'bilibili:BV1:1', 'One', 1, 1)",
+      );
+      await before.customStatement(
+        "INSERT INTO tracks (source, source_track_id, uri, title, created_at, "
+        "updated_at) VALUES ('bilibili', 'BV1:2', 'bilibili:BV1:2', 'Two', 1, 1)",
+      );
+      await before.customStatement(
+        "INSERT INTO tracks (source, source_track_id, uri, title, created_at, "
+        "updated_at) VALUES ('bilibili', 'BV1:3', 'bilibili:BV1:3', 'Three', 1, 1)",
+      );
+      await before.customStatement(
+        "INSERT INTO playlists (id, public_id, name, kind, created_at, "
+        "updated_at) VALUES (2, 'old-public-id', 'Mix', 'custom', 1, 1)",
+      );
+      await before.customStatement(
+        "INSERT INTO playlist_tracks (playlist_id, uri, added_at) "
+        "VALUES (2, 'bilibili:BV1:1', 10)",
+      );
+      await before.customStatement(
+        "INSERT INTO playlist_tracks (playlist_id, uri, added_at) "
+        "VALUES (2, 'bilibili:BV1:2', 20)",
+      );
+      await before.customStatement(
+        "INSERT INTO playlist_tracks (playlist_id, uri, added_at) "
+        "VALUES (2, 'bilibili:BV1:3', 30)",
+      );
+      await before.customStatement(
+        "INSERT INTO audio_cache (source, source_track_id, file_path, bytes, "
+        "quality_id, pinned, cached_at, last_accessed_at) VALUES "
+        "('bilibili', 'BV1:1', '/tmp/a.m4a', 10, '30280', 1, 100, 100)",
+      );
+      await before.customStatement(
+        "INSERT INTO audio_cache (source, source_track_id, file_path, bytes, "
+        "quality_id, pinned, cached_at, last_accessed_at) VALUES "
+        "('bilibili', 'BV9:9', '/tmp/b.m4a', 20, '30280', 1, 200, 200)",
+      );
+
+      // Drop v11 tables/indexes/columns to make a v10-shaped file.
+      for (final table in [
+        'downloads',
+        'download_assets',
+        'play_events',
+        'track_stats',
+        'daily_stats',
+        'lyrics_cache',
+      ]) {
+        await before.customStatement('DROP TABLE IF EXISTS $table');
+      }
+      for (final index in [
+        'idx_playlists_public_id',
+        'idx_playlist_tracks_position',
+        'idx_audio_cache_track_uri',
+      ]) {
+        await before.customStatement('DROP INDEX IF EXISTS $index');
+      }
+      await before.customStatement('ALTER TABLE tracks DROP COLUMN deleted_at');
+      await before.customStatement(
+        'ALTER TABLE playlists DROP COLUMN public_id',
+      );
+      await before.customStatement(
+        'ALTER TABLE playlist_tracks DROP COLUMN position',
+      );
+      await before.customStatement(
+        'ALTER TABLE playlist_tracks DROP COLUMN updated_at',
+      );
+      await before.customStatement(
+        'ALTER TABLE playlist_tracks DROP COLUMN deleted_at',
+      );
+      await before.customStatement(
+        'ALTER TABLE audio_cache DROP COLUMN track_uri',
+      );
+      await before.customStatement('PRAGMA user_version = 10');
+      await before.close();
+
+      final after = AppDatabase(NativeDatabase(file));
+      addTearDown(after.close);
+
+      // Stable public ids: favourites keeps its readable constant; existing
+      // custom playlists get deterministic legacy ids.
+      final playlists = await after
+          .customSelect('SELECT id, public_id FROM playlists ORDER BY id')
+          .get();
+      expect(playlists.map((r) => r.data['public_id']), [
+        'favorites',
+        'legacy-2',
+      ]);
+
+      // Dense 0..n-1 positions preserve the old newest-first order.
+      final members = await after
+          .customSelect(
+            'SELECT uri, position, updated_at FROM playlist_tracks '
+            'WHERE playlist_id = 2 ORDER BY position',
+          )
+          .get();
+      expect(members.map((r) => r.data['uri']), [
+        'bilibili:BV1:3',
+        'bilibili:BV1:2',
+        'bilibili:BV1:1',
+      ]);
+      expect(members.map((r) => r.data['position']), [0, 1, 2]);
+      expect(members.map((r) => r.data['updated_at']), [30, 20, 10]);
+
+      // Cache rows join the canonical track identity; the unmatched legacy row
+      // survives without inventing a task.
+      final cache = await after
+          .customSelect('SELECT track_uri FROM audio_cache ORDER BY id')
+          .get();
+      expect(cache.map((r) => r.data['track_uri']), ['bilibili:BV1:1', null]);
+
+      final downloads = await after
+          .customSelect('SELECT track_uri, status, bytes_done FROM downloads')
+          .get();
+      expect(downloads, hasLength(1));
+      expect(downloads.single.data['track_uri'], 'bilibili:BV1:1');
+      expect(downloads.single.data['status'], 'done');
+      expect(downloads.single.data['bytes_done'], 10);
+
+      // New tables exist.
+      final tables =
+          (await after
+                  .customSelect(
+                    "SELECT name FROM sqlite_master WHERE type='table'",
+                  )
+                  .get())
+              .map((r) => r.data['name'])
+              .toSet();
+      expect(
+        tables,
+        containsAll([
+          'downloads',
+          'download_assets',
+          'play_events',
+          'track_stats',
+          'daily_stats',
+          'lyrics_cache',
+        ]),
+      );
+
+      // Re-running the migration is safe and does not renumber or duplicate.
+      await after.customStatement('PRAGMA user_version = 10');
+      await after.close();
+      final again = AppDatabase(NativeDatabase(file));
+      addTearDown(again.close);
+
+      final rerunPlaylist = await again
+          .customSelect("SELECT public_id FROM playlists WHERE id = 2")
+          .getSingle();
+      expect(rerunPlaylist.data['public_id'], 'legacy-2');
+      final rerunPositions = await again
+          .customSelect(
+            'SELECT position FROM playlist_tracks WHERE playlist_id = 2 '
+            'ORDER BY position',
+          )
+          .get();
+      expect(rerunPositions.map((r) => r.data['position']), [0, 1, 2]);
+      final rerunDownloads = await again
+          .customSelect('SELECT COUNT(*) AS n FROM downloads')
+          .getSingle();
+      expect(rerunDownloads.data['n'], 1);
     });
   });
 }

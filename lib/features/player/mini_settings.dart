@@ -51,7 +51,6 @@ class MiniSettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
     final volume = ref.watch(playbackStateProvider).value?.volume ?? 1.0;
     final sleepState = ref.watch(sleepTimerProvider);
 
@@ -68,9 +67,9 @@ class MiniSettings extends ConsumerWidget {
                   icon: AppIcons.moreVert,
                   onTap: () => _openPanel(
                     context,
-                    EmptyPanel(icon: AppIcons.moreVert, title: l10n.playerMore),
-                    portraitFraction: 0.45,
-                    landscapeHeight: 300,
+                    const PlayerMorePanel(),
+                    portraitFraction: 0.55,
+                    landscapeHeight: 420,
                   ),
                 ),
               ),
@@ -79,10 +78,10 @@ class MiniSettings extends ConsumerWidget {
               child: Center(
                 child: _barButton(
                   key: tuneKey,
-                  icon: AppIcons.tune,
+                  icon: AppIcons.speed,
                   onTap: () => _openPanel(
                     context,
-                    const PlayerTunePanel(),
+                    const PlaybackSpeedPanel(),
                     portraitFraction: 0.5,
                     landscapeHeight: 380,
                   ),

@@ -130,12 +130,35 @@ mixin FakeLibrarySettings on FakeSettingsBase
   }
 }
 
+/// In-memory [PlaybackSettingsRepository].
+mixin FakePlaybackSettings on FakeSettingsBase
+    implements PlaybackSettingsRepository {
+  /// The persisted output volume.
+  double volume = 1.0;
+
+  /// Number of explicit volume writes; reads are not counted.
+  int volumeWrites = 0;
+
+  @override
+  Future<double> playbackVolume() async => volume;
+
+  @override
+  Future<void> setPlaybackVolume(double value) async {
+    volume = value;
+    volumeWrites++;
+  }
+}
+
 /// Every settings slice in memory; the default settings fake.
 ///
 /// Pass [cache] to start from a persisted cap other than
 /// [CacheSettings.defaults].
 class FakeSettingsRepository extends FakeSettingsBase
-    with FakeCacheSettings, FakeAppearanceSettings, FakeLibrarySettings {
+    with
+        FakeCacheSettings,
+        FakeAppearanceSettings,
+        FakeLibrarySettings,
+        FakePlaybackSettings {
   FakeSettingsRepository([CacheSettings? cache]) {
     if (cache != null) current = cache;
   }

@@ -17,9 +17,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/core/models/lyric.dart';
 import 'package:flind_player/core/models/track.dart';
+import 'package:flind_player/core/repositories/lyric_offset_repository.dart';
 import 'package:flind_player/core/services/lyrics_provider.dart';
 import 'package:flind_player/data/providers/auth_providers.dart';
 import 'package:flind_player/data/providers/online_source_providers.dart';
+import 'package:flind_player/data/repositories/prefs_lyric_offset_repository.dart';
 
 /// Whether the source registered for [sourceId] can supply lyrics.
 ///
@@ -51,6 +53,16 @@ final lyricsLoginRequiredProvider = Provider.family<bool, String>((
 /// Lyrics for one track, routed to the registered source matching
 /// `track.source`. Missing lyrics (unsupported source, no lyric, or a network
 /// failure) resolve to `null` so the UI shows its placeholder.
+final lyricOffsetRepositoryProvider = Provider<LyricOffsetRepository>(
+  (ref) => PrefsLyricOffsetRepository(),
+);
+
+/// Per-track lyric adjustment; positive values advance the lyrics.
+final lyricOffsetProvider = FutureProvider.autoDispose.family<Duration, String>(
+  (ref, trackUri) =>
+      ref.watch(lyricOffsetRepositoryProvider).offsetFor(trackUri),
+);
+
 final trackLyricsProvider = FutureProvider.family<Lyric?, Track>((
   ref,
   track,

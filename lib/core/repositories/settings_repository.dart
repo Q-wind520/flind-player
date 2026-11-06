@@ -102,7 +102,16 @@ abstract interface class AppearanceSettingsRepository {
   Future<void> setAppThemeColor(AppThemeColor color);
 }
 
-/// The full settings surface, composed of the three narrow slices.
+/// Playback settings that must survive a restart.
+abstract interface class PlaybackSettingsRepository {
+  /// The persisted output volume as a linear gain, defaulting to `1.0`.
+  Future<double> playbackVolume();
+
+  /// Persists the output volume.
+  Future<void> setPlaybackVolume(double volume);
+}
+
+/// The full settings surface, composed of the four narrow slices.
 ///
 /// Consumers should depend on the narrowest slice they use; this composition
 /// stays the single provider's type and the prefs-backed implementation's
@@ -111,4 +120,5 @@ abstract interface class SettingsRepository
     implements
         CacheSettingsRepository,
         LibrarySettingsRepository,
-        AppearanceSettingsRepository {}
+        AppearanceSettingsRepository,
+        PlaybackSettingsRepository {}

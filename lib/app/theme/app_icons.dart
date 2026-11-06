@@ -29,6 +29,7 @@ class AppIcons {
 
   static const IconData accountCircle = LucideIcons.circleUserRound;
   static const IconData add = LucideIcons.plus;
+  static const IconData album = LucideIcons.discAlbum;
   static const IconData analytics = LucideIcons.chartColumn;
   static const IconData arrowBack = LucideIcons.arrowLeft;
   static const IconData brightness6 = LucideIcons.sunMoon;
@@ -57,6 +58,7 @@ class AppIcons {
   static const IconData folderOff = LucideIcons.folderX;
   static const IconData graphicEq = LucideIcons.audioLines;
   static const IconData gridView = LucideIcons.layoutGrid;
+  static const IconData history = LucideIcons.history;
   static const IconData home = LucideIcons.house;
   static const IconData image = LucideIcons.image;
   static const IconData imageNotSupported = LucideIcons.imageOff;
@@ -87,6 +89,7 @@ class AppIcons {
   static const IconData radioButtonChecked = LucideIcons.circleDot;
   static const IconData radioButtonUnchecked = LucideIcons.circle;
   static const IconData refresh = LucideIcons.refreshCw;
+  static const IconData remove = LucideIcons.minus;
   static const IconData repeat = LucideIcons.repeat;
   static const IconData repeatOne = LucideIcons.repeat1;
   static const IconData sdStorage = LucideIcons.hardDrive;

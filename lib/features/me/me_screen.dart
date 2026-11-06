@@ -23,15 +23,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:flind_player/app/theme/app_icons.dart';
+import 'package:flind_player/app/theme/app_tokens.dart';
 import 'package:flind_player/app/language.dart';
 import 'package:flind_player/app/theme_color.dart';
 import 'package:flind_player/app/theme_mode.dart';
 import 'package:flind_player/core/models/app_language.dart';
 import 'package:flind_player/core/models/app_theme_color.dart';
 import 'package:flind_player/core/models/app_theme_mode.dart';
-import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/core/repositories/settings_repository.dart';
-import 'package:flind_player/data/cache/audio_cache_store.dart';
 import 'package:flind_player/data/cache/download_manager.dart';
 import 'package:flind_player/data/providers/cache_providers.dart';
 import 'package:flind_player/data/providers/cover_providers.dart';
@@ -43,83 +42,165 @@ import 'package:flind_player/data/services/library_sync_service.dart';
 import 'package:flind_player/features/settings/account_section.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
 import 'package:flind_player/features/settings/theme_color_picker.dart';
+import 'package:flind_player/features/stats/playback_stats_screen.dart';
+import 'package:flind_player/features/stats/recent_plays_screen.dart';
 import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/platform/permissions/permission_service.dart';
 import 'package:flind_player/shared/app_page_header.dart';
-import 'package:flind_player/shared/app_surface.dart';
+import 'package:flind_player/shared/app_page_scaffold.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
 import 'package:flind_player/shared/format_bytes.dart';
 import 'package:flind_player/shared/platform_support.dart';
 import 'package:flind_player/shared/section_header.dart';
 
-/// Application settings: playback (cache), library, and about sections.
-class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+/// The personal hub: accounts, listening history, appearance, playback cache,
+/// library management and about. Settings live here instead of owning a
+/// separate primary navigation destination.
+class MeScreen extends ConsumerWidget {
+  const MeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: AppSurface.colorOf(context),
-      // The shell renders this screen edge-to-edge on compact layouts, so the
-      // body must keep its own status-bar inset or the first section heading
-      // renders underneath the system status bar.
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            // The settings page is a short, fixed list with no virtualization
-            // benefit; building every section eagerly keeps the whole page
-            // reachable regardless of the viewport size.
-            child: SingleChildScrollView(
-              // The shell extends this screen behind the bottom chrome, so the
-              // scroll content must also reserve the chrome's bottom inset.
-              padding: EdgeInsets.fromLTRB(
-                0,
-                0,
-                0,
-                8 + MediaQuery.paddingOf(context).bottom,
-              ),
-              child: Column(
+    final left = <Widget>[
+      SectionHeader(l10n.general),
+      const _GeneralSection(),
+      SectionHeader(l10n.sectionPlayback),
+      const _PlaybackSection(),
+      SectionHeader(l10n.sectionLibrary),
+      if (supportsLocalLibrary)
+        const _LibrarySection()
+      else
+        const _UnsupportedLibraryNotice(),
+    ];
+    final right = <Widget>[
+      if (!kIsWeb) ...[
+        SectionHeader(l10n.sectionAccounts),
+        const AccountSection(),
+      ],
+      SectionHeader(l10n.myActivity),
+      const _QuickLinks(),
+      SectionHeader(l10n.about),
+      const _AboutSection(),
+    ];
+
+    return AppPageScaffold(
+      header: AppPageHeader(title: l10n.navMe),
+      body: SingleChildScrollView(
+        // The shell extends this screen behind the bottom chrome, so the
+        // scroll content must also reserve the chrome's bottom inset.
+        padding: EdgeInsets.only(
+          bottom: 8 + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 1100;
+            if (!wide) {
+              return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [...left, ...right],
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+              ),
+              child: Row(
+                key: const Key('me_wide_columns'),
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppPageHeader(title: l10n.navSettings),
-                  SectionHeader(l10n.general),
-                  const _GeneralSection(),
-
-                  // ── 账号 ──
-                  if (!kIsWeb) ...[
-                    SectionHeader(l10n.sectionAccounts),
-                    const AccountSection(),
-                  ],
-
-                  // ── 播放 ──
-                  SectionHeader(l10n.sectionPlayback),
-                  const _PlaybackSection(),
-
-                  // ── 离线缓存 ──
-                  SectionHeader(l10n.offlineCache),
-                  const _OfflineCacheSection(),
-
-                  // ── 曲库 ──
-                  SectionHeader(l10n.sectionLibrary),
-                  if (supportsLocalLibrary)
-                    const _LibrarySection()
-                  else
-                    const _UnsupportedLibraryNotice(),
-
-                  // ── 关于 ──
-                  SectionHeader(l10n.about),
-                  const _AboutSection(),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: left,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xxl),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: right,
+                    ),
+                  ),
                 ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Shortcuts to the two listening-history pages.
+class _QuickLinks extends StatelessWidget {
+  const _QuickLinks();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _QuickLink(
+              icon: AppIcons.history,
+              label: l10n.recentPlays,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => const RecentPlaysScreen(),
+                ),
               ),
             ),
           ),
-        ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _QuickLink(
+              icon: AppIcons.analytics,
+              label: l10n.playbackStats,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => const PlaybackStatsScreen(),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _QuickLink extends StatelessWidget {
+  const _QuickLink({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      tileColor: theme.colorScheme.surfaceContainerLow,
+      leading: Icon(icon, color: theme.colorScheme.primary),
+      title: Text(label),
+      trailing: const Icon(AppIcons.chevronRight),
+      onTap: onTap,
     );
   }
 }
@@ -283,7 +364,8 @@ class _PlaybackSection extends ConsumerWidget {
       final phase = next.value?.phase;
       if (phase == DownloadPhase.done ||
           phase == DownloadPhase.skipped ||
-          phase == DownloadPhase.failed) {
+          phase == DownloadPhase.failed ||
+          phase == DownloadPhase.canceled) {
         ref.invalidate(combinedCacheUsageProvider);
         ref.invalidate(coverCacheUsageProvider);
         ref.invalidate(audioCacheUsageProvider);
@@ -407,143 +489,6 @@ Future<bool> _confirmDestructive(
   );
   return confirmed == true;
 }
-
-/// Manually downloaded songs: their list, per-download removal and a full
-/// clear.
-///
-/// The complementary counterpart of the "clear cache" action, which now only
-/// drops the online layer, so downloads can only be removed from here.
-class _OfflineCacheSection extends ConsumerWidget {
-  const _OfflineCacheSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final entries =
-        ref.watch(offlineCacheEntriesProvider).value ?? const <CachedAudio>[];
-    final usage = ref.watch(offlineCacheUsageProvider).value ?? 0;
-    // Offline rows carry only `source`/`sourceTrackId`; resolve a human title
-    // from the library row whose canonical `uri` matches, falling back to the
-    // raw id when the track is not in the pool.
-    final tracksByUri = <String, Track>{
-      for (final track
-          in ref.watch(libraryTracksProvider).value ?? const <Track>[])
-        track.uri: track,
-    };
-    String labelFor(CachedAudio entry) =>
-        tracksByUri['${entry.source}:${entry.sourceTrackId}']?.title ??
-        entry.sourceTrackId;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ListTile(
-          leading: const Icon(AppIcons.downloadDoneOutlined),
-          title: Text(l10n.downloads),
-          subtitle: Text(
-            '${l10n.offlineCacheCount(entries.length)} · ${l10n.offlineCacheUsage(formatMegabytes(usage))}',
-          ),
-          trailing: entries.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(AppIcons.deleteSweep),
-                  tooltip: l10n.clearOfflineCache,
-                  onPressed: () => _confirmClearOffline(context, ref),
-                ),
-        ),
-        if (entries.isEmpty)
-          ListTile(
-            dense: true,
-            title: Text(
-              l10n.offlineCacheEmpty,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          )
-        else
-          for (final entry in entries)
-            ListTile(
-              dense: true,
-              title: Text(labelFor(entry)),
-              subtitle: Text(formatMegabytes(entry.bytes)),
-              trailing: IconButton(
-                icon: const Icon(AppIcons.delete),
-                onPressed: () => _confirmRemoveDownload(
-                  context,
-                  ref,
-                  entry,
-                  labelFor(entry),
-                ),
-              ),
-            ),
-      ],
-    );
-  }
-
-  /// Confirms, then deletes the single pinned download [entry].
-  ///
-  /// The dialog names the download by [label] (its resolved track title, or the
-  /// raw source track id when the track is not in the library pool).
-  Future<void> _confirmRemoveDownload(
-    BuildContext context,
-    WidgetRef ref,
-    CachedAudio entry,
-    String label,
-  ) async {
-    final l10n = AppLocalizations.of(context);
-    final confirmed = await _confirmDestructive(
-      context,
-      title: l10n.removeDownloadTitle,
-      message: l10n.removeDownloadBody(label),
-      confirmLabel: l10n.delete,
-    );
-    if (!confirmed || !context.mounted) return;
-
-    await ref.read(offlineCacheMaintenanceProvider).onRemove(entry.id);
-    ref.invalidate(offlineCacheEntriesProvider);
-    ref.invalidate(offlineCacheUsageProvider);
-    // The removal frees layer-1 bytes, so the top-of-screen usage line and
-    // the library's cached-count must refresh too.
-    ref.invalidate(combinedCacheUsageProvider);
-    ref.invalidate(audioCacheUsageProvider);
-    ref.invalidate(audioCacheEntryCountProvider);
-  }
-
-  /// Confirms, then removes every pinned download.
-  Future<void> _confirmClearOffline(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context);
-    final confirmed = await _confirmDestructive(
-      context,
-      title: l10n.clearOfflineTitle,
-      message: l10n.clearOfflineBody,
-      confirmLabel: l10n.clear,
-    );
-    if (!confirmed || !context.mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final freed = ref.read(offlineCacheUsageProvider).value ?? 0;
-    final ok = await ref.read(offlineCacheMaintenanceProvider).onClearAll();
-    ref.invalidate(offlineCacheEntriesProvider);
-    ref.invalidate(offlineCacheUsageProvider);
-    // Clearing frees layer-1 bytes; keep the top-of-screen usage line and the
-    // library's cached-count in sync with the empty list.
-    ref.invalidate(combinedCacheUsageProvider);
-    ref.invalidate(audioCacheUsageProvider);
-    ref.invalidate(audioCacheEntryCountProvider);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? l10n.offlineCacheCleared(formatMegabytes(freed))
-              : l10n.offlineCacheClearFailed,
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Cache-location dialog
-// ---------------------------------------------------------------------------
 
 /// Dialog showing the cache directory path with copy and clear actions.
 class _CacheLocationDialog extends ConsumerWidget {

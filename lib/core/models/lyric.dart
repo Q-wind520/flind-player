@@ -15,18 +15,61 @@
 
 import 'package:flutter/foundation.dart';
 
-/// One timed lyric line, optionally carrying its translation.
+/// One timed word inside a lyric line.
+@immutable
+class LyricWord {
+  final Duration start;
+  final Duration end;
+  final String text;
+
+  const LyricWord({required this.start, required this.end, required this.text});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LyricWord &&
+          other.start == start &&
+          other.end == end &&
+          other.text == text;
+
+  @override
+  int get hashCode => Object.hash(start, end, text);
+}
+
+/// One timed lyric line, optionally carrying its translation and word timings.
 @immutable
 class LyricLine {
   final Duration timestamp;
   final String text;
   final String? translation;
 
+  /// Word-level timings for YRC/enhanced lyrics; empty for plain LRC.
+  final List<LyricWord> words;
+
   const LyricLine({
     required this.timestamp,
     required this.text,
     this.translation,
+    this.words = const <LyricWord>[],
   });
+
+  /// Index of the word covering [position], or `null` before the line starts.
+  int? wordIndexAt(Duration position) {
+    if (words.isEmpty) return null;
+    var low = 0;
+    var high = words.length - 1;
+    var result = 0;
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      if (words[mid].start <= position) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return result;
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -34,10 +77,12 @@ class LyricLine {
       other is LyricLine &&
           other.timestamp == timestamp &&
           other.text == text &&
-          other.translation == translation;
+          other.translation == translation &&
+          listEquals(other.words, words);
 
   @override
-  int get hashCode => Object.hash(timestamp, text, translation);
+  int get hashCode =>
+      Object.hash(timestamp, text, translation, Object.hashAll(words));
 }
 
 /// A track's lyrics as an ascending time line.

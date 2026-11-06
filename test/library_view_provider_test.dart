@@ -21,7 +21,7 @@ void main() {
     addTearDown(container.dispose);
 
     final views = await container.read(libraryViewsProvider.future);
-    expect(views.viewOf(LibraryViewScope.all), LibraryView.waterfall);
+    expect(views.viewOf(LibraryViewScope.all), LibraryView.cards);
   });
 
   test('setView persists and emits the new value', () async {
@@ -40,7 +40,7 @@ void main() {
     expect(views.viewOf(LibraryViewScope.all), LibraryView.list);
   });
 
-  test('setView sanitizes an unsupported choice', () async {
+  test('setView persists cards for the playlists scope', () async {
     final container = ProviderContainer(
       overrides: [
         settingsRepositoryProvider.overrideWithValue(_FakeSettings()),
@@ -51,9 +51,9 @@ void main() {
     await container.read(libraryViewsProvider.future);
     await container
         .read(libraryViewsProvider.notifier)
-        .setView(LibraryViewScope.playlists, LibraryView.waterfall);
+        .setView(LibraryViewScope.playlists, LibraryView.cards);
 
     final views = container.read(libraryViewsProvider).value!;
-    expect(views.viewOf(LibraryViewScope.playlists), LibraryView.showcase);
+    expect(views.viewOf(LibraryViewScope.playlists), LibraryView.cards);
   });
 }

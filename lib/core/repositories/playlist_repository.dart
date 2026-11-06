@@ -135,12 +135,18 @@ abstract interface class PlaylistRepository {
   /// Throws a [StateError] for the built-in favourites playlist.
   Future<void> deletePlaylist(int id);
 
-  /// Emits every member of the playlist with [id], newest first, whenever the
-  /// set changes.
+  /// Emits every member of the playlist with [id] in display order, whenever
+  /// the set or its order changes.
   Stream<List<Track>> watchPlaylistTracks(int id);
 
-  /// Every member of the playlist with [id], newest first.
+  /// Every member of the playlist with [id] in display order.
   Future<List<Track>> playlistTracks(int id);
+
+  /// Moves [uri] to [newIndex] in the playlist's manual order.
+  ///
+  /// [newIndex] is the final zero-based position. A missing member or an index
+  /// outside the list is a no-op; the list never grows or shrinks here.
+  Future<void> reorderTrack(int playlistId, String uri, int newIndex);
 
   /// Adds [track] to the playlist, promoting it into the pool first; a no-op
   /// when the `(playlistId, uri)` pair already exists.

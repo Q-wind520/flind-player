@@ -106,7 +106,7 @@ void main() {
     );
     // Loop the 8 s fixture so playback stays active throughout the test.
     await controller.setRepeatMode(RepeatMode.one);
-    await settle(tester, ticks: 12);
+    await settle(tester, ticks: 8);
     expect(controller.currentState.isPlaying, isTrue);
 
     // 1. The MPRIS server must be discoverable --------------------------------
@@ -126,7 +126,7 @@ void main() {
 
     // 3. External pause reaches the playback controller ------------------------
     await playerctl(<String>['-p', player, 'play-pause']);
-    await settle(tester, ticks: 8);
+    await settle(tester, ticks: 4);
     debugPrint(
       'after external pause: playing=${controller.currentState.isPlaying}',
     );
@@ -139,7 +139,7 @@ void main() {
 
     // 4. External resume reaches the playback controller ----------------------
     await playerctl(<String>['-p', player, 'play-pause']);
-    await settle(tester, ticks: 8);
+    await settle(tester, ticks: 4);
     debugPrint(
       'after external play: playing=${controller.currentState.isPlaying}',
     );
@@ -152,7 +152,7 @@ void main() {
 
     // 5. Position is still advancing after the round trip ---------------------
     final before = controller.currentState.position;
-    await settle(tester, ticks: 6);
+    await settle(tester, ticks: 4);
     debugPrint('position $before -> ${controller.currentState.position}');
     expect(controller.currentState.position, greaterThan(before));
   }, timeout: const Timeout(Duration(minutes: 3)));

@@ -50,6 +50,9 @@ class PrefsSettingsRepository implements SettingsRepository {
   /// Preferences key for the app seed colour.
   static const String appThemeColorKey = 'app.themeColorSeed';
 
+  /// Preferences key for the persisted output volume.
+  static const String playbackVolumeKey = 'player.volume';
+
   final StreamController<CacheSettings> _updates =
       StreamController<CacheSettings>.broadcast();
 
@@ -129,7 +132,13 @@ class PrefsSettingsRepository implements SettingsRepository {
       for (final scope in LibraryViewScope.values) {
         final name = prefs.getString(_libraryViewKey(scope));
         if (name == null) continue;
-        final parsed = LibraryView.values.asNameMap()[name];
+        // Migrate the pre-0.9 names: both card layouts are now "cards".
+        final stored = LibraryView.values.asNameMap()[name];
+        final parsed =
+            stored ??
+            ((name == 'showcase' || name == 'waterfall')
+                ? LibraryView.cards
+                : null);
         if (parsed == null) continue;
         views[scope] = scope.sanitize(parsed);
       }
@@ -205,6 +214,28 @@ class PrefsSettingsRepository implements SettingsRepository {
   Future<void> setAppThemeColor(AppThemeColor color) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(appThemeColorKey, color.argb);
+  }
+
+  @override
+  Future<double> playbackVolume() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getDouble(playbackVolumeKey);
+      if (stored == null || stored.isNaN || stored.isInfinite) return 1.0;
+      return stored.clamp(0.01, 1.4);
+    } catch (error) {
+      debugPrint('PrefsSettingsRepository: volume read failed: $error');
+      return 1.0;
+    }
+  }
+
+  @override
+  Future<void> setPlaybackVolume(double volume) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(
+      playbackVolumeKey,
+      volume.clamp(0.01, 1.4).toDouble(),
+    );
   }
 
   CacheSettings _read(SharedPreferences prefs) {

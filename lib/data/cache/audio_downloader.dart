@@ -34,6 +34,14 @@ class StreamExpiredException implements Exception {
   String toString() => 'StreamExpiredException($url)';
 }
 
+/// The caller cancelled an in-flight download.
+class DownloadCanceledException implements Exception {
+  const DownloadCanceledException();
+
+  @override
+  String toString() => 'DownloadCanceledException';
+}
+
 /// A download failed after every retry was exhausted.
 class DownloadFailedException implements Exception {
   const DownloadFailedException({required this.attempts, required this.cause});
@@ -109,6 +117,7 @@ class AudioDownloader {
     required Map<String, String> headers,
     required File target,
     void Function(int received, int? total)? onProgress,
+    CancelToken? cancelToken,
   }) async {
     await target.parent.create(recursive: true);
     final part = File('${target.path}.part');
@@ -122,11 +131,17 @@ class AudioDownloader {
           target: target,
           part: part,
           onProgress: onProgress,
+          cancelToken: cancelToken,
         );
       } on StreamExpiredException {
         // A dead URL is not a transient failure: let the caller re-resolve.
         rethrow;
+      } on DownloadCanceledException {
+        rethrow;
       } catch (error) {
+        if (cancelToken?.isCancelled ?? false) {
+          throw const DownloadCanceledException();
+        }
         lastError = error;
         if (attempt >= maxAttempts) break;
         await _sleep(Duration(seconds: 1 << (attempt - 1)));
@@ -146,6 +161,7 @@ class AudioDownloader {
     required File target,
     required File part,
     void Function(int received, int? total)? onProgress,
+    CancelToken? cancelToken,
   }) async {
     final existing = part.existsSync() ? part.lengthSync() : 0;
     final requestHeaders = <String, dynamic>{...headers};
@@ -153,16 +169,25 @@ class AudioDownloader {
       requestHeaders['Range'] = 'bytes=$existing-';
     }
 
-    final response = await _dio.get<ResponseBody>(
-      url.toString(),
-      options: Options(
-        responseType: ResponseType.stream,
-        headers: requestHeaders,
-        // Status handling is explicit so 403/404 can be told apart from
-        // transient server errors.
-        validateStatus: (_) => true,
-      ),
-    );
+    final Response<ResponseBody> response;
+    try {
+      response = await _dio.get<ResponseBody>(
+        url.toString(),
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: requestHeaders,
+          // Status handling is explicit so 403/404 can be told apart from
+          // transient server errors.
+          validateStatus: (_) => true,
+        ),
+        cancelToken: cancelToken,
+      );
+    } on DioException catch (error) {
+      if (CancelToken.isCancel(error)) {
+        throw const DownloadCanceledException();
+      }
+      rethrow;
+    }
 
     final status = response.statusCode ?? 0;
     final body = response.data;
@@ -216,6 +241,9 @@ class AudioDownloader {
       await sink.close();
     } catch (error) {
       await _closeQuietly(sink);
+      if (cancelToken?.isCancelled ?? false) {
+        throw const DownloadCanceledException();
+      }
       rethrow;
     }
 

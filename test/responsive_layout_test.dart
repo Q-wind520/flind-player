@@ -46,10 +46,10 @@ import 'package:flind_player/features/library/library_screen.dart';
 import 'package:flind_player/features/library/library_sort_provider.dart';
 import 'package:flind_player/features/library/widgets/cache_action_button.dart';
 import 'package:flind_player/features/player/player_screen.dart';
+import 'package:flind_player/features/discover/discover_screen.dart';
+import 'package:flind_player/features/me/me_screen.dart';
 import 'package:flind_player/features/playlists/bilibili_favorites_screen.dart';
-import 'package:flind_player/features/search/search_screen.dart';
 import 'package:flind_player/features/settings/settings_providers.dart';
-import 'package:flind_player/features/settings/settings_screen.dart';
 
 import 'support/fake_music_source.dart';
 import 'support/fake_settings_repository.dart';
@@ -483,14 +483,31 @@ void main() {
     }
   });
 
-  group('SettingsScreen', () {
+  group('MeScreen', () {
     for (final size in _kSizes) {
       testWidgets('no overflow at ${size.width}x${size.height}', (
         tester,
       ) async {
-        await _pumpAt(tester, size, _app(home: const SettingsScreen()));
+        await _pumpAt(tester, size, _app(home: const MeScreen()));
       });
     }
+
+    testWidgets('uses the shared 1600px page frame and two columns at 1880', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(1880, 1000), _app(home: const MeScreen()));
+
+      final content = tester.getSize(find.byKey(const Key('app_page_content')));
+      expect(content.width, 1600);
+      expect(find.byKey(const Key('me_wide_columns')), findsOneWidget);
+    });
+
+    testWidgets('stacks Me sections below the two-column breakpoint', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(800, 1000), _app(home: const MeScreen()));
+      expect(find.byKey(const Key('me_wide_columns')), findsNothing);
+    });
 
     // Dialogs are the tallest thing the screen can show, so exercise them at
     // the smallest portrait and landscape viewports.
@@ -502,7 +519,7 @@ void main() {
           tester.view.devicePixelRatio = 1.0;
           addTearDown(tester.view.reset);
 
-          await tester.pumpWidget(_app(home: const SettingsScreen()));
+          await tester.pumpWidget(_app(home: const MeScreen()));
           await tester.pumpAndSettle();
 
           // Cache-location dialog.
@@ -550,10 +567,10 @@ void main() {
     }
   });
 
-  group('SearchScreen', () {
+  group('DiscoverScreen', () {
     for (final size in _kSizes) {
       testWidgets('hint at ${size.width}x${size.height}', (tester) async {
-        await _pumpAt(tester, size, _app(home: const SearchScreen()));
+        await _pumpAt(tester, size, _app(home: const DiscoverScreen()));
       });
     }
 
@@ -568,14 +585,14 @@ void main() {
         addTearDown(tester.view.reset);
 
         await tester.pumpWidget(
-          _app(home: const SearchScreen(), tracks: _kTracks),
+          _app(home: const DiscoverScreen(), tracks: _kTracks),
         );
         await tester.pumpAndSettle();
 
         await tester.enterText(find.byType(TextField), '周杰伦');
         await tester.testTextInput.receiveAction(TextInputAction.search);
         await tester.pumpAndSettle();
-        _expectNoOverflow(tester, 'SearchScreen results');
+        _expectNoOverflow(tester, 'DiscoverScreen results');
       });
     }
   });

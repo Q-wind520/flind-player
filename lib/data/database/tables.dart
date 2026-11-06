@@ -78,6 +78,14 @@ class Tracks extends Table {
   /// Soft delete: a transiently unplugged drive or a failed scan must not
   /// destroy rows that future playlists/stats still reference.
   IntColumn get missingAt => integer().nullable()();
+
+  /// Unix timestamp when the user removed this track, or `null` while live
+  /// (schema v11).
+  ///
+  /// Distinct from [missingAt]: a removed track is intentionally gone, while a
+  /// missing track may return when its source comes back. Rows referenced by
+  /// playlists/downloads/stats are kept as tombstones instead of hard-deleted.
+  IntColumn get deletedAt => integer().nullable()();
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
 }
@@ -111,6 +119,10 @@ class ScanRoots extends Table {
   'CREATE INDEX IF NOT EXISTS idx_audio_cache_file_path '
   'ON audio_cache (file_path)',
 )
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_audio_cache_track_uri '
+  'ON audio_cache (track_uri)',
+)
 class AudioCache extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -119,6 +131,13 @@ class AudioCache extends Table {
 
   /// Source-specific identity, e.g. `BV...:cid`.
   TextColumn get sourceTrackId => text()();
+
+  /// Canonical pool key (schema v11), backfilled from `tracks.uri`.
+  ///
+  /// Nullable for legacy cache rows whose pool row no longer exists; new rows
+  /// always carry it. This is the shared identity for cache, downloads,
+  /// lyrics and stats.
+  TextColumn get trackUri => text().nullable()();
 
   /// Absolute path of the cached file.
   TextColumn get filePath => text()();
@@ -194,8 +213,21 @@ class PlaybackStates extends Table {
 /// to 1) plus user-created playlists (`kind='custom'`). The "all" pool is the
 /// `tracks` table itself and is not represented here.
 @DataClassName('PlaylistRow')
+@TableIndex.sql(
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_playlists_public_id '
+  'ON playlists (public_id)',
+)
 class Playlists extends Table {
   IntColumn get id => integer().autoIncrement()();
+
+  /// Stable, export-safe identifier (schema v11).
+  ///
+  /// The integer [id] stays the internal row id; [publicId] is what future
+  /// export/import and multi-device sync use. Existing rows are backfilled in
+  /// the v10 -> v11 migration. Nullable at the SQLite level only so the
+  /// additive migration can run without a table rebuild; the repository always
+  /// writes a value. Uniqueness is enforced by the named index above.
+  TextColumn get publicId => text().nullable()();
 
   /// Display name; required and non-blank.
   TextColumn get name => text()();
@@ -223,6 +255,10 @@ class Playlists extends Table {
   'CREATE INDEX IF NOT EXISTS idx_playlist_tracks_order '
   'ON playlist_tracks (playlist_id, added_at DESC, id DESC)',
 )
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_playlist_tracks_position '
+  'ON playlist_tracks (playlist_id, position ASC, id ASC)',
+)
 class PlaylistTracks extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -232,9 +268,23 @@ class PlaylistTracks extends Table {
   /// Canonical pool key (`local:<path>` / `bilibili:<bvid>:<cid>`).
   TextColumn get uri => text()();
 
-  /// Unix timestamp when the member was added; the ordering key
-  /// (= the old favourites `favorited_at`).
+  /// Unix timestamp when the member was added (kept for display/audit).
   IntColumn get addedAt => integer()();
+
+  /// Manual display order within the playlist (schema v11).
+  ///
+  /// Smaller sorts first. Backfilled densely (0..n-1) in the v10 -> v11
+  /// migration; new additions are inserted at the front with `min - 1`, and a
+  /// manual reorder rewrites the list densely.
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  /// Unix timestamp of the last member change (schema v11).
+  IntColumn get updatedAt => integer().withDefault(const Constant(0))();
+
+  /// Unix timestamp when the member was removed, or `null` while live
+  /// (schema v11). Kept as a tombstone so future sync can distinguish
+  /// "removed elsewhere" from "never existed".
+  IntColumn get deletedAt => integer().nullable()();
 
   @override
   List<Set<Column>> get uniqueKeys => [
@@ -283,6 +333,181 @@ class CoverCache extends Table {
 
   /// Unix timestamp of the last read; the LRU ordering key.
   IntColumn get lastAccessedAt => integer()();
+}
+
+/// User-visible download tasks (schema v11).
+///
+/// A download is the user's intent and task state; [AudioCache] is the
+/// evictable file cache. A completed download normally has a pinned cache
+/// entry, but the two are not the same fact and are not kept in lockstep by
+/// foreign keys.
+@DataClassName('DownloadRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_downloads_track_status '
+  'ON downloads (track_uri, status)',
+)
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_downloads_status_created '
+  'ON downloads (status, created_at)',
+)
+class Downloads extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Stable, export-safe identifier for future sync/import.
+  TextColumn get publicId => text().unique()();
+
+  /// Canonical pool key (`tracks.uri`).
+  TextColumn get trackUri => text()();
+
+  /// `queued` / `downloading` / `paused` / `done` / `failed` / `canceled`.
+  TextColumn get status => text()();
+
+  /// Source-specific quality id, when known.
+  TextColumn get qualityId => text().nullable()();
+
+  /// Absolute path of the finished audio file, or `null` while incomplete.
+  TextColumn get filePath => text().nullable()();
+
+  /// Bytes written so far.
+  IntColumn get bytesDone => integer().withDefault(const Constant(0))();
+
+  /// Total bytes when the source reports a length, else `null`.
+  IntColumn get bytesTotal => integer().nullable()();
+
+  /// Last error message for `failed`, else `null`.
+  TextColumn get error => text().nullable()();
+
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get completedAt => integer().nullable()();
+}
+
+/// Sidecar assets belonging to a download (schema v11).
+///
+/// Kept separate from [Downloads] so one task can own audio plus cover/lyric/
+/// translation files without nullable columns multiplying.
+@DataClassName('DownloadAssetRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_download_assets_download '
+  'ON download_assets (download_id)',
+)
+class DownloadAssets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get downloadId => integer()();
+
+  /// `audio` / `cover` / `lyric` / `translation`.
+  TextColumn get kind => text()();
+  TextColumn get filePath => text()();
+  IntColumn get bytes => integer()();
+  TextColumn get contentHash => text().nullable()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {downloadId, kind},
+  ];
+}
+
+/// Append-only playback events (schema v11).
+///
+/// The event log is the source of truth for recent plays and stats; aggregate
+/// rows are derived from it and can be rebuilt. Timestamps are epoch
+/// milliseconds in UTC; [startedAt] is the event time used for day buckets.
+@DataClassName('PlayEventRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_play_events_track_started '
+  'ON play_events (track_uri, started_at)',
+)
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_play_events_started '
+  'ON play_events (started_at)',
+)
+class PlayEvents extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Stable event id for export/import and future sync.
+  TextColumn get eventId => text().unique()();
+
+  /// Canonical pool key (`tracks.uri`).
+  TextColumn get trackUri => text()();
+  IntColumn get startedAt => integer()();
+  IntColumn get endedAt => integer().nullable()();
+
+  /// Last known playback position at the end of the session.
+  IntColumn get positionMs => integer().withDefault(const Constant(0))();
+
+  /// Wall-clock time spent listening during this session.
+  IntColumn get listenedMs => integer().withDefault(const Constant(0))();
+
+  /// Track duration at event time, when known.
+  IntColumn get durationMs => integer().nullable()();
+
+  /// Whether the track reached a natural end (or the configured threshold).
+  BoolColumn get completed => boolean().withDefault(const Constant(false))();
+
+  TextColumn get sessionId => text().nullable()();
+  TextColumn get deviceId => text().nullable()();
+  IntColumn get createdAt => integer()();
+}
+
+/// Derived per-track playback aggregate (schema v11).
+///
+/// Rebuildable from [PlayEvents]; never the only copy of a fact.
+@DataClassName('TrackStatRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_track_stats_last_played '
+  'ON track_stats (last_played_at)',
+)
+class TrackStats extends Table {
+  TextColumn get trackUri => text()();
+  IntColumn get playCount => integer().withDefault(const Constant(0))();
+  IntColumn get totalMs => integer().withDefault(const Constant(0))();
+  IntColumn get lastPlayedAt => integer().nullable()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {trackUri};
+}
+
+/// Derived per-day playback aggregate (schema v11).
+@DataClassName('DailyStatRow')
+@TableIndex.sql(
+  'CREATE INDEX IF NOT EXISTS idx_daily_stats_day '
+  'ON daily_stats (day_start)',
+)
+class DailyStats extends Table {
+  /// Local-day start in epoch milliseconds.
+  IntColumn get dayStart => integer()();
+  TextColumn get trackUri => text()();
+  IntColumn get playCount => integer().withDefault(const Constant(0))();
+  IntColumn get totalMs => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {dayStart, trackUri};
+}
+
+/// Cached lyrics payloads (schema v11).
+///
+/// The file/bytes themselves live outside SQLite; this row is the index and
+/// the parsed payload is small text. [offsetMs] is the user's persisted
+/// per-track adjustment; [expiresAt] allows stale provider responses to be
+/// refreshed without losing the last good copy.
+@DataClassName('LyricsCacheRow')
+class LyricsCache extends Table {
+  TextColumn get trackUri => text()();
+  TextColumn get provider => text()();
+
+  /// `lrc` / `yrc` / `ass` / `json`.
+  TextColumn get format => text()();
+  TextColumn get content => text()();
+  TextColumn get translation => text().nullable()();
+  IntColumn get offsetMs => integer().withDefault(const Constant(0))();
+  TextColumn get contentHash => text().nullable()();
+  IntColumn get fetchedAt => integer()();
+  IntColumn get expiresAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {trackUri, provider};
 }
 
 /// Raw SQL for the FTS5 index over `tracks`.
