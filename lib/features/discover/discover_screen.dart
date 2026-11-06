@@ -36,6 +36,7 @@ import 'package:flind_player/l10n/app_localizations.dart';
 import 'package:flind_player/platform/permissions/permission_providers.dart';
 import 'package:flind_player/shared/app_page_header.dart';
 import 'package:flind_player/shared/app_page_scaffold.dart';
+import 'package:flind_player/shared/app_search_field.dart';
 import 'package:flind_player/shared/cover_image.dart';
 import 'package:flind_player/shared/error_messages.dart';
 import 'package:flind_player/shared/error_snack_bar.dart';
@@ -132,32 +133,11 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                 horizontal,
                 AppSpacing.md,
               ),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 960),
-                  child: ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _controller,
-                    builder: (context, value, child) {
-                      return TextField(
-                        controller: _controller,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: _submit,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        decoration: InputDecoration(
-                          hintText: l10n.searchHint,
-                          prefixIcon: const Icon(AppIcons.search),
-                          suffixIcon: value.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(AppIcons.clear),
-                                  onPressed: _clear,
-                                ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+              child: AppSearchField(
+                controller: _controller,
+                hintText: l10n.searchHint,
+                onSubmitted: _submit,
+                onClear: _clear,
               ),
             ),
             if (sources.length > 1)

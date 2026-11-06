@@ -175,6 +175,22 @@ void main() {
     );
   });
 
+  testWidgets('the search field spans the page width on wide windows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app(search: (ref, query) async => <Track>[]));
+    await tester.pumpAndSettle();
+
+    final field = tester.getRect(find.byType(TextField));
+    expect(field.left, 28);
+    expect(field.right, 1400 - 28);
+    expect(field.width, greaterThan(960));
+  });
+
   testWidgets('discovery track cards do not overflow their carousel', (
     tester,
   ) async {

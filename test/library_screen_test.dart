@@ -160,6 +160,7 @@ Widget _app({
   Track? currentTrack,
   Future<void> Function(Track track)? deleteTrack,
   Future<List<CachedAudio>> Function(Ref ref)? offlineEntries,
+  Size mediaSize = const Size(400, 800),
 }) {
   final favRepo = _InMemoryFavoritesRepository();
   for (final track in favourites) {
@@ -196,7 +197,7 @@ Widget _app({
     ],
     child: localizedApp(
       MediaQuery(
-        data: const MediaQueryData(size: Size(400, 800)),
+        data: MediaQueryData(size: mediaSize),
         child: const LibraryScreen(),
       ),
     ),
@@ -411,6 +412,24 @@ void main() {
 
     expect(find.text('一个非常非常长的歌曲标题用来验证在窄屏下会被省略号截断'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the search field spans the page content on wide windows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _app(tracks: [_track('Alpha')], mediaSize: const Size(1400, 800)),
+    );
+    await tester.pumpAndSettle();
+
+    final field = tester.getRect(find.byType(TextField));
+    expect(field.left, 28);
+    expect(field.right, 1400 - 28);
+    expect(field.width, greaterThan(960));
   });
 
   testWidgets('shows the actions menu for online tracks', (tester) async {

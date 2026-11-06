@@ -514,6 +514,7 @@ TrackActionsButton (轨道操作菜单 ConsumerWidget)
 | `lib/features/player/desktop_player_bar.dart` | 宽屏全宽底部播放条 |
 | `lib/shared/app_page_header.dart` | 共用大标题页头 |
 | `lib/shared/app_page_scaffold.dart` | 共用页面骨架(页头 + 限宽内容 + SafeArea) |
+| `lib/shared/app_search_field.dart` | 发现/曲库共用搜索框(铺满页面内容宽度) |
 | `lib/shared/app_async_view.dart` | 共用加载/错误/空态渲染 |
 | `lib/shared/app_surface.dart` | 统一页面底色 + `colorOf` |
 | `lib/features/discover/discover_screen.dart` | 发现页(搜索 + 每日推荐/最近播放/歌单) |
