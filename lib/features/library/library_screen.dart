@@ -74,7 +74,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Timer? _debounce;
   String _query = '';
-  LibrarySection _section = LibrarySection.all;
 
   /// Text of the sync bubble currently shown, so identical progress updates do
   /// not re-trigger the notification.
@@ -86,13 +85,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _tabs = TabController(
       length: LibrarySection.values.length,
       vsync: this,
-    )..addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    final next = LibrarySection.values[_tabs.index];
-    if (next == _section) return;
-    setState(() => _section = next);
+    );
   }
 
   /// Local FTS is fast, but debouncing keeps the family provider from churning
@@ -103,9 +96,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
-    _tabs
-      ..removeListener(_onTabChanged)
-      ..dispose();
+    _tabs.dispose();
     super.dispose();
   }
 
@@ -252,21 +243,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppPageHeader(
-          title: l10n.navLibrary,
-          compact: compact,
-          actions: <Widget>[
-            if (_section != LibrarySection.playlists)
-              const LibrarySortMenuButton(),
-            LibraryViewMenuButton(scope: _scopeForSection(_section)),
-            if (_section == LibrarySection.playlists)
-              IconButton(
-                key: const Key('library_add_playlist'),
-                tooltip: '',
-                icon: const Icon(AppIcons.add),
-                onPressed: _createPlaylist,
-              ),
-          ],
+        // Only the header actions depend on the selected section. Watching the
+        // tab controller here rebuilds a few buttons per frame instead of the
+        // three heavy tab bodies.
+        AnimatedBuilder(
+          animation: _tabs,
+          builder: (context, child) {
+            final section = LibrarySection.values[_tabs.index];
+            return AppPageHeader(
+              title: l10n.navLibrary,
+              compact: compact,
+              actions: <Widget>[
+                if (section != LibrarySection.playlists)
+                  const LibrarySortMenuButton(),
+                LibraryViewMenuButton(scope: _scopeForSection(section)),
+                if (section == LibrarySection.playlists)
+                  IconButton(
+                    key: const Key('library_add_playlist'),
+                    tooltip: '',
+                    icon: const Icon(AppIcons.add),
+                    onPressed: _createPlaylist,
+                  ),
+              ],
+            );
+          },
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontal),
@@ -396,12 +396,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   /// The three section bodies live inside a standard [TabBarView].
   Widget _buildBody() {
+    // Only the current track and play state matter here. Selecting them keeps
+    // the whole screen (and all three tab pages) from rebuilding on every
+    // 200 ms position tick while a song plays.
+    final highlight = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          uri: state.value?.currentTrack?.uri,
+          playing: state.value?.isPlaying ?? false,
+        ),
+      ),
+    );
     return TabBarView(
       controller: _tabs,
       children: [
-        _buildSectionBody(LibrarySection.all),
-        _buildSectionBody(LibrarySection.favorites),
-        _buildSectionBody(LibrarySection.playlists),
+        _buildSectionBody(LibrarySection.all, highlight.uri, highlight.playing),
+        _buildSectionBody(
+          LibrarySection.favorites,
+          highlight.uri,
+          highlight.playing,
+        ),
+        _buildSectionBody(
+          LibrarySection.playlists,
+          highlight.uri,
+          highlight.playing,
+        ),
       ],
     );
   }
@@ -410,11 +429,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   ///
   /// The 全部 page owns its inline search field so the field travels with the
   /// page instead of appearing and disappearing above the pager.
-  Widget _buildSectionBody(LibrarySection section) {
-    final playback = ref.watch(playbackStateProvider).value;
-    final currentUri = playback?.currentTrack?.uri;
-    final isPlaying = playback?.isPlaying ?? false;
-
+  Widget _buildSectionBody(
+    LibrarySection section,
+    String? currentUri,
+    bool isPlaying,
+  ) {
     if (section == LibrarySection.playlists) {
       final playlistsView =
           (ref.watch(libraryViewsProvider).value ?? LibraryViews.defaults)

@@ -48,9 +48,11 @@ class LyricsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final playback = ref.watch(playbackStateProvider).value;
-    final track = playback?.currentTrack;
-    final position = playback?.position ?? Duration.zero;
+    // The track changes rarely; position ticks are handled by the current
+    // line widget so the full lyric list is not rebuilt five times a second.
+    final track = ref.watch(
+      playbackStateProvider.select((state) => state.value?.currentTrack),
+    );
     // Only watch the family when a track exists; the placeholder decides
     // between "source not adapted" and "no lyrics for this track" itself.
     final lyric = track == null
@@ -59,7 +61,15 @@ class LyricsView extends ConsumerWidget {
     final offset = track == null
         ? Duration.zero
         : (ref.watch(lyricOffsetProvider(track.uri)).value ?? Duration.zero);
-    final adjusted = position - offset;
+    final currentIndex = lyric == null
+        ? 0
+        : ref.watch(
+            playbackStateProvider.select((state) {
+              final position =
+                  (state.value?.position ?? Duration.zero) - offset;
+              return lyric.indexAt(position) ?? 0;
+            }),
+          );
 
     if (track == null || lyric == null || lyric.lines.isEmpty) {
       return _LyricsPlaceholder(l10n: l10n, track: track, onTap: onTap);
@@ -68,8 +78,8 @@ class LyricsView extends ConsumerWidget {
     return _LyricsScroll(
       key: ValueKey<String>(track.uri),
       lyric: lyric,
-      position: adjusted,
-      currentIndex: lyric.indexAt(adjusted) ?? 0,
+      offset: offset,
+      currentIndex: currentIndex,
       onTap: onTap,
     );
   }
@@ -90,7 +100,7 @@ class _LyricsScroll extends StatefulWidget {
   const _LyricsScroll({
     super.key,
     required this.lyric,
-    required this.position,
+    required this.offset,
     required this.currentIndex,
     this.onTap,
     this.compact = false,
@@ -99,8 +109,8 @@ class _LyricsScroll extends StatefulWidget {
 
   final Lyric lyric;
 
-  /// Offset-adjusted playback position.
-  final Duration position;
+  /// The user's per-track lyric offset, applied by the current line.
+  final Duration offset;
 
   /// Index of the line covering the playback position.
   final int currentIndex;
@@ -163,14 +173,20 @@ class _LyricsScrollState extends State<_LyricsScroll> {
           child: Column(
             children: <Widget>[
               for (var index = 0; index < widget.lyric.lines.length; index++)
-                _LyricLineTile(
-                  key: index == widget.currentIndex ? _currentLineKey : null,
-                  line: widget.lyric.lines[index],
-                  position: widget.position,
-                  isCurrent: index == widget.currentIndex,
-                  compact: widget.compact,
-                  theme: theme,
-                ),
+                if (index == widget.currentIndex)
+                  _CurrentLyricLine(
+                    key: _currentLineKey,
+                    line: widget.lyric.lines[index],
+                    offset: widget.offset,
+                    compact: widget.compact,
+                    theme: theme,
+                  )
+                else
+                  _LyricLineTile(
+                    line: widget.lyric.lines[index],
+                    compact: widget.compact,
+                    theme: theme,
+                  ),
             ],
           ),
         ),
@@ -179,14 +195,48 @@ class _LyricsScrollState extends State<_LyricsScroll> {
   }
 }
 
+/// The active line, the only row that needs the playback position.
+///
+/// Watching position here means a 200 ms tick repaints one line instead of
+/// rebuilding every line in the list.
+class _CurrentLyricLine extends ConsumerWidget {
+  const _CurrentLyricLine({
+    super.key,
+    required this.line,
+    required this.offset,
+    required this.compact,
+    required this.theme,
+  });
+
+  final LyricLine line;
+  final Duration offset;
+  final bool compact;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final position = ref.watch(
+      playbackStateProvider.select(
+        (state) => (state.value?.position ?? Duration.zero) - offset,
+      ),
+    );
+    return _LyricLineTile(
+      line: line,
+      position: position,
+      isCurrent: true,
+      compact: compact,
+      theme: theme,
+    );
+  }
+}
+
 /// One lyric row: the line, plus its translation when present.
 class _LyricLineTile extends StatelessWidget {
   const _LyricLineTile({
-    super.key,
     required this.line,
-    required this.position,
-    required this.isCurrent,
     required this.theme,
+    this.position = Duration.zero,
+    this.isCurrent = false,
     this.compact = false,
   });
 
@@ -247,11 +297,13 @@ class _LyricLineTile extends StatelessWidget {
               fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
             );
 
-    if (line.words.isEmpty) {
+    // Only the active line can have a highlighted word; neighbours render as
+    // plain text instead of a per-word span tree.
+    if (line.words.isEmpty || !isCurrent) {
       return Text(line.text, textAlign: TextAlign.center, style: style);
     }
 
-    final active = isCurrent ? line.wordIndexAt(position) : null;
+    final active = line.wordIndexAt(position);
     return Text.rich(
       TextSpan(
         children: [
@@ -396,16 +448,24 @@ class LyricsPreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final playback = ref.watch(playbackStateProvider).value;
-    final track = playback?.currentTrack;
-    final position = playback?.position ?? Duration.zero;
+    final track = ref.watch(
+      playbackStateProvider.select((state) => state.value?.currentTrack),
+    );
     final lyric = track == null
         ? null
         : ref.watch(trackLyricsProvider(track)).value;
     final offset = track == null
         ? Duration.zero
         : (ref.watch(lyricOffsetProvider(track.uri)).value ?? Duration.zero);
-    final adjusted = position - offset;
+    final currentIndex = lyric == null
+        ? 0
+        : ref.watch(
+            playbackStateProvider.select((state) {
+              final position =
+                  (state.value?.position ?? Duration.zero) - offset;
+              return lyric.indexAt(position) ?? 0;
+            }),
+          );
 
     if (track == null || lyric == null || lyric.lines.isEmpty) {
       return _LyricsPreviewPlaceholder(l10n: l10n, onTap: onTap);
@@ -433,8 +493,8 @@ class LyricsPreview extends ConsumerWidget {
           child: _LyricsScroll(
             key: ValueKey<String>(track.uri),
             lyric: lyric,
-            position: adjusted,
-            currentIndex: lyric.indexAt(adjusted) ?? 0,
+            offset: offset,
+            currentIndex: currentIndex,
             compact: true,
             verticalPadding: padding,
             onTap: onTap,

@@ -18,7 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flind_player/app/theme/app_icons.dart';
 import 'package:flind_player/app/theme/app_tokens.dart';
-import 'package:flind_player/core/models/playback_state.dart';
+import 'package:flind_player/core/models/track.dart';
 import 'package:flind_player/data/providers/playback_providers.dart';
 import 'package:flind_player/features/player/favorite_button.dart';
 import 'package:flind_player/features/player/mini_player_bar.dart';
@@ -40,9 +40,19 @@ class DesktopPlayerBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(playbackStateProvider).value;
-    final track = state?.currentTrack;
-    if (state == null || track == null) {
+    // Position ticks drive only the thin progress line and the time readout.
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          track: state.value?.currentTrack,
+          isPlaying: state.value?.isPlaying ?? false,
+          hasPrevious: state.value?.hasPrevious ?? false,
+          hasNext: state.value?.hasNext ?? false,
+        ),
+      ),
+    );
+    final track = playback.track;
+    if (track == null) {
       return const SizedBox.shrink();
     }
 
@@ -50,10 +60,6 @@ class DesktopPlayerBar extends ConsumerWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final controller = ref.read(playbackControllerProvider);
-    final durationMs = state.duration?.inMilliseconds ?? 0;
-    final progress = durationMs > 0
-        ? (state.position.inMilliseconds / durationMs).clamp(0.0, 1.0)
-        : 0.0;
     // Narrow desktop windows cannot afford the time readout; the transport
     // and the queue/expand actions keep their tap targets.
     final showTime = MediaQuery.sizeOf(context).width >= 900;
@@ -67,7 +73,7 @@ class DesktopPlayerBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            LinearProgressIndicator(value: progress, minHeight: 2),
+            const _DesktopProgress(),
             SizedBox(
               height: 72,
               child: Padding(
@@ -95,7 +101,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                                   uri: track.uri,
                                   coverPath: track.coverPath,
                                   coverUrl: track.coverUrl,
-                                  child: _BarCover(state: state),
+                                  child: _BarCover(track: track),
                                 ),
                                 const SizedBox(width: AppSpacing.md),
                                 Flexible(
@@ -136,7 +142,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                       children: [
                         const PlayModeButton(),
                         IconButton(
-                          onPressed: state.hasPrevious
+                          onPressed: playback.hasPrevious
                               ? controller.previous
                               : null,
                           icon: const Icon(AppIcons.skipPrevious),
@@ -151,7 +157,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                         IconButton.filled(
                           onPressed: controller.togglePlayPause,
                           icon: Icon(
-                            state.isPlaying
+                            playback.isPlaying
                                 ? AppIcons.pause
                                 : AppIcons.playArrow,
                           ),
@@ -169,7 +175,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         IconButton(
-                          onPressed: state.hasNext ? controller.next : null,
+                          onPressed: playback.hasNext ? controller.next : null,
                           icon: const Icon(AppIcons.skipNext),
                           iconSize: 24,
                           constraints: const BoxConstraints.tightFor(
@@ -188,13 +194,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (showTime) ...[
-                              Text(
-                                '${formatTrackDuration(state.position)} / '
-                                '${formatTrackDuration(state.duration)}',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              ),
+                              const _DesktopTime(),
                               const SizedBox(width: AppSpacing.md),
                             ],
                             FavoriteButton(
@@ -231,14 +231,60 @@ class DesktopPlayerBar extends ConsumerWidget {
   }
 }
 
-class _BarCover extends StatelessWidget {
-  const _BarCover({required this.state});
+/// The 2 px progress line, isolated from the rest of the desktop bar.
+class _DesktopProgress extends ConsumerWidget {
+  const _DesktopProgress();
 
-  final PlaybackState state;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          position: state.value?.position ?? Duration.zero,
+          duration: state.value?.duration,
+        ),
+      ),
+    );
+    final durationMs = playback.duration?.inMilliseconds ?? 0;
+    final progress = durationMs > 0
+        ? (playback.position.inMilliseconds / durationMs).clamp(0.0, 1.0)
+        : 0.0;
+    return LinearProgressIndicator(value: progress, minHeight: 2);
+  }
+}
+
+/// The position / duration readout, isolated from the rest of the bar.
+class _DesktopTime extends ConsumerWidget {
+  const _DesktopTime();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playback = ref.watch(
+      playbackStateProvider.select(
+        (state) => (
+          position: state.value?.position ?? Duration.zero,
+          duration: state.value?.duration,
+        ),
+      ),
+    );
+    final theme = Theme.of(context);
+    return Text(
+      '${formatTrackDuration(playback.position)} / '
+      '${formatTrackDuration(playback.duration)}',
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+class _BarCover extends StatelessWidget {
+  const _BarCover({required this.track});
+
+  final Track track;
 
   @override
   Widget build(BuildContext context) {
-    final track = state.currentTrack!;
     final scheme = Theme.of(context).colorScheme;
     final coverPath = track.coverPath;
     final coverUrl = track.coverUrl;
